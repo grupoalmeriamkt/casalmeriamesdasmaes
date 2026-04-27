@@ -2,6 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 
 import appCss from "../styles.css?url";
 import { GTMLoader } from "@/components/GTMLoader";
+import { MetaPixelLoader } from "@/components/MetaPixelLoader";
 
 function NotFoundComponent() {
   return (
@@ -84,6 +85,7 @@ function RootComponent() {
   return (
     <>
       <GTMLoader />
+      <MetaPixelLoader />
       <Outlet />
     </>
   );
