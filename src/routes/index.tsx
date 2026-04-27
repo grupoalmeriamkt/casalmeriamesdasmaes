@@ -1,24 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { Hero } from "@/components/Hero";
-import { Experiencia } from "@/components/Experiencia";
-import { ComoFunciona } from "@/components/ComoFunciona";
-import { Depoimentos } from "@/components/Depoimentos";
-import { Produtos } from "@/components/Produtos";
+import { useState } from "react";
 import { Quiz } from "@/components/Quiz";
 import { Sucesso } from "@/components/Sucesso";
-import { Informacoes } from "@/components/Informacoes";
 import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { usePedido } from "@/store/pedido";
 import { useAdmin, isEncerrado } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 
-type Etapa = "produtos" | "quiz" | "sucesso";
-
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Monte seu pedido — Casa Almeria" },
+      {
+        name: "description",
+        content:
+          "Escolha sua cesta, defina entrega e horário, e envie seu pedido Casa Almeria pelo WhatsApp.",
+      },
+    ],
+  }),
   component: Index,
 });
 
@@ -33,22 +33,9 @@ function Manutencao({ msg }: { msg: string }) {
 
 function Index() {
   const geral = useAdmin((s) => s.geral);
-  const [etapa, setEtapa] = useState<Etapa>("produtos");
-  const fluxoRef = useRef<HTMLDivElement>(null);
   const reset = usePedido((s) => s.reset);
   const cestaSelecionada = usePedido((s) => s.cesta);
-
-  const irPara = (e: Etapa) => {
-    setEtapa(e);
-    setTimeout(
-      () => fluxoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      50,
-    );
-  };
-
-  useEffect(() => {
-    if (etapa === "sucesso") window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [etapa]);
+  const [concluido, setConcluido] = useState(false);
 
   if (!geral.ativa) {
     return (
@@ -59,35 +46,32 @@ function Index() {
     );
   }
 
-  const encerrado = isEncerrado(geral.encerramento);
-
-  if (etapa === "sucesso") {
+  if (isEncerrado(geral.encerramento)) {
     return (
-      <div className="min-h-screen bg-background">
+      <>
         <ThemeApplier />
-        <Header />
-        <Sucesso
-          onVoltar={() => {
-            reset();
-            setEtapa("produtos");
-          }}
-        />
-        <Footer />
-        <Toaster position="bottom-right" />
-      </div>
+        <div className="flex min-h-screen flex-col items-center justify-center bg-linen p-6 text-center">
+          <Logo />
+          <h1 className="mt-8 font-serif text-3xl text-charcoal">
+            Encomendas encerradas
+          </h1>
+          <p className="mt-4 max-w-md text-ink/70">
+            Agradecemos o carinho. Volte em breve para a próxima data.
+          </p>
+        </div>
+      </>
     );
   }
 
-  // Quiz em "página própria" — sem Header/Hero/Footer
-  if (!encerrado && etapa === "quiz") {
+  if (concluido) {
     return (
       <div className="min-h-screen bg-background">
         <ThemeApplier />
-        <Quiz
-          // se já há uma cesta escolhida na vitrine, começa direto no passo 2
-          initialStep={cestaSelecionada ? 2 : 1}
-          onConcluir={() => setEtapa("sucesso")}
-          onVoltar={() => irPara("produtos")}
+        <Sucesso
+          onVoltar={() => {
+            reset();
+            setConcluido(false);
+          }}
         />
         <Toaster position="bottom-right" />
       </div>
@@ -97,24 +81,13 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <ThemeApplier />
-      <Header />
-      <Hero />
-
-      {!encerrado && <Experiencia />}
-
-      <div ref={fluxoRef}>
-        {!encerrado && <Produtos onContinuar={() => irPara("quiz")} />}
-      </div>
-
-      {!encerrado && (
-        <>
-          <ComoFunciona />
-          <Depoimentos />
-        </>
-      )}
-
-      {geral.mostrarInformacoes && <Informacoes />}
-      <Footer />
+      <Quiz
+        initialStep={cestaSelecionada ? 2 : 1}
+        onConcluir={() => setConcluido(true)}
+        onVoltar={() => {
+          reset();
+        }}
+      />
       <Toaster position="bottom-right" />
     </div>
   );
