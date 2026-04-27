@@ -3,6 +3,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import appCss from "../styles.css?url";
 import { GTMLoader } from "@/components/GTMLoader";
 import { MetaPixelLoader } from "@/components/MetaPixelLoader";
+import { CloudConfigLoader } from "@/components/CloudConfigLoader";
 
 function NotFoundComponent() {
   return (
@@ -83,10 +84,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <>
+    <CloudConfigLoader>
       <GTMLoader />
       <MetaPixelLoader />
       <Outlet />
-    </>
+    </CloudConfigLoader>
   );
 }
