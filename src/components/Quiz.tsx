@@ -103,14 +103,12 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [foraDeRaio, setForaDeRaio] = useState(false);
   const [detalhe, setDetalhe] = useState<Cesta | null>(null);
-  const [tabPagto, setTabPagto] = useState<"pix" | "cartao">("pix");
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (step === 1) trackBeginCheckout({ value: total, currency: "BRL" });
     if (step === 2) trackLeadStart();
-    if (step === 5)
-      trackAddPaymentInfo({ value: total, currency: "BRL", payment_type: tabPagto });
   }, [step]);
 
   const buscarCep = async () => {
