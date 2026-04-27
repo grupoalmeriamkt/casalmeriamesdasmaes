@@ -790,20 +790,31 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-olive/10 p-4 text-sm text-charcoal ring-1 ring-olive/30">
-              <p className="font-medium">📲 Envio do pedido pelo WhatsApp</p>
-              <p className="mt-1 text-xs text-ink/70">
-                Ao confirmar, abriremos o WhatsApp com a mensagem do seu pedido pronta
-                para enviar à nossa equipe. O pagamento será combinado diretamente na
-                conversa.
-              </p>
-            </div>
+            {pagamento.checkoutAtivo ? (
+              <div className="rounded-2xl bg-charcoal/5 p-4 text-sm text-charcoal ring-1 ring-charcoal/15">
+                <p className="font-medium">💳 Pagamento online via Mercado Pago</p>
+                <p className="mt-1 text-xs text-ink/70">
+                  Ao confirmar, você será redirecionado ao Checkout seguro do
+                  Mercado Pago para pagar com PIX, cartão ou boleto.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-olive/10 p-4 text-sm text-charcoal ring-1 ring-olive/30">
+                <p className="font-medium">📲 Envio do pedido pelo WhatsApp</p>
+                <p className="mt-1 text-xs text-ink/70">
+                  Ao confirmar, abriremos o WhatsApp com a mensagem do seu pedido pronta
+                  para enviar à nossa equipe. O pagamento será combinado diretamente na
+                  conversa.
+                </p>
+              </div>
+            )}
 
             <button
               disabled={enviando}
               onClick={async () => {
                 setEnviando(true);
                 const st = usePedido.getState();
+                const usandoMp = pagamento.checkoutAtivo;
                 const payload = {
                   cliente: st.cliente,
                   cesta: st.cesta
@@ -825,7 +836,10 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                       : (st.unidade?.nome ?? ""),
                   data: st.data,
                   horario: st.horario,
-                  pagamento: { metodo: "whatsapp", status: "pendente" },
+                  pagamento: {
+                    metodo: usandoMp ? "mercadopago" : "whatsapp",
+                    status: "pendente",
+                  },
                   total,
                 };
                 const { id } = await finalizarPedido(payload, st.pedidoId);
@@ -835,7 +849,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                   transaction_id: id || `local-${Date.now()}`,
                   value: total,
                   currency: "BRL",
-                  payment_type: "whatsapp",
+                  payment_type: usandoMp ? "mercadopago" : "whatsapp",
                   items: [
                     ...(cesta
                       ? [{
@@ -851,6 +865,60 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                     })),
                   ],
                 });
+
+                if (usandoMp) {
+                  if (!pagamento.mpAccessToken) {
+                    toast.error(
+                      "Mercado Pago não configurado. Avise o administrador.",
+                    );
+                    setEnviando(false);
+                    return;
+                  }
+                  const items = [
+                    ...(cesta
+                      ? [{
+                          title: cesta.cesta.nome,
+                          quantity: cesta.quantidade,
+                          unit_price: cesta.cesta.preco,
+                        }]
+                      : []),
+                    ...Object.values(sobremesas).map((s) => ({
+                      title: s.sobremesa.nome,
+                      quantity: s.quantidade,
+                      unit_price: s.sobremesa.preco,
+                    })),
+                  ];
+                  try {
+                    const res = await fetch("/api/public/mp-preference", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        accessToken: pagamento.mpAccessToken,
+                        items,
+                        payer: {
+                          name: cliente.nome,
+                          phone: cliente.whatsapp,
+                        },
+                        externalReference: id || st.pedidoId,
+                        installments: pagamento.parcelasMax,
+                      }),
+                    });
+                    const body = await res.json();
+                    if (!res.ok || !body.init_point) {
+                      console.error("[mp] erro", body);
+                      toast.error("Não foi possível iniciar o pagamento.");
+                      setEnviando(false);
+                      return;
+                    }
+                    window.location.href = body.init_point;
+                    return;
+                  } catch (err) {
+                    console.error("[mp] fetch falhou", err);
+                    toast.error("Falha ao conectar ao Mercado Pago.");
+                    setEnviando(false);
+                    return;
+                  }
+                }
 
                 const mensagem = montarMensagemWhats({
                   cliente,
@@ -869,10 +937,22 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                 setEnviando(false);
                 onConcluir();
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
+                pagamento.checkoutAtivo
+                  ? "bg-charcoal"
+                  : "bg-[#25D366]"
+              }`}
             >
-              <MessageCircle className="h-5 w-5" />
-              {enviando ? "Enviando..." : "Enviar pedido pelo WhatsApp"}
+              {pagamento.checkoutAtivo ? (
+                <CreditCard className="h-5 w-5" />
+              ) : (
+                <MessageCircle className="h-5 w-5" />
+              )}
+              {enviando
+                ? "Processando..."
+                : pagamento.checkoutAtivo
+                  ? "Pagar com Mercado Pago"
+                  : "Enviar pedido pelo WhatsApp"}
             </button>
 
             <button
