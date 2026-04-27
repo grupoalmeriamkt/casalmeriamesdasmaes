@@ -101,6 +101,53 @@ export function AbaIntegracoes() {
         />
       </AdminField>
 
+      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold">Meta Ads (Facebook Pixel + Conversions API)</h3>
+          <p className="text-xs text-muted-foreground">
+            O Pixel rastreia <strong>PageView</strong> e <strong>Lead</strong> no navegador, e a
+            Conversions API envia o mesmo evento pelo servidor (com deduplicação) — mais preciso e
+            resistente a bloqueadores.
+          </p>
+        </div>
+
+        <AdminField
+          label="Meta Pixel ID"
+          hint="Apenas dígitos. Encontre em Meta Business Suite → Eventos."
+        >
+          <Input
+            value={i.metaPixelId}
+            onChange={(e) =>
+              set({ metaPixelId: e.target.value.replace(/\D/g, "").slice(0, 20) })
+            }
+            placeholder="123456789012345"
+          />
+        </AdminField>
+
+        <AdminField
+          label="Conversions API – Access Token"
+          hint="Gere em Eventos → Configurações → Conversions API → Gerar token. Necessário para envio server-side."
+        >
+          <Input
+            type="password"
+            value={i.metaAccessToken}
+            onChange={(e) => set({ metaAccessToken: e.target.value.trim() })}
+            placeholder="EAAG..."
+          />
+        </AdminField>
+
+        <AdminField
+          label="Test Event Code (opcional)"
+          hint="Use durante testes em Eventos de Teste do Gerenciador de Eventos. Deixe em branco em produção."
+        >
+          <Input
+            value={i.metaTestEventCode}
+            onChange={(e) => set({ metaTestEventCode: e.target.value.trim() })}
+            placeholder="TEST12345"
+          />
+        </AdminField>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <AdminField label="URL do Instagram">
           <Input
