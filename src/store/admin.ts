@@ -51,6 +51,9 @@ export type Integracoes = {
   instagramUrl: string;
   whatsappUrl: string;
   gtmId: string;
+  metaPixelId: string;
+  metaAccessToken: string;
+  metaTestEventCode: string;
 };
 
 export type ConfigGeral = {
@@ -149,6 +152,9 @@ const initial = {
     instagramUrl: "https://instagram.com",
     whatsappUrl: "https://wa.me/5561999999999",
     gtmId: "",
+    metaPixelId: "",
+    metaAccessToken: "",
+    metaTestEventCode: "",
   },
   geral: {
     ativa: true,

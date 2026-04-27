@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
+import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import {
   trackBeginCheckout,
   trackLeadStart,
@@ -232,6 +233,28 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
       // grava rascunho com nome+whatsapp para a cozinha ver mesmo se não concluir
       salvarRascunho({ cliente: { nome, whatsapp: whats } });
       trackLeadComplete();
+      // Meta Ads: Lead (Pixel + CAPI deduplicado)
+      {
+        const integ = useAdmin.getState().integracoes;
+        if (integ.metaPixelId) {
+          const eventId = newEventId("lead");
+          const [firstName, ...rest] = nome.trim().split(/\s+/);
+          fbqTrack("Lead", { content_name: "Quiz - Dados" }, eventId);
+          void sendCapiEvent({
+            pixelId: integ.metaPixelId,
+            accessToken: integ.metaAccessToken,
+            testEventCode: integ.metaTestEventCode,
+            eventName: "Lead",
+            eventId,
+            userData: {
+              phone: `55${whats.replace(/\D/g, "")}`,
+              firstName,
+              lastName: rest.join(" ") || undefined,
+            },
+            customData: { content_name: "Quiz - Dados" },
+          });
+        }
+      }
       return setStep(3);
     }
     if (step === 3) {
