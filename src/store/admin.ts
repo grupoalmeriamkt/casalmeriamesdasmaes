@@ -139,6 +139,7 @@ const initial = {
     },
   },
   pagamento: {
+    checkoutAtivo: false,
     mpPublicKey: "",
     mpAccessToken: "",
     pix: true,
