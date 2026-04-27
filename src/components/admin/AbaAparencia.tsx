@@ -58,16 +58,27 @@ export function AbaAparencia() {
           value={tema.background}
           onChange={(v) => setTema({ background: v })}
         />
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 grid gap-5 md:grid-cols-2">
           <ImageUpload
-            label="Logo (opcional)"
+            label="Logo principal (fundo claro)"
             value={tema.logoUrl ?? ""}
             onChange={(url) => setTema({ logoUrl: url })}
             folder="aparencia"
-            previewClassName="h-24 w-auto"
+            previewClassName="h-24 w-auto bg-linen p-2"
             aspect={3}
-            aspectHint="Proporção horizontal recomendada · recorte ajustável · WebP automático"
+            aspectHint="Usada sobre fundos claros · recorte ajustável · WebP automático"
           />
+          <div className="rounded-lg bg-charcoal p-1">
+            <ImageUpload
+              label="Logo em contraste (fundo escuro) — opcional"
+              value={tema.logoUrlAlt ?? ""}
+              onChange={(url) => setTema({ logoUrlAlt: url })}
+              folder="aparencia"
+              previewClassName="h-24 w-auto p-2"
+              aspect={3}
+              aspectHint="Usada em rodapé / áreas escuras. Se vazio, usa a logo principal."
+            />
+          </div>
         </div>
       </div>
 

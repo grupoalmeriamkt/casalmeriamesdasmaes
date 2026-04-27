@@ -10,6 +10,7 @@ export type Tema = {
   background: string; // hex
   modo: "claro" | "escuro";
   logoUrl?: string;
+  logoUrlAlt?: string; // versão para fundos escuros / contraste
 };
 
 export type Textos = {

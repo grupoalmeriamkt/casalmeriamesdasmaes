@@ -4,13 +4,17 @@ type Props = { variant?: "dark" | "light"; className?: string };
 
 export function Logo({ variant = "dark", className = "" }: Props) {
   const logoUrl = useAdmin((s) => s.tema.logoUrl);
+  const logoUrlAlt = useAdmin((s) => s.tema.logoUrlAlt);
   const main = variant === "light" ? "#FFFFFF" : "var(--charcoal)";
   const accent = "var(--terracotta)";
 
-  if (logoUrl) {
+  // Em variant="light" (fundo escuro), preferimos a logo alternativa se existir.
+  const activeLogo = variant === "light" ? logoUrlAlt || logoUrl : logoUrl;
+
+  if (activeLogo) {
     return (
       <img
-        src={logoUrl}
+        src={activeLogo}
         alt="Casa Almeria"
         className={`h-10 w-auto object-contain sm:h-12 ${className}`}
       />

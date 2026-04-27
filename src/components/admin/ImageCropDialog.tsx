@@ -33,22 +33,14 @@ async function getCroppedBlob(
   });
 
   const canvas = document.createElement("canvas");
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
+  canvas.width = Math.max(1, Math.round(pixelCrop.width));
+  canvas.height = Math.max(1, Math.round(pixelCrop.height));
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível");
 
-  ctx.drawImage(
-    img,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height,
-  );
+  // Fundo transparente preservado (PNG). A imagem é desenhada por offset,
+  // permitindo "letterboxing" quando o recorte é maior que a imagem (zoom < 1).
+  ctx.drawImage(img, -pixelCrop.x, -pixelCrop.y, img.width, img.height);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -68,6 +60,8 @@ export function ImageCropDialog({
   const [src, setSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 4;
   const [pixelArea, setPixelArea] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -79,7 +73,7 @@ export function ImageCropDialog({
     const url = URL.createObjectURL(file);
     setSrc(url);
     setCrop({ x: 0, y: 0 });
-    setZoom(1);
+    setZoom(0.8);
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
@@ -116,6 +110,9 @@ export function ImageCropDialog({
               crop={crop}
               zoom={zoom}
               aspect={aspect}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
+              restrictPosition={false}
               onCropChange={setCrop}
               onZoomChange={setZoom}
               onCropComplete={onComplete}
@@ -127,8 +124,8 @@ export function ImageCropDialog({
         <div className="flex items-center gap-3 px-1">
           <span className="text-xs text-muted-foreground">Zoom</span>
           <Slider
-            min={1}
-            max={4}
+            min={MIN_ZOOM}
+            max={MAX_ZOOM}
             step={0.05}
             value={[zoom]}
             onValueChange={([v]) => setZoom(v)}
