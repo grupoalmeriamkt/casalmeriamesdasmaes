@@ -14,7 +14,7 @@ export function Sucesso({ onVoltar }: { onVoltar: () => void }) {
   const wppNumero = useAdmin((s) => s.textos.whatsapp);
 
   const msgWa = encodeURIComponent(
-    `Olá! Acabei de fazer um pedido no Casa Almeria 🌸 ${cesta?.cesta.nome ?? ""}`,
+    `Olá! Acabei de enviar meu pedido no Casa Almeria 🌸 ${cesta?.cesta.nome ?? ""}`,
   );
 
   return (
@@ -30,11 +30,12 @@ export function Sucesso({ onVoltar }: { onVoltar: () => void }) {
         <div className="text-6xl animate-heart">🌸</div>
 
         <h1 className="mt-5 font-serif text-3xl font-bold text-white sm:text-4xl">
-          Pedido <em className="italic text-terracotta">confirmado!</em>
+          Pedido <em className="italic text-terracotta">enviado!</em>
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-white/70">
           Obrigado, <strong className="text-white">{cliente.nome.split(" ")[0]}</strong>!
-          Em breve entraremos em contato pelo WhatsApp para confirmar todos os detalhes.
+          Seu pedido foi enviado pelo WhatsApp. Vamos confirmar todos os detalhes
+          e o pagamento por lá.
         </p>
 
         <div className="mt-6 w-full rounded-2xl bg-white/10 p-4 text-left text-sm text-white/80 backdrop-blur-sm">
