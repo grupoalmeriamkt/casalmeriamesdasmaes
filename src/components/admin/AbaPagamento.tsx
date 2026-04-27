@@ -24,8 +24,17 @@ export function AbaPagamento() {
     <AdminSection
       title="Pagamento — Mercado Pago"
       icon={<CreditCard className="h-5 w-5" />}
-      description="Credenciais e métodos aceitos. As credenciais são guardadas apenas no seu navegador nesta fase."
+      description="Quando o Checkout do Mercado Pago está ativo, o botão de finalizar pelo WhatsApp é substituído pelo redirecionamento ao Checkout Pro."
     >
+      <div className="rounded-lg border border-charcoal/15 bg-linen/40 p-4">
+        <AdminToggle
+          label="Habilitar Checkout do Mercado Pago"
+          description="Ao ativar, o botão 'Enviar pedido pelo WhatsApp' some e o cliente é redirecionado ao Checkout Pro no passo final do Quiz."
+          checked={p.checkoutAtivo}
+          onCheckedChange={(v) => set({ checkoutAtivo: v })}
+        />
+      </div>
+
       <div className="grid gap-4">
         <AdminField
           label="Public Key do Mercado Pago"

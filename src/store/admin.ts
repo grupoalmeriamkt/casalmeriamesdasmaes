@@ -36,6 +36,7 @@ export type EntregaConfig = {
 };
 
 export type Pagamento = {
+  checkoutAtivo: boolean;
   mpPublicKey: string;
   mpAccessToken: string;
   pix: boolean;
@@ -138,6 +139,7 @@ const initial = {
     },
   },
   pagamento: {
+    checkoutAtivo: false,
     mpPublicKey: "",
     mpAccessToken: "",
     pix: true,
@@ -239,7 +241,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 4,
+      version: 5,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -290,6 +292,12 @@ export const useAdmin = create<AdminState>()(
               unidadeBaseId: primeiraUnidadeId ?? "",
               raioKm: 10,
             };
+          }
+        }
+        // Garante que pagamento.checkoutAtivo existe (default: false → WhatsApp)
+        if (state.pagamento && typeof state.pagamento === "object") {
+          if (typeof state.pagamento.checkoutAtivo !== "boolean") {
+            state.pagamento.checkoutAtivo = false;
           }
         }
         return state;
