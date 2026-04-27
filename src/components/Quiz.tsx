@@ -767,78 +767,90 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
               </div>
             </div>
 
-            {(pagamento.pix || pagamento.cartao) && (
-              <div className="flex gap-2">
-                {pagamento.pix && (
-                  <button
-                    onClick={() => setTabPagto("pix")}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-2.5 text-sm font-medium transition-all ${
-                      tabPagto === "pix"
-                        ? "border-charcoal bg-charcoal/[0.04] text-charcoal"
-                        : "border-sand/70 bg-white text-ink/60"
-                    }`}
-                  >
-                    <Zap className="h-4 w-4" /> PIX
-                  </button>
-                )}
-                {pagamento.cartao && (
-                  <button
-                    onClick={() => setTabPagto("cartao")}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl border-2 py-2.5 text-sm font-medium transition-all ${
-                      tabPagto === "cartao"
-                        ? "border-charcoal bg-charcoal/[0.04] text-charcoal"
-                        : "border-sand/70 bg-white text-ink/60"
-                    }`}
-                  >
-                    <CreditCard className="h-4 w-4" /> Cartão
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="rounded-2xl bg-olive/10 p-4 text-sm text-charcoal ring-1 ring-olive/30">
+              <p className="font-medium">📲 Envio do pedido pelo WhatsApp</p>
+              <p className="mt-1 text-xs text-ink/70">
+                Ao confirmar, abriremos o WhatsApp com a mensagem do seu pedido pronta
+                para enviar à nossa equipe. O pagamento será combinado diretamente na
+                conversa.
+              </p>
+            </div>
 
-            {tabPagto === "pix" && (
-              <div className="space-y-3">
-                <div className="rounded-2xl bg-white p-5 text-center ring-1 ring-sand/60">
-                  <div className="mx-auto mb-3 flex h-32 w-32 items-center justify-center rounded-lg bg-parchment text-xs text-ink/50">
-                    QR Code<br />Mercado Pago
-                  </div>
-                  <p className="text-xs text-ink/60">
-                    Pagamento instantâneo · Aprovação imediata
-                  </p>
-                  <p className="mt-1 text-[0.7rem] text-ink/45">
-                    ⏱ QR Code válido por 30 minutos após confirmação
-                  </p>
-                </div>
-                <button
-                  onClick={onConcluir}
-                  className="w-full rounded-xl bg-terracotta py-4 text-sm font-medium text-white transition-colors hover:bg-terracotta/90"
-                >
-                  Gerar QR Code e confirmar →
-                </button>
-              </div>
-            )}
+            <button
+              disabled={enviando}
+              onClick={async () => {
+                setEnviando(true);
+                const st = usePedido.getState();
+                const payload = {
+                  cliente: st.cliente,
+                  cesta: st.cesta
+                    ? {
+                        nome: st.cesta.cesta.nome,
+                        quantidade: st.cesta.quantidade,
+                        preco: st.cesta.cesta.preco,
+                      }
+                    : undefined,
+                  sobremesas: Object.values(st.sobremesas).map((s) => ({
+                    nome: s.sobremesa.nome,
+                    quantidade: s.quantidade,
+                    preco: s.sobremesa.preco,
+                  })),
+                  tipo: st.entregaTipo ?? "",
+                  enderecoOuUnidade:
+                    st.entregaTipo === "delivery" && st.endereco
+                      ? `${st.endereco.rua}, ${st.endereco.numero} — ${st.endereco.bairro}, ${st.endereco.cidade}-${st.endereco.estado}`
+                      : (st.unidade?.nome ?? ""),
+                  data: st.data,
+                  horario: st.horario,
+                  pagamento: { metodo: "whatsapp", status: "pendente" },
+                  total,
+                };
+                const { id } = await finalizarPedido(payload, st.pedidoId);
+                if (id) usePedido.getState().setPedidoId(id);
 
-            {tabPagto === "cartao" && (
-              <div className="space-y-3">
-                <div className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
-                  <p className="text-xs text-ink/60">
-                    Os campos de cartão serão renderizados pelo Mercado Pago Bricks após integração
-                  </p>
-                  <CampoInput label="Número do cartão" value="" onChange={() => {}} placeholder="0000 0000 0000 0000" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <CampoInput label="Validade" value="" onChange={() => {}} placeholder="MM/AA" />
-                    <CampoInput label="CVV" value="" onChange={() => {}} placeholder="000" />
-                  </div>
-                  <CampoInput label="Nome no cartão" value="" onChange={() => {}} placeholder="Como no cartão" />
-                </div>
-                <button
-                  onClick={onConcluir}
-                  className="w-full rounded-xl bg-charcoal py-4 text-sm font-medium text-white transition-colors hover:bg-charcoal/90"
-                >
-                  Pagar com cartão →
-                </button>
-              </div>
-            )}
+                trackPurchase({
+                  transaction_id: id || `local-${Date.now()}`,
+                  value: total,
+                  currency: "BRL",
+                  payment_type: "whatsapp",
+                  items: [
+                    ...(cesta
+                      ? [{
+                          item_name: cesta.cesta.nome,
+                          quantity: cesta.quantidade,
+                          price: cesta.cesta.preco,
+                        }]
+                      : []),
+                    ...Object.values(sobremesas).map((s) => ({
+                      item_name: s.sobremesa.nome,
+                      quantity: s.quantidade,
+                      price: s.sobremesa.preco,
+                    })),
+                  ],
+                });
+
+                const mensagem = montarMensagemWhats({
+                  cliente,
+                  cesta,
+                  sobremesas,
+                  entregaTipo,
+                  endereco,
+                  unidade,
+                  data,
+                  horario,
+                  total,
+                  pedidoId: id || st.pedidoId,
+                });
+                const link = montarLinkWhats(textos.whatsapp, mensagem);
+                window.open(link, "_blank", "noopener");
+                setEnviando(false);
+                onConcluir();
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              <MessageCircle className="h-5 w-5" />
+              {enviando ? "Enviando..." : "Enviar pedido pelo WhatsApp"}
+            </button>
 
             <button
               onClick={voltar}
