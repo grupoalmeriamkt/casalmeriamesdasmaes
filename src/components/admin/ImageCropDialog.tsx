@@ -33,22 +33,14 @@ async function getCroppedBlob(
   });
 
   const canvas = document.createElement("canvas");
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
+  canvas.width = Math.max(1, Math.round(pixelCrop.width));
+  canvas.height = Math.max(1, Math.round(pixelCrop.height));
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponível");
 
-  ctx.drawImage(
-    img,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height,
-  );
+  // Fundo transparente preservado (PNG). A imagem é desenhada por offset,
+  // permitindo "letterboxing" quando o recorte é maior que a imagem (zoom < 1).
+  ctx.drawImage(img, -pixelCrop.x, -pixelCrop.y, img.width, img.height);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
