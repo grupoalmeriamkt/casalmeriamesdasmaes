@@ -12,6 +12,7 @@ import { AbaPagamento } from "@/components/admin/AbaPagamento";
 import { AbaIntegracoes } from "@/components/admin/AbaIntegracoes";
 import { AbaPedidos } from "@/components/admin/AbaPedidos";
 import { AbaGeral } from "@/components/admin/AbaGeral";
+import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -167,6 +168,7 @@ function AdminPage() {
       {/* Conteúdo */}
       <main className="flex-1 p-5 md:p-10">
         <div className="mx-auto max-w-4xl">
+          <SaveConfigBar />
           <Atual />
         </div>
       </main>
