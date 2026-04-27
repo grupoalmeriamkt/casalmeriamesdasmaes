@@ -36,6 +36,7 @@ export type EntregaConfig = {
 };
 
 export type Pagamento = {
+  checkoutAtivo: boolean;
   mpPublicKey: string;
   mpAccessToken: string;
   pix: boolean;
