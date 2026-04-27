@@ -1,0 +1,329 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Casa Almeria — Mediterranean Editorial Design System
+ * Linen, sand, terracotta, olive — warm, sensorial, never ostentatious.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  /* Casa Almeria — Mediterranean palette */
+  --color-linen: var(--linen);
+  --color-parchment: var(--parchment);
+  --color-sand: var(--sand);
+  --color-stone: var(--stone);
+  --color-terracotta: var(--terracotta);
+  --color-olive: var(--olive);
+  --color-charcoal: var(--charcoal);
+  --color-ink: var(--ink);
+
+  --color-chart-1: var(--terracotta);
+  --color-chart-1: var(--charcoal);
+  --color-chart-2: var(--terracotta);
+  --color-chart-3: var(--olive);
+  --color-chart-4: var(--stone);
+  --color-chart-5: var(--wine);
+  --color-wine: var(--wine);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --font-sans: "DM Sans", "Inter", system-ui, sans-serif;
+  --font-script: "Dancing Script", "Cormorant Garamond", cursive;
+  --color-rosa: var(--rosa);
+  --color-creme: var(--linen);
+
+  --shadow-soft: 0 8px 30px -12px oklch(0.2 0.06 260 / 0.14);
+  --shadow-elevated: 0 22px 60px -22px oklch(0.2 0.06 260 / 0.28);
+  --shadow-warm: 0 14px 40px -12px oklch(0.55 0.12 75 / 0.28);
+
+  --gradient-hero: linear-gradient(180deg, oklch(0.2 0.06 260 / 0.25) 0%, oklch(0.15 0.05 260 / 0.65) 100%);
+  --gradient-warm: linear-gradient(135deg, oklch(0.94 0.025 80) 0%, oklch(0.88 0.05 75) 100%);
+  --gradient-gold: linear-gradient(135deg, oklch(0.85 0.13 78) 0%, oklch(0.78 0.14 72) 100%);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Casa Almeria — paleta Dia das Mães (HTML reference) */
+  --linen: oklch(0.972 0.012 85);          /* #FAF6EF creme */
+  --parchment: oklch(0.94 0.018 80);
+  --sand: oklch(0.86 0.05 80);             /* bordas suaves */
+  --terracotta: oklch(0.71 0.13 70);       /* #C9963E dourado (acento) */
+  --olive: oklch(0.40 0.05 145);           /* #3D5A40 verde "para X pessoas" */
+  --stone: oklch(0.78 0.04 260);
+  --charcoal: oklch(0.24 0.07 263);        /* #1B2A4A azul marinho */
+  --ink: oklch(0.20 0.04 270);             /* #1A1A2E texto */
+  --wine: oklch(0.66 0.13 5);              /* compat: agora usado p/ rosa */
+  --rosa: oklch(0.66 0.13 5);              /* #D4748C rosa Dia das Mães */
+
+  /* Semantic shadcn tokens mapped to the Casa Almeria identity */
+  --background: var(--linen);
+  --foreground: var(--charcoal);
+  --card: oklch(0.99 0.006 85);
+  --card-foreground: var(--charcoal);
+  --popover: oklch(0.99 0.006 85);
+  --popover-foreground: var(--charcoal);
+  --primary: var(--charcoal);                /* navy is the lead color */
+  --primary-foreground: var(--linen);
+  --secondary: var(--parchment);
+  --secondary-foreground: var(--charcoal);
+  --muted: oklch(0.93 0.018 80);
+  --muted-foreground: oklch(0.45 0.04 250);
+  --accent: var(--terracotta);               /* gold is the accent */
+  --accent-foreground: var(--charcoal);
+  --destructive: var(--wine);
+  --destructive-foreground: var(--linen);
+  --border: oklch(0.88 0.02 80);
+  --input: oklch(0.9 0.018 80);
+  --ring: var(--terracotta);
+
+  --chart-1: var(--charcoal);
+  --chart-2: var(--terracotta);
+  --chart-3: var(--olive);
+  --chart-4: var(--stone);
+  --chart-5: var(--wine);
+
+  --sidebar: var(--linen);
+  --sidebar-foreground: var(--charcoal);
+  --sidebar-primary: var(--charcoal);
+  --sidebar-primary-foreground: var(--linen);
+  --sidebar-accent: var(--parchment);
+  --sidebar-accent-foreground: var(--charcoal);
+  --sidebar-border: oklch(0.88 0.02 80);
+  --sidebar-ring: var(--terracotta);
+}
+
+.dark {
+  --background: oklch(0.18 0.05 260);
+  --foreground: var(--linen);
+  --card: oklch(0.22 0.06 260);
+  --card-foreground: var(--linen);
+  --popover: oklch(0.22 0.06 260);
+  --popover-foreground: var(--linen);
+  --primary: var(--terracotta);
+  --primary-foreground: var(--charcoal);
+  --secondary: oklch(0.27 0.05 260);
+  --secondary-foreground: var(--linen);
+  --muted: oklch(0.27 0.05 260);
+  --muted-foreground: oklch(0.74 0.025 80);
+  --accent: var(--terracotta);
+  --accent-foreground: var(--charcoal);
+  --destructive: oklch(0.52 0.16 30);
+  --destructive-foreground: var(--linen);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: var(--terracotta);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Subtle linen-paper texture */
+    background-image:
+      radial-gradient(oklch(0.5 0.05 50 / 0.025) 1px, transparent 1px),
+      radial-gradient(oklch(0.5 0.05 50 / 0.02) 1px, transparent 1px);
+    background-size: 24px 24px, 36px 36px;
+    background-position: 0 0, 12px 12px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: 0.005em;
+    color: var(--charcoal);
+  }
+
+  .font-serif { font-family: var(--font-serif); }
+  .font-display {
+    font-family: var(--font-serif);
+    font-weight: 300;
+    font-style: italic;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+
+  .bg-hero-overlay { background: var(--gradient-hero); }
+  .bg-gradient-warm { background: var(--gradient-warm); }
+
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
+  .shadow-warm { box-shadow: var(--shadow-warm); }
+  .shadow-gold { box-shadow: var(--shadow-warm); }
+
+  /* Editorial uppercase eyebrow */
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--terracotta);
+  }
+
+  /* Generous letter-spacing utility for serif headlines */
+  .tracking-editorial { letter-spacing: 0.06em; }
+  .tracking-luxury { letter-spacing: 0.1em; }
+
+  .font-script { font-family: var(--font-script); }
+
+  /* Pequena tag dourada (eyebrow) */
+  .eyebrow-gold {
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--terracotta);
+  }
+
+  /* Chip rosa Dia das Mães */
+  .badge-mae {
+    display: inline-flex;
+    align-items: center;
+    background: var(--rosa);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* Tag de prazo — alto contraste, dourado claro com texto navy */
+  .tag-prazo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #F4E4BC;
+    color: var(--charcoal);
+    border: 1px solid oklch(0.71 0.13 70 / 0.5);
+    font-size: 0.75rem;
+    line-height: 1.25;
+    padding: 7px 14px;
+    border-radius: 9999px;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+  /* Variante para fundos escuros (Hero) */
+  .tag-prazo-dark {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: oklch(0.71 0.13 70 / 0.18);
+    color: #F4E4BC;
+    border: 1px solid oklch(0.71 0.13 70 / 0.55);
+    font-size: 0.75rem;
+    line-height: 1.25;
+    padding: 7px 14px;
+    border-radius: 9999px;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+    text-wrap: balance;
+  }
+
+  /* Arch / Mediterranean rounded top frame */
+  .arch-top {
+    border-top-left-radius: 9999px;
+    border-top-right-radius: 9999px;
+  }
+  .arch-frame {
+    border-radius: 9999px 9999px 12px 12px;
+  }
+
+  /* Thin warm divider line */
+  .divider-warm {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--sand), transparent);
+  }
+
+  /* Hide scrollbars (used in mobile carousels) */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .underline-gold,
+  .underline-warm {
+    background-image: linear-gradient(transparent 70%, oklch(0.745 0.06 75 / 0.45) 70%);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  .animate-float { animation: float 3s ease-in-out infinite; }
+
+  @keyframes heart-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  .animate-heart { animation: heart-pulse 1.6s ease-in-out infinite; }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fade-up 0.8s ease-out both; }
+}
