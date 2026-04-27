@@ -241,7 +241,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 4,
+      version: 5,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
