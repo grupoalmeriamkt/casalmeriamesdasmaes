@@ -13,6 +13,7 @@ import { Route as PedidoRouteImport } from './routes/pedido'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
+import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
 
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
@@ -34,18 +35,25 @@ const PedidosTokenRoute = PedidosTokenRouteImport.update({
   path: '/pedidos/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMetaCapiRoute = ApiPublicMetaCapiRouteImport.update({
+  id: '/api/public/meta-capi',
+  path: '/api/public/meta-capi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,25 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/pedido' | '/pedidos/$token'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/pedido'
+    | '/pedidos/$token'
+    | '/api/public/meta-capi'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/pedido' | '/pedidos/$token'
-  id: '__root__' | '/' | '/admin' | '/pedido' | '/pedidos/$token'
+  to: '/' | '/admin' | '/pedido' | '/pedidos/$token' | '/api/public/meta-capi'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/pedido'
+    | '/pedidos/$token'
+    | '/api/public/meta-capi'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +87,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   PedidoRoute: typeof PedidoRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
+  ApiPublicMetaCapiRoute: typeof ApiPublicMetaCapiRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PedidosTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/meta-capi': {
+      id: '/api/public/meta-capi'
+      path: '/api/public/meta-capi'
+      fullPath: '/api/public/meta-capi'
+      preLoaderRoute: typeof ApiPublicMetaCapiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +135,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   PedidoRoute: PedidoRoute,
   PedidosTokenRoute: PedidosTokenRoute,
+  ApiPublicMetaCapiRoute: ApiPublicMetaCapiRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
