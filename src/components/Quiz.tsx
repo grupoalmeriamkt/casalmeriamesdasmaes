@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
-import { upsertRascunho } from "@/lib/pedidos";
+import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
+import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import {
   trackBeginCheckout,
   trackLeadStart,
   trackLeadComplete,
-  trackAddPaymentInfo,
+  trackPurchase,
 } from "@/lib/gtm";
 import {
   useAdmin,
@@ -27,8 +28,7 @@ import {
   MapPin,
   Clock,
   Plus,
-  Zap,
-  CreditCard,
+  MessageCircle,
 } from "lucide-react";
 
 type Props = { onConcluir: () => void; onVoltar: () => void; initialStep?: number };
@@ -38,7 +38,7 @@ const TITULOS = [
   "SEUS DADOS",
   "ENTREGA",
   "DATA E HORÁRIO",
-  "REVISÃO E PAGAMENTO",
+  "REVISÃO E ENVIO",
 ] as const;
 
 const maskWhats = (v: string) => {
