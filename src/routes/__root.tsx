@@ -30,26 +30,26 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cestas Dia das Mães | Casa Almeria — Brasília" },
+      { title: "Dia das Mães | Casa Almeria — Brasília" },
       {
         name: "description",
         content:
           "Presenteie sua mãe com uma cesta de café da manhã artesanal do Casa Almeria. Entrega ou retirada em Brasília. Encomende agora!",
       },
       { name: "author", content: "Casa Almeria" },
-      { property: "og:title", content: "Cestas Dia das Mães | Casa Almeria — Brasília" },
+      { property: "og:title", content: "Dia das Mães | Casa Almeria — Brasília" },
       {
         property: "og:description",
         content: "Cestas artesanais de café da manhã para o Dia das Mães. Brasília-DF.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Cestas Dia das Mães | Casa Almeria — Brasília" },
+      { name: "twitter:title", content: "Dia das Mães | Casa Almeria — Brasília" },
       { name: "description", content: "Casa Almeria: Dia das Mães é um aplicativo web para criar e gerenciar pedidos de cestas." },
       { property: "og:description", content: "Casa Almeria: Dia das Mães é um aplicativo web para criar e gerenciar pedidos de cestas." },
       { name: "twitter:description", content: "Casa Almeria: Dia das Mães é um aplicativo web para criar e gerenciar pedidos de cestas." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2b433d44-fead-43f1-8ead-79f75f583583/id-preview-7c874be3--04fe0105-ba1b-4822-b617-60997fa8a4f3.lovable.app-1777258903227.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2b433d44-fead-43f1-8ead-79f75f583583/id-preview-7c874be3--04fe0105-ba1b-4822-b617-60997fa8a4f3.lovable.app-1777258903227.png" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a757c35e-60cb-4c5a-8c7a-bcae910168c6/id-preview-b1a18bad--04fc775e-2e76-4061-b66c-29560aa9eff1.lovable.app-1777266918125.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a757c35e-60cb-4c5a-8c7a-bcae910168c6/id-preview-b1a18bad--04fc775e-2e76-4061-b66c-29560aa9eff1.lovable.app-1777266918125.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
