@@ -294,6 +294,12 @@ export const useAdmin = create<AdminState>()(
             };
           }
         }
+        // Garante que pagamento.checkoutAtivo existe (default: false → WhatsApp)
+        if (state.pagamento && typeof state.pagamento === "object") {
+          if (typeof state.pagamento.checkoutAtivo !== "boolean") {
+            state.pagamento.checkoutAtivo = false;
+          }
+        }
         return state;
       },
     },
