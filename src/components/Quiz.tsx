@@ -30,6 +30,7 @@ import {
   Clock,
   Plus,
   MessageCircle,
+  CreditCard,
 } from "lucide-react";
 
 type Props = { onConcluir: () => void; onVoltar: () => void; initialStep?: number };
