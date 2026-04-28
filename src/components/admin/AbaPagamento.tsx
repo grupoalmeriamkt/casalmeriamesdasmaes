@@ -35,6 +35,12 @@ export function AbaPagamento() {
         />
       </div>
 
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        🔒 <strong>Segurança:</strong> o Access Token é armazenado em uma tabela
+        protegida (somente admin lê) e usado apenas no servidor — nunca é exposto
+        a visitantes do site. A Public Key pode ser pública.
+      </div>
+
       <div className="grid gap-4">
         <AdminField
           label="Public Key do Mercado Pago"
@@ -48,13 +54,13 @@ export function AbaPagamento() {
         </AdminField>
         <AdminField
           label="Access Token"
-          hint="Em produção, guarde via Lovable Cloud — não fica seguro só no navegador."
+          hint="Guardado de forma segura no servidor. Deixe em branco para manter o valor já salvo."
         >
           <Input
             type="password"
             value={p.mpAccessToken}
             onChange={(e) => set({ mpAccessToken: e.target.value })}
-            placeholder="APP_USR-..."
+            placeholder="Deixe em branco para manter o atual"
           />
         </AdminField>
       </div>

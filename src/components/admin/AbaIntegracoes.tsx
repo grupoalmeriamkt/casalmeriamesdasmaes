@@ -45,14 +45,20 @@ export function AbaIntegracoes() {
       icon={<Webhook className="h-5 w-5" />}
       description="Webhook para automações (Make, Zapier, n8n) e links sociais."
     >
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+        🔒 <strong>Segurança:</strong> Webhook URL e Meta Access Token são
+        armazenados em tabela protegida (somente admin) e usados apenas no
+        servidor. Pixel ID, GTM ID e links sociais são públicos por natureza.
+      </div>
+
       <AdminField
         label="URL do webhook"
-        hint="Receberá os eventos de pedido concluído e abandonado."
+        hint="Receberá os eventos de pedido concluído e abandonado. Guardado em segredo no servidor."
       >
         <Input
           value={i.webhookUrl}
           onChange={(e) => set({ webhookUrl: e.target.value })}
-          placeholder="https://hook.make.com/..."
+          placeholder="Deixe em branco para manter o atual"
         />
       </AdminField>
 
@@ -126,13 +132,13 @@ export function AbaIntegracoes() {
 
         <AdminField
           label="Conversions API – Access Token"
-          hint="Gere em Eventos → Configurações → Conversions API → Gerar token. Necessário para envio server-side."
+          hint="Gere em Eventos → Configurações → Conversions API → Gerar token. Guardado em segredo no servidor. Deixe em branco para manter o atual."
         >
           <Input
             type="password"
             value={i.metaAccessToken}
             onChange={(e) => set({ metaAccessToken: e.target.value.trim() })}
-            placeholder="EAAG..."
+            placeholder="Deixe em branco para manter o atual"
           />
         </AdminField>
 
