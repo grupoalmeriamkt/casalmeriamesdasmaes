@@ -1,35 +1,46 @@
 // SERVIDOR APENAS — NUNCA importar este arquivo do front.
-// Usa a Service Role Key do Supabase para operações que precisam
+// Usa a Service Role Key do Supabase externo para operações que precisam
 // bypassar RLS (ex.: ler segredos da tabela app_secrets).
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+let _client: SupabaseClient | null = null;
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  // Não jogamos exceção aqui pra não quebrar o boot do worker em rotas
-  // que não dependem do admin client. Quem usar valida em runtime.
-  console.warn(
-    "[supabase admin] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausentes — chamadas vão falhar.",
-  );
+function getAdminClient(): SupabaseClient | null {
+  if (_client) return _client;
+  const url =
+    process.env.EXTERNAL_SUPABASE_URL ??
+    process.env.SUPABASE_URL ??
+    process.env.VITE_SUPABASE_URL ??
+    "";
+  const key =
+    process.env.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    "";
+  if (!url || !key) {
+    console.warn(
+      "[supabase admin] EXTERNAL_SUPABASE_URL/EXTERNAL_SUPABASE_SERVICE_ROLE_KEY ausentes.",
+    );
+    return null;
+  }
+  _client = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return _client;
 }
-
-export const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
 
 /**
  * Lê os segredos do registro único `app_secrets.default`.
- * Retorna objeto vazio se não houver registro ou em caso de falha.
+ * Retorna objeto vazio se o client não estiver configurado ou em caso de falha.
  */
 export async function getAppSecrets(): Promise<{
   mpAccessToken?: string;
   metaAccessToken?: string;
   webhookUrl?: string;
 }> {
+  const client = getAdminClient();
+  if (!client) return {};
   try {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await client
       .from("app_secrets")
       .select("payload")
       .eq("id", "default")
