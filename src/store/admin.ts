@@ -249,8 +249,10 @@ export const useAdmin = create<AdminState>()(
         cestas: s.cestas,
         sobremesas: s.sobremesas,
         entrega: s.entrega,
-        pagamento: s.pagamento,
-        integracoes: s.integracoes,
+        // Pagamento: NÃO persistir mpAccessToken no localStorage (segredo).
+        pagamento: { ...s.pagamento, mpAccessToken: "" },
+        // Integrações: NÃO persistir metaAccessToken nem webhookUrl (segredos).
+        integracoes: { ...s.integracoes, metaAccessToken: "", webhookUrl: "" },
         geral: s.geral,
         pedidos: s.pedidos,
       }),
