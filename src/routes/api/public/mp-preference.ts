@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { getAppSecrets } from "@/integrations/supabase/client.server";
 
 const ItemSchema = z.object({
   title: z.string().min(1).max(256),
@@ -8,7 +9,6 @@ const ItemSchema = z.object({
 });
 
 const BodySchema = z.object({
-  accessToken: z.string().min(20).max(500),
   items: z.array(ItemSchema).min(1).max(50),
   payer: z
     .object({
@@ -47,8 +47,17 @@ export const Route = createFileRoute("/api/public/mp-preference")({
           );
         }
 
+        // Token NUNCA vem do cliente.
+        const secrets = await getAppSecrets();
+        const accessToken = secrets.mpAccessToken;
+        if (!accessToken) {
+          return Response.json(
+            { error: "mp_not_configured" },
+            { status: 503 },
+          );
+        }
+
         const {
-          accessToken,
           items,
           payer,
           externalReference,

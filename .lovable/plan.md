@@ -1,84 +1,65 @@
-## Objetivo
+# Plano: Proteger Access Tokens do Mercado Pago e Meta CAPI
 
-Criar uma página pública somente-leitura de pedidos para a equipe de produção acompanhar e imprimir, sem precisar de login no admin.
+## Problema confirmado
+A tabela `app_config` tem RLS `select` aberto a `anon` (necessário para o site público funcionar). Hoje o `payload` jsonb guarda `pagamento.mpAccessToken` e `integracoes.metaAccessToken` — qualquer visitante pode lê-los pelo DevTools. Além disso, as rotas `/api/public/meta-capi` e `/api/public/mp-preference` aceitam o `accessToken` no body vindo do navegador.
 
-## Nova rota: `/pedidos/$token`
+Bom dado: você confirmou que **nunca colou um token real**, então não há credencial vazada — só precisamos corrigir antes de você usar de verdade.
 
-Página pública (fora do `/admin`) acessada por link com token secreto. Mostra apenas pedidos — nada de configurações.
+## O que vai mudar
 
-Layout:
+### 1. Banco — nova tabela `app_secrets` (migração)
+- Tabela separada, RLS **admin-only** para SELECT/INSERT/UPDATE.
+- Guarda só os campos sensíveis: `mpAccessToken`, `metaAccessToken`, `webhookUrl` (opcional).
+- `app_config` continua igual, mas removo dela os campos sensíveis ao publicar.
 
-- Cabeçalho simples: "Pedidos — Casa Almeria" + botão Atualizar (auto-refresh a cada 30s).
-- **Duas colunas/abas**:
-  - **Aguardando pagamento** (status `pendente` + `abandonado` com nome/telefone preenchidos)
-  - **Aprovados** (status `aprovado`)
-- Cada pedido em card com: nº, data/hora, **nome**, **telefone (clicável wa.me)**, cesta, sobremesas, tipo (delivery/retirada), endereço/unidade, data+horário entrega, total, status.
-- Botões por pedido: **Ver detalhes** (modal) e **Imprimir** (gera folha A5 só desse pedido, `window.print()` com CSS `@media print`).
-- Botão "Imprimir todos aprovados do dia" no topo.
+### 2. Cliente Supabase Admin no servidor
+- Criar `src/integrations/supabase/client.server.ts` usando `SUPABASE_SERVICE_ROLE_KEY` (vou pedir pra você adicionar como secret).
+- Esse client só é usado nas rotas `/api/public/*` — nunca no front.
 
-## Mostrar pedidos incompletos
+### 3. Rotas públicas param de aceitar token do cliente
+- `src/routes/api/public/mp-preference.ts`: remove `accessToken` do schema; lê de `app_secrets` via `supabaseAdmin`.
+- `src/routes/api/public/meta-capi.ts`: idem para `accessToken` e `pixelId` (pixelId pode ficar público, mas simplifica unificar).
+- Se o token não estiver configurado, retorna 503 com mensagem clara.
 
-Hoje só inserimos no banco quando o pedido é finalizado. Para mostrar nome/telefone "mesmo sem concluir", precisamos gravar mais cedo:
+### 4. Frontend para de enviar tokens
+- `src/lib/metaPixel.ts`: `sendCapiEvent` envia só `eventName`, `eventId`, `userData`, `customData`.
+- `src/components/Quiz.tsx`: chamada ao MP envia só `items`, `payer`, `backUrls` etc.
 
-- No `Quiz`/fluxo, assim que o cliente preenche **nome + whatsapp** e avança, fazer um `upsert` em `pedidos` com `status = 'rascunho'` e `pedido_id` salvo no `usePedido` store.
-- Conforme o cliente avança (escolhe cesta, endereço, etc.), atualizar o mesmo registro.
-- Quando finaliza pagamento → status muda para `pendente`/`aprovado`.
-- Adicionar status `rascunho` na lista visível em "Aguardando pagamento" da tela da cozinha (com tag visual "Em preenchimento").
+### 5. Admin (UI)
+- `AbaPagamento.tsx` e `AbaIntegracoes.tsx`: campos de Access Token viram **write-only**.
+  - Se já configurado, mostra "•••• configurado" + botão "Substituir".
+  - Salvar grava em `app_secrets` (não em `app_config`).
+- `mpPublicKey`, `metaPixelId`, `gtmId`, `whatsappUrl`, `instagramUrl` continuam em `app_config` (são públicos por natureza).
 
-## Backend (SQL — migration)
+### 6. cloudConfig.ts
+- `loadCloudConfig`: carrega `app_config` (público) + tenta carregar `app_secrets` (só funciona se admin logado, senão ignora).
+- `saveCloudConfig`: separa o payload — sensível vai pra `app_secrets`, resto pra `app_config`.
 
-1. Adicionar coluna `share_token` na tabela `pedidos`? **Não** — melhor uma tabela única de tokens:
-  ```sql
-   create table public.share_tokens (
-     token text primary key,
-     scope text not null check (scope in ('pedidos')),
-     criado_em timestamptz default now(),
-     criado_por uuid references auth.users(id)
-   );
-   alter table public.share_tokens enable row level security;
-   create policy "Admins manage tokens" on public.share_tokens
-     for all to authenticated
-     using (public.has_role(auth.uid(),'admin'))
-     with check (public.has_role(auth.uid(),'admin'));
-  ```
-2. Função RPC pública para listar pedidos via token (security definer):
-  ```sql
-   create or replace function public.pedidos_por_token(_token text)
-   returns setof public.pedidos
-   language sql stable security definer set search_path=public as $$
-     select p.* from public.pedidos p
-     where exists (select 1 from public.share_tokens t
-                   where t.token = _token and t.scope = 'pedidos')
-     order by p.criado_em desc
-     limit 500;
-   $$;
-   grant execute on function public.pedidos_por_token(text) to anon, authenticated;
-  ```
-3. Permitir `update` público em `pedidos` para o próprio rascunho? Mais seguro: criar RPC `upsert_pedido_rascunho(payload jsonb, pedido_id uuid)` que retorna o id, com RLS atual mantendo `select` admin-only. O cliente público nunca lê a tabela direto.
-4. Adicionar valor `'rascunho'` ao check de status (se houver) ou só usar texto livre.
+## Migração de dados
+Como `mpAccessToken` e `metaAccessToken` estão vazios no banco, nada a migrar. Faço só um UPDATE limpando esses campos do payload de `app_config` por garantia.
 
-## Frontend
+## Pré-requisito (vou pedir depois de você aprovar)
+Adicionar como secret do projeto: `SUPABASE_SERVICE_ROLE_KEY` (você pega no painel do seu Supabase em Project Settings → API → service_role).
 
-**Arquivos novos**:
+## Arquivos afetados
 
-- `src/routes/cozinha.$token.tsx` — página pública, busca via `supabase.rpc('pedidos_por_token', { _token })`, polling 30s, abas Aguardando/Aprovados, modal de detalhes, impressão.
-- `src/components/cozinha/PedidoCard.tsx`, `PedidoDetalhes.tsx`, `FolhaImpressao.tsx`.
-- `src/lib/shareToken.ts` — helpers (gerar/listar/revogar).
+**Criados**
+- `supabase/migrations/<timestamp>_app_secrets.sql`
+- `src/integrations/supabase/client.server.ts`
 
-**Arquivos editados**:
+**Editados**
+- `src/lib/cloudConfig.ts`
+- `src/lib/metaPixel.ts`
+- `src/routes/api/public/mp-preference.ts`
+- `src/routes/api/public/meta-capi.ts`
+- `src/components/Quiz.tsx`
+- `src/components/admin/AbaPagamento.tsx`
+- `src/components/admin/AbaIntegracoes.tsx`
+- `src/store/admin.ts` (marcar campos sensíveis como não-persistidos no localStorage também)
 
-- `src/components/admin/AbaPedidos.tsx` — adicionar bloco "Link público para a cozinha" no topo: botão "Gerar link", exibe URL com copiar, botão "Revogar".
-- `src/lib/pedidos.ts` — nova função `upsertRascunho(pedidoParcial)` chamando RPC.
-- `src/store/pedido.ts` — guardar `pedidoId` retornado e disparar `upsertRascunho` em pontos-chave (após nome+whatsapp, após escolher cesta, após endereço, etc.).
-- `src/lib/pedidos.ts` `inserirPedido` → vira "finalizar" (atualiza rascunho existente em vez de criar novo).
+## Resultado
+- Visitantes do site não conseguem mais ler nenhum token, mesmo com DevTools.
+- Tokens só trafegam: navegador do admin → Supabase (RLS admin) e servidor (service role) → API externa.
+- Admin continua editando tokens normalmente pelo painel.
 
-## Estilo de impressão
-
-CSS global `@media print` escondendo header/menus, mostrando só `.folha-impressao` com: logo, nº pedido, cliente, contato, itens, entrega, total. Tamanho A5 retrato.
-
-## Resumo das mudanças
-
-- Migration SQL: tabela `share_tokens` + RPCs `pedidos_por_token` e `upsert_pedido_rascunho`.
-- Aba Pedidos: gerenciar link público.
-- Nova rota pública `/cozinha/$token` com filtro por status, detalhes, impressão individual e em lote, auto-refresh.
-- Fluxo de checkout grava rascunho cedo para capturar nome/telefone de pedidos não concluídos.
+Aprove e eu implemento, e em seguida te peço a `SUPABASE_SERVICE_ROLE_KEY`.

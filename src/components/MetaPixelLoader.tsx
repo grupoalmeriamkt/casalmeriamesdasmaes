@@ -9,7 +9,6 @@ import { fbqTrack, isPixelReady, newEventId, sendCapiEvent } from "@/lib/metaPix
  */
 export function MetaPixelLoader() {
   const pixelId = useAdmin((s) => s.integracoes.metaPixelId);
-  const accessToken = useAdmin((s) => s.integracoes.metaAccessToken);
   const testEventCode = useAdmin((s) => s.integracoes.metaTestEventCode);
   const router = useRouter();
   const injetado = useRef<string | null>(null);
@@ -50,12 +49,11 @@ export function MetaPixelLoader() {
     fbqTrack("PageView", {}, eventId);
     void sendCapiEvent({
       pixelId,
-      accessToken,
       testEventCode,
       eventName: "PageView",
       eventId,
     });
-  }, [pixelId, accessToken, testEventCode]);
+  }, [pixelId, testEventCode]);
 
   // PageView em cada mudança de rota
   useEffect(() => {
@@ -66,14 +64,13 @@ export function MetaPixelLoader() {
       fbqTrack("PageView", {}, eventId);
       void sendCapiEvent({
         pixelId,
-        accessToken,
         testEventCode,
         eventName: "PageView",
         eventId,
       });
     });
     return unsub;
-  }, [router, pixelId, accessToken, testEventCode]);
+  }, [router, pixelId, testEventCode]);
 
   return null;
 }

@@ -46,7 +46,6 @@ export function fbqTrack(
  */
 export async function sendCapiEvent(input: {
   pixelId: string;
-  accessToken: string;
   testEventCode?: string;
   eventName: PixelEventName;
   eventId: string;
@@ -60,7 +59,8 @@ export async function sendCapiEvent(input: {
   };
   customData?: Record<string, unknown>;
 }): Promise<void> {
-  if (!input.pixelId || !input.accessToken) return;
+  if (!input.pixelId) return;
+  // O Access Token NUNCA trafega pelo cliente — o servidor lê do banco.
   try {
     await fetch("/api/public/meta-capi", {
       method: "POST",
