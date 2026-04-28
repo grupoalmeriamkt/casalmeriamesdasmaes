@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createHash } from "crypto";
+import { getAppSecrets } from "@/integrations/supabase/client.server";
 
 const BodySchema = z.object({
   pixelId: z.string().regex(/^\d{6,20}$/),
-  accessToken: z.string().min(20).max(500),
   testEventCode: z.string().max(64).optional().or(z.literal("")),
   eventName: z.enum(["PageView", "Lead", "ViewContent", "InitiateCheckout", "Purchase"]),
   eventId: z.string().min(4).max(128),
@@ -45,9 +45,18 @@ export const Route = createFileRoute("/api/public/meta-capi")({
           );
         }
 
+        // Token NUNCA vem do cliente — buscamos no banco via service role.
+        const secrets = await getAppSecrets();
+        const accessToken = secrets.metaAccessToken;
+        if (!accessToken) {
+          return Response.json(
+            { error: "meta_not_configured" },
+            { status: 503 },
+          );
+        }
+
         const {
           pixelId,
-          accessToken,
           testEventCode,
           eventName,
           eventId,
@@ -56,7 +65,6 @@ export const Route = createFileRoute("/api/public/meta-capi")({
           customData,
         } = parsed.data;
 
-        // Hash dos PII conforme exigência da Meta
         const user_data: Record<string, unknown> = {
           client_user_agent: request.headers.get("user-agent") ?? undefined,
           client_ip_address:
