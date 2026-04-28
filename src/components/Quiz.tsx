@@ -243,7 +243,6 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
           fbqTrack("Lead", { content_name: "Quiz - Dados" }, eventId);
           void sendCapiEvent({
             pixelId: integ.metaPixelId,
-            accessToken: integ.metaAccessToken,
             testEventCode: integ.metaTestEventCode,
             eventName: "Lead",
             eventId,
@@ -868,13 +867,6 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                 });
 
                 if (usandoMp) {
-                  if (!pagamento.mpAccessToken) {
-                    toast.error(
-                      "Mercado Pago não configurado. Avise o administrador.",
-                    );
-                    setEnviando(false);
-                    return;
-                  }
                   const items = [
                     ...(cesta
                       ? [{
@@ -890,11 +882,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                     })),
                   ];
                   try {
+                    // Token NUNCA é enviado pelo cliente — servidor lê do banco.
                     const res = await fetch("/api/public/mp-preference", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        accessToken: pagamento.mpAccessToken,
                         items,
                         payer: {
                           name: cliente.nome,
@@ -905,6 +897,13 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                       }),
                     });
                     const body = await res.json();
+                    if (res.status === 503) {
+                      toast.error(
+                        "Mercado Pago não configurado. Avise o administrador.",
+                      );
+                      setEnviando(false);
+                      return;
+                    }
                     if (!res.ok || !body.init_point) {
                       console.error("[mp] erro", body);
                       toast.error("Não foi possível iniciar o pagamento.");
