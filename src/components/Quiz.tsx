@@ -584,7 +584,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                 <div className="min-w-0">
                   <p className="font-medium text-charcoal">Retirada na loja</p>
                   <p className="truncate text-xs text-ink/60">
-                    Escolha a unidade mais próxima · janela de horário a definir
+                    Escolha a unidade mais próxima
                   </p>
                 </div>
               </button>
