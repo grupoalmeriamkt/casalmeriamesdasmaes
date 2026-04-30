@@ -65,6 +65,11 @@ function CozinhaPage() {
     if (precisa) {
       const ok = senha ? await validarSenhaToken(token, senha) : false;
       if (!ok) {
+        // Senha em sessionStorage ficou inválida (foi trocada/revogada)
+        if (senha && typeof window !== "undefined") {
+          window.sessionStorage.removeItem(sessionKey);
+        }
+        setPedidos([]);
         setCarregando(false);
         return;
       }
@@ -73,13 +78,22 @@ function CozinhaPage() {
     setPedidos(rows.map(rowToPedidoSalvo));
     setErro(false);
     setCarregando(false);
-  }, [token, senha]);
+  }, [token, senha, sessionKey]);
 
   useEffect(() => {
     carregar();
     const id = setInterval(carregar, 30_000);
     return () => clearInterval(id);
   }, [carregar]);
+
+  const sair = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(sessionKey);
+    }
+    setSenha("");
+    setSenhaInput("");
+    setPedidos([]);
+  };
 
   if (requerSenha && !senha) {
     return (
