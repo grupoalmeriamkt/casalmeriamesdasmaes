@@ -705,20 +705,7 @@ function RetiradaTab({
         />
       </Bloco>
 
-      <Bloco titulo="Upsell na Retirada">
-        <ToggleLinha
-          label="Habilitar upsell"
-          checked={r.upsellAtivo}
-          onChange={(v) => onPatch({ upsellAtivo: v })}
-        />
-        {r.upsellAtivo && (
-          <ProdutosSeletor
-            cestas={cestas}
-            selecionadosIds={r.upsellProdutoIds}
-            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
-          />
-        )}
-      </Bloco>
+      {/* Upsell agora vive em "Informações Gerais" — único e aplicado a delivery + retirada. */}
     </div>
   );
 }
