@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Zap, CreditCard } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 
 type Props = { onConcluir: () => void; onVoltar: () => void };
 
@@ -21,6 +22,7 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
   const total = usePedido(selectTotal);
   const finalizar = usePedido((s) => s.finalizarPedido);
   const pedidoId = usePedido((s) => s.pedidoId);
+  const extras = usePedido((s) => s.extras);
 
   const pagamentoCfg = useAdmin((s) => s.pagamento);
   const integracoes = useAdmin((s) => s.integracoes);
@@ -56,7 +58,23 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
           : (unidade?.nome ?? ""),
       data,
       horario,
-      pagamento: { metodo: tab, status: "aprovado" },
+      pagamento: {
+        metodo: tab,
+        status: "aprovado",
+        extras: {
+          cartoes: extras.cartoes.map((c) => ({
+            nome: c.nome,
+            preco: c.preco,
+            mensagem: c.mensagem,
+          })),
+          polaroids: extras.polaroids.map((p) => ({
+            nome: p.nome,
+            preco: p.preco,
+            arquivoUrl: p.arquivoUrl,
+            arquivoNome: p.arquivoNome,
+          })),
+        },
+      },
       total,
     };
 
@@ -171,6 +189,19 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
                   </span>
                 </div>
               ))}
+
+              {(extras.cartoes.length > 0 || extras.polaroids.length > 0) && (
+                <div className="pt-2">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Personalizações
+                  </p>
+                  <PedidoExtrasView
+                    cartoes={extras.cartoes}
+                    polaroids={extras.polaroids}
+                    variant="cliente"
+                  />
+                </div>
+              )}
             </div>
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">

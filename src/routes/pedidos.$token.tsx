@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { RefreshCw, Printer, Eye, MessageCircle } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -429,6 +430,23 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           </p>
         ))}
       </div>
+      {(() => {
+        const cartoes = p.pagamento?.extras?.cartoes ?? [];
+        const polaroids = p.pagamento?.extras?.polaroids ?? [];
+        if (cartoes.length === 0 && polaroids.length === 0) return null;
+        return (
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+              Personalizações
+            </p>
+            <PedidoExtrasView
+              cartoes={cartoes}
+              polaroids={polaroids}
+              variant="cliente"
+            />
+          </div>
+        );
+      })()}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</p>
@@ -514,6 +532,38 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
         <strong>Data:</strong> {p.data || "—"} · <strong>Horário:</strong>{" "}
         {p.horario || "—"}
       </p>
+      {((p.pagamento?.extras?.cartoes?.length ?? 0) > 0 ||
+        (p.pagamento?.extras?.polaroids?.length ?? 0) > 0) && (
+        <>
+          <hr style={{ margin: "10pt 0" }} />
+          <p style={{ fontWeight: "bold", marginBottom: "4pt" }}>
+            Personalizações
+          </p>
+          {(p.pagamento?.extras?.cartoes ?? []).map((c, i) => (
+            <div key={`c${i}`} style={{ marginBottom: "6pt" }}>
+              <p>
+                • {c.nome} — {formatBRL(c.preco)}
+              </p>
+              {c.mensagem && (
+                <p
+                  style={{
+                    margin: "2pt 0 0 12pt",
+                    fontStyle: "italic",
+                  }}
+                >
+                  "{c.mensagem}"
+                </p>
+              )}
+            </div>
+          ))}
+          {(p.pagamento?.extras?.polaroids ?? []).map((pl, i) => (
+            <p key={`p${i}`}>
+              • {pl.nome} — {formatBRL(pl.preco)} — Foto enviada
+              {pl.arquivoNome ? ` (${pl.arquivoNome})` : ""}
+            </p>
+          ))}
+        </>
+      )}
       <hr style={{ margin: "10pt 0" }} />
       <p style={{ fontSize: "16pt", fontWeight: "bold", textAlign: "right" }}>
         Total: {formatBRL(p.total)}
