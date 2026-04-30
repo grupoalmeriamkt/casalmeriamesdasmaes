@@ -280,7 +280,7 @@ function CheckoutPage() {
 
       clear();
       navigate({
-        to: "/pedido/sucesso/$id",
+        to: "/sucesso/$id",
         params: { id: data.pagamentoId },
       });
     } catch (err) {

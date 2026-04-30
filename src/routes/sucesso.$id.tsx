@@ -9,7 +9,7 @@ import { useAdmin } from "@/store/admin";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Copy, Loader2, MessageCircle, Clock, ArrowLeft } from "lucide-react";
 
-export const Route = createFileRoute("/pedido/sucesso/$id")({
+export const Route = createFileRoute("/sucesso/$id")({
   head: () => ({
     meta: [
       { title: "Pedido recebido — Casa Almeria" },

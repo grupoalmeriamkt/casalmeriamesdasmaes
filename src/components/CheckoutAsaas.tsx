@@ -277,7 +277,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         return;
       }
 
-      navigate({ to: "/pedido/sucesso/$id", params: { id: data.pagamentoId } });
+      navigate({ to: "/sucesso/$id", params: { id: data.pagamentoId } });
     } catch (e) {
       console.error(e);
       toast.error("Não foi possível finalizar o pagamento. Tente novamente.");

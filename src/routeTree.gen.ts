@@ -14,8 +14,8 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SucessoIdRouteImport } from './routes/sucesso.$id'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
-import { Route as PedidoSucessoIdRouteImport } from './routes/pedido.sucesso.$id'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
 import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
@@ -49,15 +49,15 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SucessoIdRoute = SucessoIdRouteImport.update({
+  id: '/sucesso/$id',
+  path: '/sucesso/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PedidosTokenRoute = PedidosTokenRouteImport.update({
   id: '/pedidos/$token',
   path: '/pedidos/$token',
   getParentRoute: () => rootRouteImport,
-} as any)
-const PedidoSucessoIdRoute = PedidoSucessoIdRouteImport.update({
-  id: '/sucesso/$id',
-  path: '/sucesso/$id',
-  getParentRoute: () => PedidoRoute,
 } as any)
 const ApiPublicMpPreferenceRoute = ApiPublicMpPreferenceRouteImport.update({
   id: '/api/public/mp-preference',
@@ -100,11 +100,11 @@ export interface FileRoutesByFullPath {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
-  '/pedido': typeof PedidoRouteWithChildren
+  '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/sucesso/$id': typeof SucessoIdRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
-  '/pedido/sucesso/$id': typeof PedidoSucessoIdRoute
   '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
   '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
@@ -116,11 +116,11 @@ export interface FileRoutesByTo {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
-  '/pedido': typeof PedidoRouteWithChildren
+  '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/sucesso/$id': typeof SucessoIdRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
-  '/pedido/sucesso/$id': typeof PedidoSucessoIdRoute
   '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
   '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
@@ -133,11 +133,11 @@ export interface FileRoutesById {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
-  '/pedido': typeof PedidoRouteWithChildren
+  '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/sucesso/$id': typeof SucessoIdRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
-  '/pedido/sucesso/$id': typeof PedidoSucessoIdRoute
   '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
   '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
@@ -153,9 +153,9 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/pedido'
     | '/pedidos/$token'
+    | '/sucesso/$id'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
-    | '/pedido/sucesso/$id'
     | '/api/public/admin/pedidos'
     | '/api/public/asaas/charge'
     | '/api/public/asaas/webhook'
@@ -169,9 +169,9 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/pedido'
     | '/pedidos/$token'
+    | '/sucesso/$id'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
-    | '/pedido/sucesso/$id'
     | '/api/public/admin/pedidos'
     | '/api/public/asaas/charge'
     | '/api/public/asaas/webhook'
@@ -185,9 +185,9 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/pedido'
     | '/pedidos/$token'
+    | '/sucesso/$id'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
-    | '/pedido/sucesso/$id'
     | '/api/public/admin/pedidos'
     | '/api/public/asaas/charge'
     | '/api/public/asaas/webhook'
@@ -200,8 +200,9 @@ export interface RootRouteChildren {
   SlugRoute: typeof SlugRoute
   AdminRoute: typeof AdminRoute
   CheckoutRoute: typeof CheckoutRoute
-  PedidoRoute: typeof PedidoRouteWithChildren
+  PedidoRoute: typeof PedidoRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
+  SucessoIdRoute: typeof SucessoIdRoute
   ApiPublicMetaCapiRoute: typeof ApiPublicMetaCapiRoute
   ApiPublicMpPreferenceRoute: typeof ApiPublicMpPreferenceRoute
   ApiPublicAdminPedidosRoute: typeof ApiPublicAdminPedidosRoute
@@ -248,19 +249,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sucesso/$id': {
+      id: '/sucesso/$id'
+      path: '/sucesso/$id'
+      fullPath: '/sucesso/$id'
+      preLoaderRoute: typeof SucessoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pedidos/$token': {
       id: '/pedidos/$token'
       path: '/pedidos/$token'
       fullPath: '/pedidos/$token'
       preLoaderRoute: typeof PedidosTokenRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/pedido/sucesso/$id': {
-      id: '/pedido/sucesso/$id'
-      path: '/sucesso/$id'
-      fullPath: '/pedido/sucesso/$id'
-      preLoaderRoute: typeof PedidoSucessoIdRouteImport
-      parentRoute: typeof PedidoRoute
     }
     '/api/public/mp-preference': {
       id: '/api/public/mp-preference'
@@ -314,24 +315,14 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface PedidoRouteChildren {
-  PedidoSucessoIdRoute: typeof PedidoSucessoIdRoute
-}
-
-const PedidoRouteChildren: PedidoRouteChildren = {
-  PedidoSucessoIdRoute: PedidoSucessoIdRoute,
-}
-
-const PedidoRouteWithChildren =
-  PedidoRoute._addFileChildren(PedidoRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
   AdminRoute: AdminRoute,
   CheckoutRoute: CheckoutRoute,
-  PedidoRoute: PedidoRouteWithChildren,
+  PedidoRoute: PedidoRoute,
   PedidosTokenRoute: PedidosTokenRoute,
+  SucessoIdRoute: SucessoIdRoute,
   ApiPublicMetaCapiRoute: ApiPublicMetaCapiRoute,
   ApiPublicMpPreferenceRoute: ApiPublicMpPreferenceRoute,
   ApiPublicAdminPedidosRoute: ApiPublicAdminPedidosRoute,
