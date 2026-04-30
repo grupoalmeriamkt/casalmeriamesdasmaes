@@ -776,6 +776,8 @@ export const useAdmin = create<AdminState>()(
               retirada: retiradaDefault(state.unidades[0]?.endereco ?? ""),
               upsellAtivo: true,
               upsellProdutoIds: [],
+              produtosPrincipaisIds: [],
+              textos: textosDefault("Campanha principal"),
               quiz: baseQuiz,
             },
           ];
@@ -830,6 +832,21 @@ export const useAdmin = create<AdminState>()(
               retirada,
               upsellAtivo: !!c.upsellAtivo,
               upsellProdutoIds,
+              produtosPrincipaisIds: Array.isArray(c.produtosPrincipaisIds)
+                ? c.produtosPrincipaisIds
+                : [],
+              dataInicio: c.dataInicio,
+              dataFim: c.dataFim,
+              dataLimitePedidos: c.dataLimitePedidos,
+              textos:
+                c.textos && typeof c.textos === "object"
+                  ? {
+                      titulo: c.textos.titulo ?? c.nome ?? "",
+                      subtitulo: c.textos.subtitulo ?? "",
+                      boasVindas: c.textos.boasVindas ?? "",
+                      confirmacao: c.textos.confirmacao ?? "",
+                    }
+                  : textosDefault(c.nome ?? "Campanha"),
               quiz,
             };
           });
