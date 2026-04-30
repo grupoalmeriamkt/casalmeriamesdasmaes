@@ -1,4 +1,5 @@
-import { useSobremesasAtivas } from "@/store/admin";
+import { useMemo } from "react";
+import { useSobremesasAtivas, useCampanhaAtiva, useAdmin } from "@/store/admin";
 import { usePedido, formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
 
@@ -8,7 +9,37 @@ export function Upsell({ onFinalizar, onPular }: Props) {
   const sobremesas = usePedido((s) => s.sobremesas);
   const toggle = usePedido((s) => s.toggleSobremesa);
   const setQtd = usePedido((s) => s.setSobremesaQtd);
-  const lista = useSobremesasAtivas();
+  const tipo = usePedido((s) => s.tipo);
+  const sobremesasFallback = useSobremesasAtivas();
+  const campanha = useCampanhaAtiva();
+  const cestas = useAdmin((s) => s.cestas);
+
+  // Itens vindos da campanha ativa (upsell por modo: delivery / retirada).
+  const lista = useMemo(() => {
+    if (!campanha) return sobremesasFallback;
+    const ids =
+      tipo === "retirada"
+        ? campanha.retirada.upsellAtivo
+          ? campanha.retirada.upsellProdutoIds
+          : []
+        : campanha.delivery.upsellAtivo
+          ? campanha.delivery.upsellProdutoIds
+          : [];
+    if (ids.length > 0) {
+      const mapeados = ids
+        .map((id) => cestas.find((c) => c.id === id && c.ativo && !c.arquivado))
+        .filter(Boolean)
+        .map((c) => ({
+          id: c!.id,
+          nome: c!.nome,
+          descricao: c!.descricao,
+          preco: c!.preco,
+          imagem: c!.imagem,
+        }));
+      if (mapeados.length > 0) return mapeados;
+    }
+    return sobremesasFallback;
+  }, [campanha, tipo, cestas, sobremesasFallback]);
 
   const totalAdicionadas = Object.values(sobremesas).reduce(
     (acc, it) => acc + it.sobremesa.preco * it.quantidade,
@@ -23,7 +54,7 @@ export function Upsell({ onFinalizar, onPular }: Props) {
             Entregue junto com sua cesta
           </span>
           <h2 className="text-balance text-2xl sm:text-3xl font-bold text-charcoal md:text-4xl">
-            Aproveite e adicione uma sobremesa! 🍓
+            Aproveite e adicione algo a mais 🍓
           </h2>
           <p className="mt-3 text-muted-foreground">
             Surpreenda ainda mais com uma opção especial da Casa
@@ -93,7 +124,7 @@ export function Upsell({ onFinalizar, onPular }: Props) {
           {totalAdicionadas > 0 && (
             <div className="flex items-center justify-between rounded-xl bg-card px-5 py-3 shadow-soft ring-1 ring-border">
               <span className="text-sm text-muted-foreground">
-                Sobremesas adicionadas
+                Adicionados
               </span>
               <span className="font-bold text-charcoal">
                 {formatBRL(totalAdicionadas)}
@@ -111,7 +142,7 @@ export function Upsell({ onFinalizar, onPular }: Props) {
             onClick={onPular}
             className="block w-full text-center text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-charcoal"
           >
-            Não quero sobremesa, ir para o pagamento
+            Pular e ir para o pagamento
           </button>
         </div>
       </div>
