@@ -120,3 +120,12 @@ function CampanhaPage() {
     </div>
   );
 }
+
+function MensagemBloqueio({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-linen p-6 text-center">
+      <Logo />
+      <p className="mt-8 max-w-md text-lg text-charcoal">{children}</p>
+    </div>
+  );
+}
