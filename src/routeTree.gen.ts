@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PedidoRouteImport } from './routes/pedido'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,11 @@ import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
   path: '/pedido',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/checkout': typeof CheckoutRoute
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/checkout': typeof CheckoutRoute
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/checkout': typeof CheckoutRoute
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$slug'
     | '/admin'
+    | '/checkout'
     | '/pedido'
     | '/pedidos/$token'
     | '/api/public/meta-capi'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$slug'
     | '/admin'
+    | '/checkout'
     | '/pedido'
     | '/pedidos/$token'
     | '/api/public/meta-capi'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$slug'
     | '/admin'
+    | '/checkout'
     | '/pedido'
     | '/pedidos/$token'
     | '/api/public/meta-capi'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SlugRoute: typeof SlugRoute
   AdminRoute: typeof AdminRoute
+  CheckoutRoute: typeof CheckoutRoute
   PedidoRoute: typeof PedidoRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
   ApiPublicMetaCapiRoute: typeof ApiPublicMetaCapiRoute
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/pedido'
       fullPath: '/pedido'
       preLoaderRoute: typeof PedidoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
   AdminRoute: AdminRoute,
+  CheckoutRoute: CheckoutRoute,
   PedidoRoute: PedidoRoute,
   PedidosTokenRoute: PedidosTokenRoute,
   ApiPublicMetaCapiRoute: ApiPublicMetaCapiRoute,
