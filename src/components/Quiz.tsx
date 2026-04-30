@@ -122,6 +122,18 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   }, [step, isPreview]);
 
   const buscarCep = async () => {
+    if (isPreview) {
+      setEnd({
+        rua: "Rua Exemplo",
+        numero: "123",
+        complemento: "",
+        bairro: "Centro",
+        cidade: "Brasília",
+        estado: "DF",
+      });
+      toast.success("Endereço de exemplo (prévia).");
+      return;
+    }
     const limpo = cep.replace(/\D/g, "");
     if (limpo.length !== 8) return toast.error("CEP inválido");
     setBuscando(true);
