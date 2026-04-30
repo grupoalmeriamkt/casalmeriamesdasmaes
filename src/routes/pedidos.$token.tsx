@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { RefreshCw, Printer, Eye, MessageCircle } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
