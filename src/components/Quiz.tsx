@@ -21,6 +21,7 @@ import {
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
 import { Logo } from "@/components/Logo";
+import { useIsPreview } from "@/components/admin/PreviewContext";
 import { toast } from "sonner";
 import {
   Loader2,
