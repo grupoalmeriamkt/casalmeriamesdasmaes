@@ -132,10 +132,7 @@ function AdminPage() {
             return (
               <button
                 key={a.id}
-                onClick={() => {
-                  setAba(a.id);
-                  setMenuOpen(false);
-                }}
+                onClick={() => trocarAba(a.id)}
                 className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
                   ativo
                     ? "bg-charcoal text-white"
