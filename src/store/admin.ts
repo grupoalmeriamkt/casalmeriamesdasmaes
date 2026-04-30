@@ -94,6 +94,13 @@ export type CampanhaRetirada = {
   horarios: { label: string; ativo: boolean }[];
 };
 
+export type CampanhaTextos = {
+  titulo: string;
+  subtitulo: string;
+  boasVindas: string;
+  confirmacao: string;
+};
+
 export type Campanha = {
   id: string;
   slug: string;
@@ -102,6 +109,12 @@ export type Campanha = {
   unidadeId?: string;
   delivery: CampanhaDelivery;
   retirada: CampanhaRetirada;
+  // novos
+  produtosPrincipaisIds: string[];
+  dataInicio?: string;
+  dataFim?: string;
+  dataLimitePedidos?: string;
+  textos: CampanhaTextos;
   // legado (compatibilidade com Quiz/Resumo durante a transição)
   upsellAtivo: boolean;
   upsellProdutoIds: string[];
