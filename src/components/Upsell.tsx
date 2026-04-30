@@ -9,7 +9,7 @@ export function Upsell({ onFinalizar, onPular }: Props) {
   const sobremesas = usePedido((s) => s.sobremesas);
   const toggle = usePedido((s) => s.toggleSobremesa);
   const setQtd = usePedido((s) => s.setSobremesaQtd);
-  const tipo = usePedido((s) => s.tipo);
+  const tipo = usePedido((s) => s.entregaTipo);
   const sobremesasFallback = useSobremesasAtivas();
   const campanha = useCampanhaAtiva();
   const cestas = useAdmin((s) => s.cestas);
