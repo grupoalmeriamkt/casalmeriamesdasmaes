@@ -370,10 +370,11 @@ const initial = {
     modo: "claro" as const,
   },
   textos: {
-    heroTitulo: "Presenteie sua mãe com um café da manhã inesquecível",
-    heroSubtitulo: "Cestas artesanais com entrega ou retirada em Brasília",
-    badgePrazo: "Encomendas encerram quinta-feira, 07 de maio",
-    ctaPrincipal: "MONTAR MEU PEDIDO",
+    heroTitulo: "Sabores artesanais do Casa Almeria",
+    heroSubtitulo:
+      "Cestas, sobremesas e produtos cuidadosamente selecionados, com entrega ou retirada em Brasília.",
+    badgePrazo: "",
+    ctaPrincipal: "VER CARDÁPIO",
     taglineFooter: "pra alimentar corpo e alma",
     whatsapp: "5561999999999",
     msgConfirmacao:
@@ -428,6 +429,26 @@ const initial = {
   geral: {
     ativa: true,
   },
+  home: {
+    banner: {
+      imagemUrl:
+        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=1600&q=80",
+      titulo: "Casa Almeria",
+      subtitulo: "Sabores artesanais com entrega ou retirada em Brasília",
+      ctaLabel: "Ver cardápio",
+      ctaHref: "#cardapio",
+    },
+    campanhasDestaque: {} as Record<string, HomeCampanhaDestaque>,
+    rodape: {
+      enderecos: "",
+      redes: {
+        instagram: "https://instagram.com",
+        whatsapp: "https://wa.me/5561999999999",
+        facebook: "",
+      },
+      textoLivre: "",
+    },
+  } as Home,
 };
 
 function syncEntregaLegado(state: AdminState): EntregaConfig {
