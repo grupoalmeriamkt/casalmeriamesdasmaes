@@ -254,9 +254,9 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
       setCliente({ nome, whatsapp: whats });
       // grava rascunho com nome+whatsapp para a cozinha ver mesmo se não concluir
       salvarRascunho({ cliente: { nome, whatsapp: whats } });
-      trackLeadComplete();
-      // Meta Ads: Lead (Pixel + CAPI deduplicado)
-      {
+      if (!isPreview) {
+        trackLeadComplete();
+        // Meta Ads: Lead (Pixel + CAPI deduplicado)
         const integ = useAdmin.getState().integracoes;
         if (integ.metaPixelId) {
           const eventId = newEventId("lead");
