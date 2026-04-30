@@ -70,12 +70,26 @@ function CampanhaPage() {
 
   if (campanha.status === "pausada") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-linen p-6 text-center">
-        <Logo />
-        <p className="mt-8 max-w-md text-lg text-charcoal">
-          Esta campanha está pausada no momento.
-        </p>
-      </div>
+      <MensagemBloqueio>Esta campanha está pausada no momento.</MensagemBloqueio>
+    );
+  }
+
+  const agora = Date.now();
+  if (campanha.dataInicio && new Date(campanha.dataInicio).getTime() > agora) {
+    const inicio = new Date(campanha.dataInicio).toLocaleDateString("pt-BR");
+    return (
+      <MensagemBloqueio>
+        Esta campanha começa em <strong>{inicio}</strong>. Volte em breve!
+      </MensagemBloqueio>
+    );
+  }
+  const fimEfetivo =
+    campanha.dataLimitePedidos ?? campanha.dataFim ?? undefined;
+  if (fimEfetivo && new Date(fimEfetivo).getTime() < agora) {
+    return (
+      <MensagemBloqueio>
+        Esta campanha foi encerrada — não estamos mais aceitando pedidos.
+      </MensagemBloqueio>
     );
   }
 
