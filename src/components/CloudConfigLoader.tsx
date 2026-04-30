@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadCloudConfig } from "@/lib/cloudConfig";
+import { garantirSobremesas } from "@/store/admin";
 
 /**
  * Carrega as configurações compartilhadas (tema, textos, produtos, etc.)
@@ -15,6 +16,11 @@ export function CloudConfigLoader({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     loadCloudConfig().finally(() => {
+      try {
+        garantirSobremesas();
+      } catch (e) {
+        console.warn("[CloudConfigLoader] garantirSobremesas falhou", e);
+      }
       if (!cancelled) setReady(true);
     });
     // Timeout de segurança: não trava o app se Supabase estiver lento.

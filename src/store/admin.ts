@@ -94,6 +94,13 @@ export type CampanhaRetirada = {
   horarios: { label: string; ativo: boolean }[];
 };
 
+export type CampanhaTextos = {
+  titulo: string;
+  subtitulo: string;
+  boasVindas: string;
+  confirmacao: string;
+};
+
 export type Campanha = {
   id: string;
   slug: string;
@@ -102,6 +109,12 @@ export type Campanha = {
   unidadeId?: string;
   delivery: CampanhaDelivery;
   retirada: CampanhaRetirada;
+  // novos
+  produtosPrincipaisIds: string[];
+  dataInicio?: string;
+  dataFim?: string;
+  dataLimitePedidos?: string;
+  textos: CampanhaTextos;
   // legado (compatibilidade com Quiz/Resumo durante a transição)
   upsellAtivo: boolean;
   upsellProdutoIds: string[];
@@ -254,6 +267,13 @@ const retiradaDefault = (endereco = ""): CampanhaRetirada => ({
   horarios: horariosDefault(),
 });
 
+const textosDefault = (nome = "Campanha"): CampanhaTextos => ({
+  titulo: nome,
+  subtitulo: "",
+  boasVindas: "",
+  confirmacao: "",
+});
+
 const initialCampanha: Campanha = {
   id: "campanha-principal",
   slug: "principal",
@@ -264,6 +284,8 @@ const initialCampanha: Campanha = {
   retirada: retiradaDefault(initialUnidades[0]?.endereco ?? ""),
   upsellAtivo: true,
   upsellProdutoIds: [],
+  produtosPrincipaisIds: [],
+  textos: textosDefault("Campanha principal"),
   quiz: {
     delivery: true,
     retirada: true,
@@ -563,6 +585,8 @@ export const useAdmin = create<AdminState>()(
             retirada: retiradaDefault(s.unidades[0]?.endereco ?? ""),
             upsellAtivo: false,
             upsellProdutoIds: [],
+            produtosPrincipaisIds: [],
+            textos: textosDefault("Nova campanha"),
             quiz: { ...baseQuiz },
           };
           return { campanhas: [...s.campanhas, nova] };
@@ -603,7 +627,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 7,
+      version: 8,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -650,9 +674,39 @@ export const useAdmin = create<AdminState>()(
         if (!Array.isArray(state.sobremesas) || state.sobremesas.length === 0) {
           state.sobremesas = SOBREMESAS.map((sb) => ({ ...sb, ativo: true }));
         }
-        const cestasIds = new Set(state.cestas.map((c: any) => c.id));
+        // Garante que TODOS os IDs da seed SOBREMESAS existem em state.cestas;
+        // se foram excluídos manualmente, recria; se estavam arquivados/inativos
+        // (apenas itens vindos da seed), restaura.
+        const seedSobremesaIds = new Set(SOBREMESAS.map((s) => s.id));
+        const cestasIndex = new Map<string, any>(
+          state.cestas.map((c: any) => [c.id, c]),
+        );
+        for (const sb of SOBREMESAS) {
+          const existente = cestasIndex.get(sb.id);
+          if (!existente) {
+            state.cestas.push({
+              id: sb.id,
+              nome: sb.nome,
+              badge: "Sobremesa",
+              preco: sb.preco,
+              descricao: sb.descricao,
+              itens: [],
+              imagem: sb.imagem,
+              ativo: true,
+              arquivado: false,
+              categoriaId: "cat-sobremesas",
+            });
+          } else if (seedSobremesaIds.has(existente.id)) {
+            existente.arquivado = false;
+            existente.ativo = true;
+            if (!existente.categoriaId) existente.categoriaId = "cat-sobremesas";
+          }
+        }
+        // Itens em state.sobremesas (se houver IDs novos não na seed) também
+        // entram como produtos.
+        const cestasIds2 = new Set(state.cestas.map((c: any) => c.id));
         for (const sb of state.sobremesas) {
-          if (!cestasIds.has(sb.id)) {
+          if (!cestasIds2.has(sb.id)) {
             state.cestas.push({
               id: sb.id,
               nome: sb.nome,
@@ -722,6 +776,8 @@ export const useAdmin = create<AdminState>()(
               retirada: retiradaDefault(state.unidades[0]?.endereco ?? ""),
               upsellAtivo: true,
               upsellProdutoIds: [],
+              produtosPrincipaisIds: [],
+              textos: textosDefault("Campanha principal"),
               quiz: baseQuiz,
             },
           ];
@@ -776,6 +832,21 @@ export const useAdmin = create<AdminState>()(
               retirada,
               upsellAtivo: !!c.upsellAtivo,
               upsellProdutoIds,
+              produtosPrincipaisIds: Array.isArray(c.produtosPrincipaisIds)
+                ? c.produtosPrincipaisIds
+                : [],
+              dataInicio: c.dataInicio,
+              dataFim: c.dataFim,
+              dataLimitePedidos: c.dataLimitePedidos,
+              textos:
+                c.textos && typeof c.textos === "object"
+                  ? {
+                      titulo: c.textos.titulo ?? c.nome ?? "",
+                      subtitulo: c.textos.subtitulo ?? "",
+                      boasVindas: c.textos.boasVindas ?? "",
+                      confirmacao: c.textos.confirmacao ?? "",
+                    }
+                  : textosDefault(c.nome ?? "Campanha"),
               quiz,
             };
           });
@@ -905,3 +976,55 @@ export const selectHorariosAtivos = (s: AdminState) =>
 export const isEncerrado = (_encerramentoIso: string) => {
   return false;
 };
+
+/**
+ * Garante que todos os produtos seed de SOBREMESAS existam em state.cestas
+ * (cria se ausentes; desarquiva/ativa se foram arquivados). Usado em runtime
+ * após carregar config remota, sem depender da migração de versão.
+ */
+export function garantirSobremesas() {
+  const state = useAdmin.getState();
+  const seedIds = new Set(SOBREMESAS.map((s) => s.id));
+  const cestas = [...state.cestas];
+  const index = new Map(cestas.map((c) => [c.id, c] as const));
+  let mudou = false;
+
+  // garante categoria
+  let categorias = state.categorias;
+  if (!categorias.some((c) => c.id === "cat-sobremesas")) {
+    categorias = [...categorias, { id: "cat-sobremesas", nome: "Sobremesas" }];
+    mudou = true;
+  }
+
+  for (const sb of SOBREMESAS) {
+    const existente = index.get(sb.id);
+    if (!existente) {
+      cestas.push({
+        id: sb.id,
+        nome: sb.nome,
+        badge: "Sobremesa",
+        preco: sb.preco,
+        descricao: sb.descricao,
+        itens: [],
+        imagem: sb.imagem,
+        ativo: true,
+        arquivado: false,
+        categoriaId: "cat-sobremesas",
+      });
+      mudou = true;
+    } else if (seedIds.has(existente.id)) {
+      if (existente.arquivado || existente.ativo === false || !existente.categoriaId) {
+        const idx = cestas.findIndex((c) => c.id === existente.id);
+        cestas[idx] = {
+          ...existente,
+          arquivado: false,
+          ativo: true,
+          categoriaId: existente.categoriaId ?? "cat-sobremesas",
+        };
+        mudou = true;
+      }
+    }
+  }
+
+  if (mudou) useAdmin.setState({ cestas, categorias });
+}

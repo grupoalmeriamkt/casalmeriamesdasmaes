@@ -17,10 +17,23 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     let mounted = true;
+    let currentUserId: string | null = null;
 
     // 1. Set up listener BEFORE getting session (evita race condition)
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       if (!mounted) return;
+      // Ignora eventos que apenas renovam token / hidratam sessão inicial:
+      // eles disparam periodicamente (a cada ~1h) e ao focar a aba, e estavam
+      // causando re-render do painel inteiro.
+      if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+        return;
+      }
+      const nextId = sess?.user?.id ?? null;
+      if (nextId === currentUserId) {
+        // Mesmo usuário — não dispara setState desnecessário.
+        return;
+      }
+      currentUserId = nextId;
       setSession(sess);
       setUser(sess?.user ?? null);
       // Defer role check to avoid recursion within the auth callback
@@ -38,6 +51,7 @@ export function useAuth(): AuthState {
     // 2. Then get current session
     supabase.auth.getSession().then(({ data: { session: sess } }) => {
       if (!mounted) return;
+      currentUserId = sess?.user?.id ?? null;
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
