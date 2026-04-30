@@ -326,7 +326,22 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
               </p>
             </div>
 
-            <div className="tag-prazo">📦 {textos.badgePrazo}</div>
+            {textos.badgePrazo && (
+              <div className="tag-prazo">📦 {textos.badgePrazo}</div>
+            )}
+
+            {textosCampanha?.boasVindas && (
+              <p className="rounded-xl bg-charcoal/5 p-3 text-sm text-charcoal">
+                {textosCampanha.boasVindas}
+              </p>
+            )}
+
+            {cestasAtivas.length === 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                Esta campanha ainda não tem produtos configurados. Volte em breve
+                ou entre em contato com a loja.
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               {cestasAtivas.map((c) => {
