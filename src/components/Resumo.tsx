@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Zap, CreditCard } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 
 type Props = { onConcluir: () => void; onVoltar: () => void };
 
