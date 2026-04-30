@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Truck, MapPin, Loader2 } from "lucide-react";
+import { Plus, Trash2, Truck, MapPin, Loader2, Store, Clock, Calendar } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { geocodificarEndereco } from "@/lib/geo";
