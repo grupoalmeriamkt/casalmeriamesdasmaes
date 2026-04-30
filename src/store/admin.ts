@@ -948,6 +948,34 @@ export const useAdmin = create<AdminState>()(
               datas: quiz.datas,
               horarios: quiz.horarios,
             };
+            // Constrói upsell unificado a partir do legado (delivery + retirada)
+            const upsellLegado = (() => {
+              const ids: string[] = [];
+              const delIds = Array.isArray(c?.delivery?.upsellProdutoIds)
+                ? c.delivery.upsellProdutoIds
+                : [];
+              const retIds = Array.isArray(c?.retirada?.upsellProdutoIds)
+                ? c.retirada.upsellProdutoIds
+                : [];
+              for (const id of [...delIds, ...retIds, ...upsellProdutoIds]) {
+                if (id && !ids.includes(id)) ids.push(id);
+              }
+              const ativo =
+                !!c?.delivery?.upsellAtivo ||
+                !!c?.retirada?.upsellAtivo ||
+                !!c?.upsellAtivo;
+              return {
+                ativo,
+                itens: ids.map((produtoId) => ({
+                  tipo: "produto" as const,
+                  itemId: `up-${produtoId}`,
+                  produtoId,
+                })),
+              };
+            })();
+            const upsell = c?.upsell && Array.isArray(c.upsell.itens)
+              ? c.upsell
+              : upsellLegado;
             return {
               id: c.id,
               slug: c.slug,
@@ -958,6 +986,7 @@ export const useAdmin = create<AdminState>()(
               retirada,
               upsellAtivo: !!c.upsellAtivo,
               upsellProdutoIds,
+              upsell,
               produtosPrincipaisIds: Array.isArray(c.produtosPrincipaisIds)
                 ? c.produtosPrincipaisIds
                 : [],
