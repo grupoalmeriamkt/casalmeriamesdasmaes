@@ -60,6 +60,7 @@ const maskCep = (v: string) => {
 };
 
 export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
+  const isPreview = useIsPreview();
   const [step, setStep] = useState(initialStep);
 
   // Pedido store
