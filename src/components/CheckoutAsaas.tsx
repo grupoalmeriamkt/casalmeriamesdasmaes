@@ -246,7 +246,8 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
             status: "pendente",
             extras: pedidoState.extras,
           },
-          total: totalComDesconto,
+          // Subtotal: backend revalida cupom e atualiza pedido.total = valorFinal
+          total,
         },
         pedidoState.pedidoId,
       );

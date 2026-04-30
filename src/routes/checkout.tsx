@@ -241,14 +241,15 @@ function CheckoutPage() {
         preco: it.preco,
       }));
 
-      // 1. cria/atualiza pedido como rascunho
+      // 1. cria/atualiza pedido como rascunho (subtotal sem desconto;
+      // o /charge revalida cupom server-side e atualiza pedido.total = valorFinal)
       const { id: pedidoId, error: erRasc } = await upsertRascunho({
         cliente: { nome: cliente.data.nome, whatsapp: cliente.data.whatsapp },
         sobremesas,
         tipo: tipoEntrega,
         enderecoOuUnidade: tipoEntrega === "delivery" ? enderecoStr : "Retirada na loja",
         pagamento: { metodo: metodo.toLowerCase(), status: "pendente" },
-        total: totalComDesconto,
+        total,
       });
       if (erRasc || !pedidoId) throw erRasc ?? new Error("rascunho falhou");
 
@@ -265,7 +266,7 @@ function CheckoutPage() {
             whatsapp: cliente.data.whatsapp,
           },
           itens: sobremesas,
-          total,
+          total, // subtotal (sem desconto) — backend revalida cupom e calcula desconto
           metodo,
           cupomCodigo: cupomAplicado?.codigo,
           cartao: cardData ?? undefined,

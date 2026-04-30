@@ -220,6 +220,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             .update({
               cliente_cpf: body.cliente.cpf,
               cliente_email: body.cliente.email,
+              total: valorFinal,
               pagamento: {
                 metodo: body.metodo.toLowerCase(),
                 status: payment.status,
