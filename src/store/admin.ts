@@ -208,6 +208,7 @@ type AdminState = {
   pagamento: Pagamento;
   integracoes: Integracoes;
   geral: ConfigGeral;
+  home: Home;
   pedidos: PedidoSalvo[];
 
   setTema: (t: Partial<Tema>) => void;
@@ -242,6 +243,10 @@ type AdminState = {
   setPagamento: (patch: Partial<Pagamento>) => void;
   setIntegracoes: (patch: Partial<Integracoes>) => void;
   setGeral: (patch: Partial<ConfigGeral>) => void;
+  setHome: (patch: Partial<Home>) => void;
+  setHomeBanner: (patch: Partial<HomeBanner>) => void;
+  setHomeRodape: (patch: Partial<HomeRodape>) => void;
+  setHomeCampanhaDestaque: (campanhaId: string, patch: Partial<HomeCampanhaDestaque>) => void;
   registrarPedido: (p: PedidoSalvo) => void;
   limparPedidos: () => void;
   resetTudo: () => void;
