@@ -627,7 +627,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 7,
+      version: 8,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -674,9 +674,39 @@ export const useAdmin = create<AdminState>()(
         if (!Array.isArray(state.sobremesas) || state.sobremesas.length === 0) {
           state.sobremesas = SOBREMESAS.map((sb) => ({ ...sb, ativo: true }));
         }
-        const cestasIds = new Set(state.cestas.map((c: any) => c.id));
+        // Garante que TODOS os IDs da seed SOBREMESAS existem em state.cestas;
+        // se foram excluídos manualmente, recria; se estavam arquivados/inativos
+        // (apenas itens vindos da seed), restaura.
+        const seedSobremesaIds = new Set(SOBREMESAS.map((s) => s.id));
+        const cestasIndex = new Map<string, any>(
+          state.cestas.map((c: any) => [c.id, c]),
+        );
+        for (const sb of SOBREMESAS) {
+          const existente = cestasIndex.get(sb.id);
+          if (!existente) {
+            state.cestas.push({
+              id: sb.id,
+              nome: sb.nome,
+              badge: "Sobremesa",
+              preco: sb.preco,
+              descricao: sb.descricao,
+              itens: [],
+              imagem: sb.imagem,
+              ativo: true,
+              arquivado: false,
+              categoriaId: "cat-sobremesas",
+            });
+          } else if (seedSobremesaIds.has(existente.id)) {
+            existente.arquivado = false;
+            existente.ativo = true;
+            if (!existente.categoriaId) existente.categoriaId = "cat-sobremesas";
+          }
+        }
+        // Itens em state.sobremesas (se houver IDs novos não na seed) também
+        // entram como produtos.
+        const cestasIds2 = new Set(state.cestas.map((c: any) => c.id));
         for (const sb of state.sobremesas) {
-          if (!cestasIds.has(sb.id)) {
+          if (!cestasIds2.has(sb.id)) {
             state.cestas.push({
               id: sb.id,
               nome: sb.nome,
