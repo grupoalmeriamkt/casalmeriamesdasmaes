@@ -294,7 +294,11 @@ export function AbaPedidos() {
               </tr>
             ) : (
               filtrados.map((p) => (
-                <tr key={p.id} className="border-t border-border">
+                <tr
+                  key={p.id}
+                  onClick={() => setDetalhe(p)}
+                  className="cursor-pointer border-t border-border transition-colors hover:bg-muted/50"
+                >
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {new Date(p.criadoEm).toLocaleString("pt-BR")}
                   </td>
