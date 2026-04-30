@@ -1,5 +1,5 @@
 import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
-import { useAdmin } from "@/store/admin";
+import { useAdmin, useCampanhaAtiva } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 
 export function Sucesso({ onVoltar }: { onVoltar: () => void }) {
@@ -12,6 +12,10 @@ export function Sucesso({ onVoltar }: { onVoltar: () => void }) {
   const unidade = usePedido((s) => s.unidade);
   const total = usePedido(selectTotal);
   const wppNumero = useAdmin((s) => s.textos.whatsapp);
+  const campanha = useCampanhaAtiva();
+  const msgConfirmacao =
+    campanha?.textos.confirmacao ||
+    "Seu pedido foi enviado pelo WhatsApp. Vamos confirmar todos os detalhes e o pagamento por lá.";
 
   const msgWa = encodeURIComponent(
     `Olá! Acabei de enviar meu pedido no Casa Almeria 🌸 ${cesta?.cesta.nome ?? ""}`,
