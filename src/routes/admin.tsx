@@ -3,15 +3,11 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminLogin } from "@/components/admin/AdminLogin";
-import { AbaAparencia } from "@/components/admin/AbaAparencia";
 import { AbaTextos } from "@/components/admin/AbaTextos";
 import { AbaCestas } from "@/components/admin/AbaCestas";
-import { AbaSobremesas } from "@/components/admin/AbaSobremesas";
-import { AbaEntrega } from "@/components/admin/AbaEntrega";
-import { AbaPagamento } from "@/components/admin/AbaPagamento";
-import { AbaIntegracoes } from "@/components/admin/AbaIntegracoes";
+import { AbaCampanhas } from "@/components/admin/AbaCampanhas";
 import { AbaPedidos } from "@/components/admin/AbaPedidos";
-import { AbaGeral } from "@/components/admin/AbaGeral";
+import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "@/components/ui/sonner";
@@ -20,13 +16,9 @@ import {
   LogOut,
   ExternalLink,
   Menu,
-  Palette,
   Type,
   Package,
-  PlusCircle,
-  Truck,
-  CreditCard,
-  Webhook,
+  Megaphone,
   ListOrdered,
   Settings,
 } from "lucide-react";
@@ -36,20 +28,16 @@ export const Route = createFileRoute("/admin")({
 });
 
 const ABAS = [
-  { id: "aparencia", label: "Aparência", Icon: Palette, Comp: AbaAparencia },
-  { id: "textos", label: "Textos", Icon: Type, Comp: AbaTextos },
+  { id: "textos", label: "Site Principal", Icon: Type, Comp: AbaTextos },
   { id: "cestas", label: "Produtos", Icon: Package, Comp: AbaCestas },
-  { id: "sobremesas", label: "Upsell", Icon: PlusCircle, Comp: AbaSobremesas },
-  { id: "entrega", label: "Entrega", Icon: Truck, Comp: AbaEntrega },
-  { id: "pagamento", label: "Pagamento", Icon: CreditCard, Comp: AbaPagamento },
-  { id: "integracoes", label: "Integrações", Icon: Webhook, Comp: AbaIntegracoes },
+  { id: "campanhas", label: "Campanhas", Icon: Megaphone, Comp: AbaCampanhas },
   { id: "pedidos", label: "Pedidos", Icon: ListOrdered, Comp: AbaPedidos },
-  { id: "geral", label: "Geral", Icon: Settings, Comp: AbaGeral },
+  { id: "configuracoes", label: "Configurações", Icon: Settings, Comp: AbaConfiguracoes },
 ] as const;
 
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
-  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>("aparencia");
+  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>("textos");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const logout = async () => {
