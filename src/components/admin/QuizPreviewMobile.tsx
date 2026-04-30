@@ -140,8 +140,9 @@ export function QuizPreviewMobile({ campanhaId }: Props) {
               <PreviewProvider>
                 <ThemeApplier />
                 <Quiz
-                  key={`${campanhaId}-${step}-${nonce}`}
-                  initialStep={step}
+                  key={`${campanhaId}-${stepValue}-${nonce}`}
+                  initialStep={stepNumero}
+                  initialPersonalizacao={initialPersonalizacao}
                   onConcluir={() => {
                     /* prévia: no-op */
                   }}
