@@ -62,13 +62,49 @@ export type QuizConfig = {
   restricaoRaio: { ativo: boolean; unidadeBaseId: string; raioKm: number };
 };
 
+export type TaxaEntrega =
+  | { tipo: "fixa"; valor: number }
+  | { tipo: "faixa"; faixas: { ateKm: number; valor: number }[] };
+
+export type CampanhaDelivery = {
+  ativo: boolean;
+  valorMinimo: number;
+  taxa: TaxaEntrega;
+  tempoEstimadoMin: number;
+  tempoEstimadoMax: number;
+  raioKm: number;
+  bairros: string[];
+  horario: HorarioFuncionamento;
+  upsellAtivo: boolean;
+  upsellProdutoIds: string[];
+  datas: { id: string; label: string; ativa: boolean }[];
+  horarios: { label: string; ativo: boolean }[];
+};
+
+export type CampanhaRetirada = {
+  ativo: boolean;
+  valorMinimo: number;
+  tempoPreparoMin: number;
+  tempoPreparoMax: number;
+  horario: HorarioFuncionamento;
+  enderecoRetirada: string;
+  upsellAtivo: boolean;
+  upsellProdutoIds: string[];
+  datas: { id: string; label: string; ativa: boolean }[];
+  horarios: { label: string; ativo: boolean }[];
+};
+
 export type Campanha = {
   id: string;
   slug: string;
   nome: string;
   status: "ativa" | "pausada";
+  unidadeId?: string;
+  delivery: CampanhaDelivery;
+  retirada: CampanhaRetirada;
+  // legado (compatibilidade com Quiz/Resumo durante a transição)
   upsellAtivo: boolean;
-  upsellProdutoId?: string;
+  upsellProdutoIds: string[];
   quiz: QuizConfig;
 };
 
@@ -96,10 +132,6 @@ export type Integracoes = {
 
 export type ConfigGeral = {
   ativa: boolean;
-  msgManutencao: string;
-  encerramento: string;
-  mostrarUpsell: boolean;
-  mostrarInformacoes: boolean;
 };
 
 export type PedidoSalvo = {
@@ -159,6 +191,8 @@ type AdminState = {
 
   setCampanha: (id: string, patch: Partial<Campanha>) => void;
   setCampanhaQuiz: (id: string, patch: Partial<QuizConfig>) => void;
+  setCampanhaDelivery: (id: string, patch: Partial<CampanhaDelivery>) => void;
+  setCampanhaRetirada: (id: string, patch: Partial<CampanhaRetirada>) => void;
   addCampanha: () => void;
   removeCampanha: (id: string) => void;
   setCampanhaAtivaId: (id: string) => void;
@@ -189,19 +223,53 @@ const initialUnidades: UnidadeCadastrada[] = UNIDADES.map((u) => ({
   horarioFuncionamento: HORARIO_FUNC_DEFAULT,
 }));
 
+const datasDefault = () => DATAS_ENTREGA.map((d) => ({ ...d, ativa: true }));
+const horariosDefault = () => HORARIOS.map((h) => ({ label: h, ativo: true }));
+
+const deliveryDefault = (): CampanhaDelivery => ({
+  ativo: true,
+  valorMinimo: 0,
+  taxa: { tipo: "fixa", valor: 0 },
+  tempoEstimadoMin: 40,
+  tempoEstimadoMax: 60,
+  raioKm: 10,
+  bairros: [],
+  horario: HORARIO_FUNC_DEFAULT,
+  upsellAtivo: true,
+  upsellProdutoIds: [],
+  datas: datasDefault(),
+  horarios: horariosDefault(),
+});
+
+const retiradaDefault = (endereco = ""): CampanhaRetirada => ({
+  ativo: true,
+  valorMinimo: 0,
+  tempoPreparoMin: 20,
+  tempoPreparoMax: 30,
+  horario: HORARIO_FUNC_DEFAULT,
+  enderecoRetirada: endereco,
+  upsellAtivo: false,
+  upsellProdutoIds: [],
+  datas: datasDefault(),
+  horarios: horariosDefault(),
+});
+
 const initialCampanha: Campanha = {
   id: "campanha-principal",
   slug: "principal",
   nome: "Campanha principal",
   status: "ativa",
+  unidadeId: initialUnidades[0]?.id,
+  delivery: deliveryDefault(),
+  retirada: retiradaDefault(initialUnidades[0]?.endereco ?? ""),
   upsellAtivo: true,
-  upsellProdutoId: undefined,
+  upsellProdutoIds: [],
   quiz: {
     delivery: true,
     retirada: true,
     unidadeIds: initialUnidades.map((u) => u.id),
-    datas: DATAS_ENTREGA.map((d) => ({ ...d, ativa: true })),
-    horarios: HORARIOS.map((h) => ({ label: h, ativo: true })),
+    datas: datasDefault(),
+    horarios: horariosDefault(),
     restricaoRaio: {
       ativo: false,
       unidadeBaseId: initialUnidades[0]?.id ?? "",
@@ -212,6 +280,7 @@ const initialCampanha: Campanha = {
 
 const initialCategorias: Categoria[] = [
   { id: "cat-cestas", nome: "Cestas" },
+  { id: "cat-sobremesas", nome: "Sobremesas" },
 ];
 
 function entregaFromCampanha(
@@ -220,8 +289,8 @@ function entregaFromCampanha(
 ): EntregaConfig {
   const ids = new Set(campanha.quiz.unidadeIds);
   return {
-    delivery: campanha.quiz.delivery,
-    retirada: campanha.quiz.retirada,
+    delivery: campanha.delivery.ativo,
+    retirada: campanha.retirada.ativo,
     unidades: unidades
       .filter((u) => ids.has(u.id))
       .map((u) => ({
@@ -255,12 +324,26 @@ const initial = {
     msgConfirmacao:
       "Em breve entraremos em contato pelo WhatsApp para confirmar todos os detalhes.",
   },
-  cestas: CESTAS.map((c) => ({
-    ...c,
-    ativo: true,
-    arquivado: false,
-    categoriaId: "cat-cestas",
-  })) as CestaAdmin[],
+  cestas: [
+    ...CESTAS.map((c) => ({
+      ...c,
+      ativo: true,
+      arquivado: false,
+      categoriaId: "cat-cestas",
+    })),
+    ...SOBREMESAS.map((s) => ({
+      id: s.id,
+      nome: s.nome,
+      badge: "Sobremesa",
+      preco: s.preco,
+      descricao: s.descricao,
+      itens: [] as string[],
+      imagem: s.imagem,
+      ativo: true,
+      arquivado: false,
+      categoriaId: "cat-sobremesas",
+    })),
+  ] as CestaAdmin[],
   categorias: initialCategorias,
   sobremesas: SOBREMESAS.map((s) => ({ ...s, ativo: true })),
   unidades: initialUnidades,
@@ -289,10 +372,6 @@ const initial = {
   },
   geral: {
     ativa: true,
-    msgManutencao: "Estamos preparando algo especial. Volte em breve.",
-    encerramento: "2026-05-08",
-    mostrarUpsell: true,
-    mostrarInformacoes: true,
   },
 };
 
@@ -442,18 +521,48 @@ export const useAdmin = create<AdminState>()(
           const next = { ...s, campanhas };
           return { campanhas, entrega: syncEntregaLegado(next) };
         }),
+      setCampanhaDelivery: (id, patch) =>
+        set((s) => {
+          const campanhas = s.campanhas.map((c) => {
+            if (c.id !== id) return c;
+            const delivery = { ...c.delivery, ...patch };
+            // sincroniza quiz legado
+            const quiz = {
+              ...c.quiz,
+              delivery: delivery.ativo,
+              datas: delivery.datas,
+              horarios: delivery.horarios,
+            };
+            return { ...c, delivery, quiz };
+          });
+          const next = { ...s, campanhas };
+          return { campanhas, entrega: syncEntregaLegado(next) };
+        }),
+      setCampanhaRetirada: (id, patch) =>
+        set((s) => {
+          const campanhas = s.campanhas.map((c) => {
+            if (c.id !== id) return c;
+            const retirada = { ...c.retirada, ...patch };
+            const quiz = { ...c.quiz, retirada: retirada.ativo };
+            return { ...c, retirada, quiz };
+          });
+          const next = { ...s, campanhas };
+          return { campanhas, entrega: syncEntregaLegado(next) };
+        }),
       addCampanha: () =>
         set((s) => {
           const id = `camp-${Date.now()}`;
-          const baseQuiz =
-            s.campanhas[0]?.quiz ?? initialCampanha.quiz;
+          const baseQuiz = s.campanhas[0]?.quiz ?? initialCampanha.quiz;
           const nova: Campanha = {
             id,
             slug: `campanha-${Date.now().toString(36)}`,
             nome: "Nova campanha",
             status: "ativa",
+            unidadeId: s.unidades[0]?.id,
+            delivery: deliveryDefault(),
+            retirada: retiradaDefault(s.unidades[0]?.endereco ?? ""),
             upsellAtivo: false,
-            upsellProdutoId: undefined,
+            upsellProdutoIds: [],
             quiz: { ...baseQuiz },
           };
           return { campanhas: [...s.campanhas, nova] };
@@ -494,7 +603,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 6,
+      version: 7,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -513,6 +622,7 @@ export const useAdmin = create<AdminState>()(
       migrate: (state: any, _version) => {
         if (!state || typeof state !== "object") return state;
 
+        // Cestas
         if (!Array.isArray(state.cestas) || state.cestas.length === 0) {
           state.cestas = initial.cestas;
         } else {
@@ -523,21 +633,43 @@ export const useAdmin = create<AdminState>()(
             ...c,
           }));
         }
+
+        // Categorias — garantir Cestas + Sobremesas
         if (!Array.isArray(state.categorias) || state.categorias.length === 0) {
           state.categorias = initialCategorias;
+        } else {
+          if (!state.categorias.some((c: any) => c.id === "cat-cestas")) {
+            state.categorias.unshift({ id: "cat-cestas", nome: "Cestas" });
+          }
+          if (!state.categorias.some((c: any) => c.id === "cat-sobremesas")) {
+            state.categorias.push({ id: "cat-sobremesas", nome: "Sobremesas" });
+          }
         }
+
+        // Sobremesas — restaurar como produtos vinculados à categoria Sobremesas
         if (!Array.isArray(state.sobremesas) || state.sobremesas.length === 0) {
           state.sobremesas = SOBREMESAS.map((sb) => ({ ...sb, ativo: true }));
         }
-        if (state.geral && typeof state.geral === "object") {
-          const today = new Date();
-          const enc = state.geral.encerramento
-            ? new Date(`${state.geral.encerramento}T23:59:59`)
-            : null;
-          if (!enc || enc < today) {
-            state.geral.encerramento = "2026-05-08";
+        const cestasIds = new Set(state.cestas.map((c: any) => c.id));
+        for (const sb of state.sobremesas) {
+          if (!cestasIds.has(sb.id)) {
+            state.cestas.push({
+              id: sb.id,
+              nome: sb.nome,
+              badge: "Sobremesa",
+              preco: sb.preco,
+              descricao: sb.descricao,
+              itens: [],
+              imagem: sb.imagem,
+              ativo: true,
+              arquivado: false,
+              categoriaId: "cat-sobremesas",
+            });
           }
         }
+
+        // Geral — remover campos antigos
+        state.geral = { ativa: state.geral?.ativa ?? true };
 
         // Migra entrega legada para unidades + campanha principal
         const entregaLegada = state.entrega ?? {};
@@ -546,8 +678,7 @@ export const useAdmin = create<AdminState>()(
             Array.isArray(entregaLegada.unidades) && entregaLegada.unidades.length > 0
               ? entregaLegada.unidades
               : UNIDADES.map((u) => ({ ...u, ativa: true }));
-          const raioPadrao =
-            entregaLegada?.restricaoRaio?.raioKm ?? 10;
+          const raioPadrao = entregaLegada?.restricaoRaio?.raioKm ?? 10;
           state.unidades = fonteUnidades.map((u: any) => ({
             id: u.id,
             nome: u.nome,
@@ -568,12 +699,12 @@ export const useAdmin = create<AdminState>()(
             datas:
               Array.isArray(entregaLegada.datas) && entregaLegada.datas.length > 0
                 ? entregaLegada.datas
-                : DATAS_ENTREGA.map((d) => ({ ...d, ativa: true })),
+                : datasDefault(),
             horarios:
               Array.isArray(entregaLegada.horarios) &&
               entregaLegada.horarios.length > 0
                 ? entregaLegada.horarios
-                : HORARIOS.map((h) => ({ label: h, ativo: true })),
+                : horariosDefault(),
             restricaoRaio: entregaLegada.restricaoRaio ?? {
               ativo: false,
               unidadeBaseId: state.unidades[0]?.id ?? "",
@@ -586,11 +717,68 @@ export const useAdmin = create<AdminState>()(
               slug: "principal",
               nome: "Campanha principal",
               status: "ativa",
+              unidadeId: state.unidades[0]?.id,
+              delivery: { ...deliveryDefault(), ativo: baseQuiz.delivery, datas: baseQuiz.datas, horarios: baseQuiz.horarios, raioKm: baseQuiz.restricaoRaio.raioKm },
+              retirada: retiradaDefault(state.unidades[0]?.endereco ?? ""),
               upsellAtivo: true,
-              upsellProdutoId: undefined,
+              upsellProdutoIds: [],
               quiz: baseQuiz,
             },
           ];
+        } else {
+          // Migra campanhas existentes para novo shape
+          state.campanhas = state.campanhas.map((c: any) => {
+            const quiz: QuizConfig = c.quiz ?? {
+              delivery: true,
+              retirada: true,
+              unidadeIds: state.unidades.map((u: any) => u.id),
+              datas: datasDefault(),
+              horarios: horariosDefault(),
+              restricaoRaio: {
+                ativo: false,
+                unidadeBaseId: state.unidades[0]?.id ?? "",
+                raioKm: 10,
+              },
+            };
+            const upsellProdutoIds: string[] = Array.isArray(c.upsellProdutoIds)
+              ? c.upsellProdutoIds
+              : c.upsellProdutoId
+                ? [c.upsellProdutoId]
+                : [];
+            const unidadeId =
+              c.unidadeId ??
+              quiz.unidadeIds[0] ??
+              state.unidades[0]?.id;
+            const enderecoUnidade =
+              state.unidades.find((u: any) => u.id === unidadeId)?.endereco ?? "";
+            const delivery: CampanhaDelivery = c.delivery ?? {
+              ...deliveryDefault(),
+              ativo: quiz.delivery,
+              datas: quiz.datas,
+              horarios: quiz.horarios,
+              raioKm: quiz.restricaoRaio?.raioKm ?? 10,
+              upsellAtivo: !!c.upsellAtivo,
+              upsellProdutoIds,
+            };
+            const retirada: CampanhaRetirada = c.retirada ?? {
+              ...retiradaDefault(enderecoUnidade),
+              ativo: quiz.retirada,
+              datas: quiz.datas,
+              horarios: quiz.horarios,
+            };
+            return {
+              id: c.id,
+              slug: c.slug,
+              nome: c.nome,
+              status: c.status ?? "ativa",
+              unidadeId,
+              delivery,
+              retirada,
+              upsellAtivo: !!c.upsellAtivo,
+              upsellProdutoIds,
+              quiz,
+            };
+          });
         }
         if (!state.campanhaAtivaId) {
           state.campanhaAtivaId = state.campanhas[0].id;
@@ -694,7 +882,7 @@ export const useCampanhaAtiva = () =>
   );
 export const useCategorias = () => useAdmin(useShallow((s) => s.categorias));
 
-// Backwards-compat (não usados pela UI nova, mas mantidos para qualquer import remanescente)
+// Backwards-compat
 export const selectCestasAtivas = (s: AdminState) => {
   if (!Array.isArray(s.cestas) || s.cestas.length === 0) return FALLBACK_CESTAS;
   const ativas = s.cestas.filter(
