@@ -226,6 +226,15 @@ function CozinhaPage() {
                 <Printer className="mr-2 h-4 w-4" />
                 Imprimir aprovados de hoje
               </Button>
+              {requerSenha && (
+                <Button
+                  variant="outline"
+                  onClick={sair}
+                  className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                >
+                  Sair
+                </Button>
+              )}
             </div>
           </div>
         </header>
