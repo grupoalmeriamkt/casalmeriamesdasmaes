@@ -1,5 +1,6 @@
 import { useMemo, useEffect } from "react";
 import { useCampanhaAtiva, useAdmin } from "@/store/admin";
+import { useIsPreview } from "@/components/admin/PreviewContext";
 import { usePedido, formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
 
