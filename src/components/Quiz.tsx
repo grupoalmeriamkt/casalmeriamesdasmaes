@@ -313,6 +313,26 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
       if (!data) return toast.error("Escolha um dia.");
       if (!horario) return toast.error("Escolha um horário.");
       salvarRascunho();
+      const precisaPersonalizar =
+        extras.cartoes.length > 0 || extras.polaroids.length > 0;
+      if (precisaPersonalizar && !mostrarPersonalizacao) {
+        setMostrarPersonalizacao(true);
+        return;
+      }
+      // Validações do passo de personalização
+      if (mostrarPersonalizacao) {
+        for (const c of extras.cartoes) {
+          if (c.mensagem.trim().length < 3) {
+            return toast.error(`Escreva a mensagem do "${c.nome}".`);
+          }
+        }
+        for (const p of extras.polaroids) {
+          if (!p.arquivoUrl) {
+            return toast.error(`Envie a foto do "${p.nome}".`);
+          }
+        }
+        setMostrarPersonalizacao(false);
+      }
       return setStep(5);
     }
     if (step === 5) {
@@ -320,7 +340,19 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
     }
   };
 
-  const voltar = () => (step === 1 ? onVoltar() : setStep((s) => s - 1));
+  const voltar = () => {
+    if (step === 4 && mostrarPersonalizacao) {
+      setMostrarPersonalizacao(false);
+      return;
+    }
+    if (step === 5 && (extras.cartoes.length > 0 || extras.polaroids.length > 0)) {
+      // Permite revisitar a personalização ao voltar do resumo
+      setMostrarPersonalizacao(true);
+      setStep(4);
+      return;
+    }
+    return step === 1 ? onVoltar() : setStep((s) => s - 1);
+  };
 
   const progresso = (step / 5) * 100;
 
