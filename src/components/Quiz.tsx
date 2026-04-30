@@ -721,7 +721,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
         )}
 
         {/* ============== STEP 4 — Data e Horário + Upsell ============== */}
-        {step === 4 && (
+        {step === 4 && !mostrarPersonalizacao && (
           <section className="animate-fade-up space-y-6">
             <div>
               <p className="eyebrow-gold mb-2">Agendamento</p>
@@ -746,7 +746,6 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               <div className="grid grid-cols-2 gap-3">
                 {datas.map((d) => {
                   const sel = data === d.label;
-                  // tenta extrair "10/05" e "Sábado"
                   const partes = d.label.split(",").map((s) => s.trim());
                   const semana = partes[0] || d.label;
                   const numero = partes[1]?.split("/")?.[0] || "•";
@@ -808,19 +807,84 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
 
             {(() => {
               if (!horario || !campanhaAtiva?.upsell?.ativo) return null;
-              const itensProduto = (campanhaAtiva.upsell.itens ?? []).filter(
-                (i) => i.tipo === "produto",
-              );
-              const produtosUpsell = itensProduto
-                .map((i) =>
-                  i.tipo === "produto"
-                    ? cestasAdmin.find(
-                        (c) => c.id === i.produtoId && c.ativo && !c.arquivado,
-                      )
-                    : null,
-                )
-                .filter((c): c is NonNullable<typeof c> => !!c);
-              if (produtosUpsell.length === 0) return null;
+              const itens = campanhaAtiva.upsell.itens ?? [];
+              type Card = {
+                key: string;
+                tipo: "produto" | "cartao" | "polaroid";
+                nome: string;
+                descricao?: string;
+                preco: number;
+                imagem?: string;
+                added: boolean;
+                onToggle: () => void;
+              };
+              const cards: Card[] = [];
+              for (const i of itens) {
+                if (i.tipo === "produto") {
+                  const p = cestasAdmin.find(
+                    (c) => c.id === i.produtoId && c.ativo && !c.arquivado,
+                  );
+                  if (!p) continue;
+                  const added = !!sobremesas[p.id];
+                  cards.push({
+                    key: `prod-${p.id}`,
+                    tipo: "produto",
+                    nome: p.nome,
+                    descricao: p.descricao,
+                    preco: p.preco,
+                    imagem: p.imagem,
+                    added,
+                    onToggle: () =>
+                      toggleSobremesa({
+                        id: p.id,
+                        nome: p.nome,
+                        descricao: p.descricao,
+                        preco: p.preco,
+                        imagem: p.imagem,
+                      }),
+                  });
+                } else if (i.tipo === "cartao") {
+                  const added = extras.cartoes.some((c) => c.itemId === i.itemId);
+                  cards.push({
+                    key: `cart-${i.itemId}`,
+                    tipo: "cartao",
+                    nome: i.nome,
+                    descricao: `Cartãozinho com mensagem (até ${i.maxCaracteres} caracteres)`,
+                    preco: i.preco,
+                    added,
+                    onToggle: () =>
+                      added
+                        ? removeCartao(i.itemId)
+                        : setCartao({
+                            itemId: i.itemId,
+                            nome: i.nome,
+                            preco: i.preco,
+                            mensagem: "",
+                          }),
+                  });
+                } else if (i.tipo === "polaroid") {
+                  const added = extras.polaroids.some((p) => p.itemId === i.itemId);
+                  cards.push({
+                    key: `pol-${i.itemId}`,
+                    tipo: "polaroid",
+                    nome: i.nome,
+                    descricao: "Foto polaroid impressa (você envia a imagem)",
+                    preco: i.preco,
+                    added,
+                    onToggle: () =>
+                      added
+                        ? removePolaroid(i.itemId)
+                        : setPolaroid({
+                            itemId: i.itemId,
+                            nome: i.nome,
+                            preco: i.preco,
+                            arquivoUrl: "",
+                            arquivoNome: "",
+                          }),
+                  });
+                }
+              }
+              if (cards.length === 0) return null;
               return (
                 <div className="animate-fade-up space-y-3 border-t border-sand/60 pt-5">
                   <div>
@@ -831,59 +895,78 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                       Entregue junto com sua cesta
                     </p>
                   </div>
-                  {produtosUpsell.map((s) => {
-                    const added = !!sobremesas[s.id];
-                    const item = {
-                      id: s.id,
-                      nome: s.nome,
-                      descricao: s.descricao,
-                      preco: s.preco,
-                      imagem: s.imagem,
-                    };
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => toggleSobremesa(item)}
-                        className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
-                          added
-                            ? "border-olive bg-olive/[0.04]"
-                            : "border-sand/70 hover:border-terracotta/60"
-                        }`}
-                      >
+                  {cards.map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={s.onToggle}
+                      className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
+                        s.added
+                          ? "border-olive bg-olive/[0.04]"
+                          : "border-sand/70 hover:border-terracotta/60"
+                      }`}
+                    >
+                      {s.imagem ? (
                         <img
                           src={s.imagem}
                           alt=""
                           className="h-12 w-12 flex-none rounded-lg object-cover"
                         />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-charcoal">
-                            {s.nome}
-                          </p>
-                          <p className="text-xs text-ink/60">
-                            {formatBRL(s.preco)}
-                          </p>
-                        </div>
-                        <span
-                          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
-                            added ? "bg-olive" : "bg-charcoal"
-                          }`}
-                        >
-                          {added ? (
-                            <Check className="h-4 w-4" strokeWidth={3} />
+                      ) : (
+                        <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg bg-linen text-charcoal">
+                          {s.tipo === "cartao" ? (
+                            <Mail className="h-5 w-5" />
                           ) : (
-                            <Plus className="h-4 w-4" />
+                            <Camera className="h-5 w-5" />
                           )}
-                        </span>
-                      </button>
-                    );
-                  })}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-charcoal">
+                          {s.nome}
+                        </p>
+                        {s.descricao && (
+                          <p className="line-clamp-1 text-[11px] text-ink/55">
+                            {s.descricao}
+                          </p>
+                        )}
+                        <p className="text-xs text-ink/60">
+                          {formatBRL(s.preco)}
+                        </p>
+                      </div>
+                      <span
+                        className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
+                          s.added ? "bg-olive" : "bg-charcoal"
+                        }`}
+                      >
+                        {s.added ? (
+                          <Check className="h-4 w-4" strokeWidth={3} />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               );
             })()}
 
-            <BotoesNav onAvancar={avancar} onVoltar={voltar} avancarLabel="Ver resumo do pedido →" />
+            <BotoesNav
+              onAvancar={avancar}
+              onVoltar={voltar}
+              avancarLabel={
+                extras.cartoes.length > 0 || extras.polaroids.length > 0
+                  ? "Personalizar →"
+                  : "Ver resumo do pedido →"
+              }
+            />
           </section>
         )}
+
+        {/* ============== STEP 4.5 — Personalização (cartão / polaroid) ============== */}
+        {step === 4 && mostrarPersonalizacao && (
+          <PersonalizacaoExtras onAvancar={avancar} onVoltar={voltar} />
+        )}
+
 
         {/* ============== STEP 5 — Resumo + Pagamento ============== */}
         {step === 5 && (
