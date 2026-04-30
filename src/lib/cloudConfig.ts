@@ -141,42 +141,70 @@ export async function saveCloudConfig(): Promise<{
     }
 
     // Segredos: só atualiza campos que o usuário preencheu agora.
-    // Convenção: se o campo no store está vazio (""), mantém o valor atual no banco.
-    // Isso evita apagar segredos quando o admin abre a tela e não digita nada.
+    // Se a tabela app_secrets ainda não existir (migração pendente), apenas
+    // avisamos e seguimos — a configuração pública já foi salva.
     const incomingSecrets: AppSecrets = {
       mpAccessToken: state.pagamento.mpAccessToken || undefined,
       metaAccessToken: state.integracoes.metaAccessToken || undefined,
       webhookUrl: state.integracoes.webhookUrl || undefined,
     };
 
-    // Lê o que já existe pra fazer merge (só admin tem SELECT em app_secrets).
-    const { data: existing } = await supabase
-      .from("app_secrets")
-      .select("payload")
-      .eq("id", CONFIG_ID)
-      .maybeSingle();
-    const current = (existing?.payload as AppSecrets) ?? {};
-    const merged: AppSecrets = {
-      mpAccessToken: incomingSecrets.mpAccessToken ?? current.mpAccessToken,
-      metaAccessToken: incomingSecrets.metaAccessToken ?? current.metaAccessToken,
-      webhookUrl: incomingSecrets.webhookUrl ?? current.webhookUrl,
-    };
+    const hasAnyIncoming =
+      !!incomingSecrets.mpAccessToken ||
+      !!incomingSecrets.metaAccessToken ||
+      !!incomingSecrets.webhookUrl;
 
-    const { error: secErr } = await supabase.from("app_secrets").upsert(
-      {
-        id: CONFIG_ID,
-        payload: merged,
-        atualizado_em: new Date().toISOString(),
-      },
-      { onConflict: "id" },
-    );
+    try {
+      const { data: existing, error: readErr } = await supabase
+        .from("app_secrets")
+        .select("payload")
+        .eq("id", CONFIG_ID)
+        .maybeSingle();
 
-    if (secErr) {
-      console.error("[cloudConfig] save secrets error", secErr);
-      return {
-        ok: false,
-        error: `Configuração pública salva, mas segredos falharam: ${secErr.message}`,
+      // Tabela inexistente → ignora silenciosamente.
+      const isMissingTable = (e: any) =>
+        e &&
+        (e.code === "42P01" ||
+          /schema cache|does not exist|app_secrets/i.test(e.message ?? ""));
+
+      if (readErr && isMissingTable(readErr)) {
+        console.warn("[cloudConfig] app_secrets ausente — pulando segredos.");
+        return { ok: true };
+      }
+
+      // Sem nada novo pra gravar e sem erro de leitura → não escreve.
+      if (!hasAnyIncoming) return { ok: true };
+
+      const current = (existing?.payload as AppSecrets) ?? {};
+      const merged: AppSecrets = {
+        mpAccessToken: incomingSecrets.mpAccessToken ?? current.mpAccessToken,
+        metaAccessToken:
+          incomingSecrets.metaAccessToken ?? current.metaAccessToken,
+        webhookUrl: incomingSecrets.webhookUrl ?? current.webhookUrl,
       };
+
+      const { error: secErr } = await supabase.from("app_secrets").upsert(
+        {
+          id: CONFIG_ID,
+          payload: merged,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+      if (secErr) {
+        if (isMissingTable(secErr)) {
+          console.warn("[cloudConfig] app_secrets ausente — pulando segredos.");
+          return { ok: true };
+        }
+        console.error("[cloudConfig] save secrets error", secErr);
+        return {
+          ok: false,
+          error: `Configuração pública salva, mas segredos falharam: ${secErr.message}`,
+        };
+      }
+    } catch (e: any) {
+      console.warn("[cloudConfig] segredos: exceção ignorada", e);
     }
 
     return { ok: true };
