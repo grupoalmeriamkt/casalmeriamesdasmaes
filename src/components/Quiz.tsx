@@ -85,6 +85,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
 
   // Admin store
   const cestasAtivas = useProdutosDaCampanhaAtiva();
+  const cestasAdmin = useAdmin((s) => s.cestas);
   const sobremesasAtivas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
   const datas = useDatasAtivas();
