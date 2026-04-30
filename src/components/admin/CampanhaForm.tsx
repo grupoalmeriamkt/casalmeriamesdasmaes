@@ -615,20 +615,7 @@ function DeliveryTab({
         />
       </Bloco>
 
-      <Bloco titulo="Upsell no Delivery">
-        <ToggleLinha
-          label="Habilitar upsell"
-          checked={d.upsellAtivo}
-          onChange={(v) => onPatch({ upsellAtivo: v })}
-        />
-        {d.upsellAtivo && (
-          <ProdutosSeletor
-            cestas={cestas}
-            selecionadosIds={d.upsellProdutoIds}
-            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
-          />
-        )}
-      </Bloco>
+      {/* Upsell agora vive em "Informações Gerais" — único e aplicado a delivery + retirada. */}
     </div>
   );
 }
