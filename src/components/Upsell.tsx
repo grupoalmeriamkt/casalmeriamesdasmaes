@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 type Props = { onFinalizar: () => void; onPular: () => void };
 
 export function Upsell({ onFinalizar, onPular }: Props) {
+  const isPreview = useIsPreview();
   const sobremesas = usePedido((s) => s.sobremesas);
   const toggle = usePedido((s) => s.toggleSobremesa);
   const setQtd = usePedido((s) => s.setSobremesaQtd);
