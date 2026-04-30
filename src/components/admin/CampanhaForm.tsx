@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   useAdmin,
+  useCategorias,
   type Campanha,
   type CampanhaDelivery,
   type CampanhaRetirada,
   type CestaAdmin,
 } from "@/store/admin";
+import { validarSlug, normalizarSlug } from "@/lib/slugs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
