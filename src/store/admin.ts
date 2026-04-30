@@ -1062,6 +1062,27 @@ export const useCampanhaAtiva = () =>
   );
 export const useCategorias = () => useAdmin(useShallow((s) => s.categorias));
 
+/**
+ * Produtos selecionados na campanha ativa (em "Produtos Principais"),
+ * preservando a ordem definida no admin. Filtra apenas ativos e não arquivados.
+ */
+export const useProdutosDaCampanhaAtiva = () =>
+  useAdmin(
+    useShallow((s) => {
+      const camp =
+        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      if (!camp) return [] as CestaAdmin[];
+      const ids = camp.produtosPrincipaisIds ?? [];
+      const index = new Map(s.cestas.map((c) => [c.id, c] as const));
+      return ids
+        .map((id) => index.get(id))
+        .filter(
+          (c): c is CestaAdmin =>
+            !!c && c.ativo !== false && c.arquivado !== true,
+        );
+    }),
+  );
+
 // Backwards-compat
 export const selectCestasAtivas = (s: AdminState) => {
   if (!Array.isArray(s.cestas) || s.cestas.length === 0) return FALLBACK_CESTAS;
