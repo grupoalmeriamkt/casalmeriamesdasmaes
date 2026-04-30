@@ -284,7 +284,7 @@ function InfoGeralTab({
           <UpsellEditor
             cestas={cestas}
             upsell={campanha.upsell}
-            onChange={(up) => onPatch({ upsell: up })}
+            onChange={(up: CampanhaUpsell) => onPatch({ upsell: up })}
           />
         )}
       </Bloco>
