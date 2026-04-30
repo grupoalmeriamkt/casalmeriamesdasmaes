@@ -5,7 +5,7 @@ import { Sucesso } from "@/components/Sucesso";
 import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { usePedido } from "@/store/pedido";
-import { useAdmin, isEncerrado } from "@/store/admin";
+import { useAdmin } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 import { VitrineProdutos } from "@/components/VitrineProdutos";
 
@@ -45,24 +45,7 @@ function Index() {
     return (
       <>
         <ThemeApplier />
-        <Manutencao msg={geral.msgManutencao} />
-      </>
-    );
-  }
-
-  if (isEncerrado(geral.encerramento)) {
-    return (
-      <>
-        <ThemeApplier />
-        <div className="flex min-h-screen flex-col items-center justify-center bg-linen p-6 text-center">
-          <Logo />
-          <h1 className="mt-8 font-serif text-3xl text-charcoal">
-            Encomendas encerradas
-          </h1>
-          <p className="mt-4 max-w-md text-ink/70">
-            Agradecemos o carinho. Volte em breve para a próxima data.
-          </p>
-        </div>
+        <Manutencao msg="Estamos preparando algo especial. Volte em breve." />
       </>
     );
   }

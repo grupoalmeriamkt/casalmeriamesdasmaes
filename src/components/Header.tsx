@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Logo } from "./Logo";
-import { useAdmin, isEncerrado } from "@/store/admin";
+import { useAdmin } from "@/store/admin";
 import { Link } from "@tanstack/react-router";
 import { Menu, X, Instagram } from "lucide-react";
 import {
@@ -13,10 +13,9 @@ import {
 } from "@/components/ui/sheet";
 
 export function Header() {
-  const encerramento = useAdmin((s) => s.geral.encerramento);
   const insta = useAdmin((s) => s.integracoes.instagramUrl);
   const wa = useAdmin((s) => s.integracoes.whatsappUrl);
-  const encerrado = isEncerrado(encerramento);
+  const encerrado = false;
   const [open, setOpen] = useState(false);
 
   const navItems = [

@@ -32,7 +32,7 @@ export function AbaCampanhas() {
   const linkDe = (slug: string) => {
     const origin =
       typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/q/${slug}`;
+    return `${origin}/${slug}`;
   };
 
   const copiarLink = async (slug: string) => {

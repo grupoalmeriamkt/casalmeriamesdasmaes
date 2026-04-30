@@ -1,8 +1,19 @@
-import { useAdmin, type Campanha } from "@/store/admin";
+import { useState } from "react";
+import { toast } from "sonner";
+import {
+  useAdmin,
+  type Campanha,
+  type CampanhaDelivery,
+  type CampanhaRetirada,
+  type HorarioFuncionamento,
+  type DiaSemana,
+  type CestaAdmin,
+} from "@/store/admin";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -10,46 +21,71 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Truck, Store, Clock, Calendar, Megaphone } from "lucide-react";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import {
+  Truck,
+  Store,
+  Copy,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  X,
+} from "lucide-react";
+
+const DIAS: { id: DiaSemana; label: string }[] = [
+  { id: "seg", label: "Seg" },
+  { id: "ter", label: "Ter" },
+  { id: "qua", label: "Qua" },
+  { id: "qui", label: "Qui" },
+  { id: "sex", label: "Sex" },
+  { id: "sab", label: "Sáb" },
+  { id: "dom", label: "Dom" },
+];
 
 type Props = { campanha: Campanha };
 
 export function CampanhaForm({ campanha }: Props) {
   const setCampanha = useAdmin((s) => s.setCampanha);
-  const setQuiz = useAdmin((s) => s.setCampanhaQuiz);
+  const setDelivery = useAdmin((s) => s.setCampanhaDelivery);
+  const setRetirada = useAdmin((s) => s.setCampanhaRetirada);
   const unidades = useAdmin((s) => s.unidades);
   const cestas = useAdmin((s) => s.cestas);
 
-  const quiz = campanha.quiz;
-  const restr = quiz.restricaoRaio;
-
-  const toggleUnidade = (id: string, checked: boolean) => {
-    const set = new Set(quiz.unidadeIds);
-    if (checked) set.add(id);
-    else set.delete(id);
-    setQuiz(campanha.id, { unidadeIds: Array.from(set) });
+  const linkPublico = `${typeof window !== "undefined" ? window.location.origin : ""}/${campanha.slug}`;
+  const copiarLink = async () => {
+    try {
+      await navigator.clipboard.writeText(linkPublico);
+      toast.success("Link copiado!");
+    } catch {
+      toast.error("Não foi possível copiar.");
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Dados básicos */}
+      {/* ========= Cabeçalho — informações gerais ========= */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-charcoal" />
-          <h3 className="text-sm font-bold uppercase tracking-widest text-charcoal">
-            Dados da campanha
-          </h3>
-        </div>
+        <h3 className="text-sm font-bold uppercase tracking-widest text-charcoal">
+          Informações gerais
+        </h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Nome</Label>
+            <Label>Nome da campanha</Label>
             <Input
               value={campanha.nome}
-              onChange={(e) => setCampanha(campanha.id, { nome: e.target.value })}
+              onChange={(e) =>
+                setCampanha(campanha.id, { nome: e.target.value })
+              }
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Slug do link (/q/...)</Label>
+            <Label>Slug do link (/...)</Label>
             <Input
               value={campanha.slug}
               onChange={(e) =>
@@ -63,6 +99,15 @@ export function CampanhaForm({ campanha }: Props) {
             />
           </div>
           <div className="space-y-1.5 md:col-span-2">
+            <Label>Link público gerado</Label>
+            <div className="flex gap-2">
+              <Input value={linkPublico} readOnly className="font-mono text-xs" />
+              <Button type="button" variant="outline" onClick={copiarLink}>
+                <Copy className="mr-2 h-4 w-4" /> Copiar
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
             <Label>Status</Label>
             <Select
               value={campanha.status}
@@ -70,7 +115,7 @@ export function CampanhaForm({ campanha }: Props) {
                 setCampanha(campanha.id, { status: v as "ativa" | "pausada" })
               }
             >
-              <SelectTrigger className="max-w-[200px]">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -79,308 +124,789 @@ export function CampanhaForm({ campanha }: Props) {
               </SelectContent>
             </Select>
           </div>
-        </div>
-      </div>
-
-      {/* Quiz config */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h3 className="text-sm font-bold uppercase tracking-widest text-charcoal">
-          Configuração do Quiz
-        </h3>
-
-        <div className="rounded-lg border border-border/60 bg-background/40 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Truck className="h-4 w-4 text-charcoal" />
-              <span className="text-sm font-medium text-charcoal">Delivery</span>
-            </div>
-            <Switch
-              checked={quiz.delivery}
-              onCheckedChange={(v) => setQuiz(campanha.id, { delivery: v })}
-            />
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Restrição por raio</Label>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={restr.ativo}
-                  onCheckedChange={(v) =>
-                    setQuiz(campanha.id, {
-                      restricaoRaio: { ...restr, ativo: v },
-                    })
-                  }
-                />
-                <span className="text-xs text-muted-foreground">
-                  Bloquear endereços fora do raio
-                </span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Unidade base</Label>
-              <Select
-                value={restr.unidadeBaseId}
-                onValueChange={(v) =>
-                  setQuiz(campanha.id, {
-                    restricaoRaio: { ...restr, unidadeBaseId: v },
-                  })
-                }
-                disabled={!restr.ativo}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {unidades.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Raio (km)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={200}
-                value={restr.raioKm}
-                disabled={!restr.ativo}
-                onChange={(e) =>
-                  setQuiz(campanha.id, {
-                    restricaoRaio: {
-                      ...restr,
-                      raioKm: Math.max(1, Number(e.target.value) || 1),
-                    },
-                  })
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border/60 bg-background/40 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Store className="h-4 w-4 text-charcoal" />
-              <span className="text-sm font-medium text-charcoal">
-                Retirada na loja
-              </span>
-            </div>
-            <Switch
-              checked={quiz.retirada}
-              onCheckedChange={(v) => setQuiz(campanha.id, { retirada: v })}
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">
-              Unidades disponíveis para esta campanha
-            </Label>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Cadastre unidades em Configurações → Unidades.
-            </p>
-            <div className="mt-2 space-y-2">
-              {unidades.length === 0 && (
-                <p className="text-xs text-terracotta">
-                  Nenhuma unidade cadastrada.
-                </p>
-              )}
-              {unidades.map((u) => (
-                <label
-                  key={u.id}
-                  className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-2"
-                >
-                  <Switch
-                    checked={quiz.unidadeIds.includes(u.id)}
-                    onCheckedChange={(v) => toggleUnidade(u.id, v)}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-charcoal">
-                      {u.nome}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {u.endereco || "Sem endereço"}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Datas */}
-        <div className="rounded-lg border border-border/60 bg-background/40 p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-charcoal" />
-            <h4 className="text-xs font-bold uppercase tracking-widest text-charcoal">
-              Dias disponíveis
-            </h4>
-          </div>
-          <div className="space-y-2">
-            {quiz.datas.map((d, i) => (
-              <div
-                key={d.id}
-                className="grid gap-2 rounded-md border border-border bg-card p-2 md:grid-cols-[auto_1fr_auto]"
-              >
-                <Switch
-                  checked={d.ativa}
-                  onCheckedChange={(v) =>
-                    setQuiz(campanha.id, {
-                      datas: quiz.datas.map((x, idx) =>
-                        idx === i ? { ...x, ativa: v } : x,
-                      ),
-                    })
-                  }
-                />
-                <Input
-                  value={d.label}
-                  onChange={(e) =>
-                    setQuiz(campanha.id, {
-                      datas: quiz.datas.map((x, idx) =>
-                        idx === i ? { ...x, label: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    setQuiz(campanha.id, {
-                      datas: quiz.datas.filter((_, idx) => idx !== i),
-                    })
-                  }
-                  className="text-terracotta hover:bg-terracotta/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            className="mt-2 border-dashed"
-            onClick={() =>
-              setQuiz(campanha.id, {
-                datas: [
-                  ...quiz.datas,
-                  { id: `d-${Date.now()}`, label: "Nova data", ativa: true },
-                ],
-              })
-            }
-          >
-            <Plus className="mr-2 h-4 w-4" /> Adicionar data
-          </Button>
-        </div>
-
-        {/* Horários */}
-        <div className="rounded-lg border border-border/60 bg-background/40 p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-charcoal" />
-            <h4 className="text-xs font-bold uppercase tracking-widest text-charcoal">
-              Janelas de horário
-            </h4>
-          </div>
-          <div className="space-y-2">
-            {quiz.horarios.map((h, i) => (
-              <div
-                key={i}
-                className="grid gap-2 rounded-md border border-border bg-card p-2 md:grid-cols-[auto_1fr_auto]"
-              >
-                <Switch
-                  checked={h.ativo}
-                  onCheckedChange={(v) =>
-                    setQuiz(campanha.id, {
-                      horarios: quiz.horarios.map((x, idx) =>
-                        idx === i ? { ...x, ativo: v } : x,
-                      ),
-                    })
-                  }
-                />
-                <Input
-                  value={h.label}
-                  onChange={(e) =>
-                    setQuiz(campanha.id, {
-                      horarios: quiz.horarios.map((x, idx) =>
-                        idx === i ? { ...x, label: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    setQuiz(campanha.id, {
-                      horarios: quiz.horarios.filter((_, idx) => idx !== i),
-                    })
-                  }
-                  className="text-terracotta hover:bg-terracotta/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            className="mt-2 border-dashed"
-            onClick={() =>
-              setQuiz(campanha.id, {
-                horarios: [
-                  ...quiz.horarios,
-                  { label: "Nova janela", ativo: true },
-                ],
-              })
-            }
-          >
-            <Plus className="mr-2 h-4 w-4" /> Adicionar janela
-          </Button>
-        </div>
-      </div>
-
-      {/* Upsell */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-widest text-charcoal">
-            Upsell
-          </h3>
-          <Switch
-            checked={campanha.upsellAtivo}
-            onCheckedChange={(v) =>
-              setCampanha(campanha.id, { upsellAtivo: v })
-            }
-          />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Quando habilitado, exibe um produto sugerido durante o Quiz.
-        </p>
-        {campanha.upsellAtivo && (
           <div className="space-y-1.5">
-            <Label>Produto exibido como upsell</Label>
+            <Label>Unidade vinculada</Label>
             <Select
-              value={campanha.upsellProdutoId ?? ""}
-              onValueChange={(v) =>
-                setCampanha(campanha.id, { upsellProdutoId: v })
-              }
+              value={campanha.unidadeId ?? ""}
+              onValueChange={(v) => setCampanha(campanha.id, { unidadeId: v })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione um produto" />
+                <SelectValue placeholder="Selecione uma unidade" />
               </SelectTrigger>
               <SelectContent>
-                {cestas
-                  .filter((c) => !c.arquivado && c.ativo)
-                  .map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
+                {unidades
+                  .filter((u) => u.status === "ativa")
+                  .map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nome}
                     </SelectItem>
                   ))}
               </SelectContent>
             </Select>
           </div>
-        )}
+        </div>
       </div>
+
+      {/* ========= Abas Delivery / Retirada ========= */}
+      <Tabs defaultValue="delivery">
+        <TabsList className="bg-charcoal/5">
+          <TabsTrigger value="delivery" className="gap-2">
+            <Truck className="h-4 w-4" /> Delivery
+          </TabsTrigger>
+          <TabsTrigger value="retirada" className="gap-2">
+            <Store className="h-4 w-4" /> Retirada
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="delivery" className="mt-4">
+          <DeliveryTab
+            campanha={campanha}
+            cestas={cestas}
+            onPatch={(p) => setDelivery(campanha.id, p)}
+          />
+        </TabsContent>
+        <TabsContent value="retirada" className="mt-4">
+          <RetiradaTab
+            campanha={campanha}
+            cestas={cestas}
+            onPatch={(p) => setRetirada(campanha.id, p)}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+/* ============================================================ */
+/*                          DELIVERY                            */
+/* ============================================================ */
+
+function DeliveryTab({
+  campanha,
+  cestas,
+  onPatch,
+}: {
+  campanha: Campanha;
+  cestas: CestaAdmin[];
+  onPatch: (p: Partial<CampanhaDelivery>) => void;
+}) {
+  const d = campanha.delivery;
+  const [bairroInput, setBairroInput] = useState("");
+
+  return (
+    <div className="space-y-5">
+      <Bloco>
+        <ToggleLinha
+          label="Delivery ativo"
+          checked={d.ativo}
+          onChange={(v) => onPatch({ ativo: v })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Pedido">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Valor mínimo de pedido (R$)">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={d.valorMinimo}
+              onChange={(e) =>
+                onPatch({ valorMinimo: Number(e.target.value) || 0 })
+              }
+            />
+          </Field>
+          <Field label="Tempo estimado (min)">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                value={d.tempoEstimadoMin}
+                onChange={(e) =>
+                  onPatch({ tempoEstimadoMin: Number(e.target.value) || 0 })
+                }
+              />
+              <span className="text-muted-foreground">até</span>
+              <Input
+                type="number"
+                min={0}
+                value={d.tempoEstimadoMax}
+                onChange={(e) =>
+                  onPatch({ tempoEstimadoMax: Number(e.target.value) || 0 })
+                }
+              />
+            </div>
+          </Field>
+        </div>
+      </Bloco>
+
+      <Bloco titulo="Taxa de entrega">
+        <div className="space-y-3">
+          <Select
+            value={d.taxa.tipo}
+            onValueChange={(v) => {
+              if (v === "fixa") onPatch({ taxa: { tipo: "fixa", valor: 0 } });
+              else onPatch({ taxa: { tipo: "faixa", faixas: [] } });
+            }}
+          >
+            <SelectTrigger className="max-w-[240px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fixa">Taxa fixa</SelectItem>
+              <SelectItem value="faixa">Por faixa de km</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {d.taxa.tipo === "fixa" ? (
+            <Field label="Valor da taxa (R$)">
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={d.taxa.valor}
+                onChange={(e) =>
+                  onPatch({
+                    taxa: { tipo: "fixa", valor: Number(e.target.value) || 0 },
+                  })
+                }
+                className="max-w-[200px]"
+              />
+            </Field>
+          ) : (
+            (() => {
+              const faixas = d.taxa.faixas;
+              return (
+                <div className="space-y-2">
+                  {faixas.map((f, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
+                    >
+                      <Field label="Até km">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={f.ateKm}
+                          onChange={(e) => {
+                            const next = [...faixas];
+                            next[i] = { ...f, ateKm: Number(e.target.value) || 0 };
+                            onPatch({ taxa: { tipo: "faixa", faixas: next } });
+                          }}
+                        />
+                      </Field>
+                      <Field label="Valor (R$)">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={f.valor}
+                          onChange={(e) => {
+                            const next = [...faixas];
+                            next[i] = { ...f, valor: Number(e.target.value) || 0 };
+                            onPatch({ taxa: { tipo: "faixa", faixas: next } });
+                          }}
+                        />
+                      </Field>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="self-end text-terracotta hover:bg-terracotta/10"
+                        onClick={() => {
+                          const next = faixas.filter((_, idx) => idx !== i);
+                          onPatch({ taxa: { tipo: "faixa", faixas: next } });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    className="border-dashed"
+                    onClick={() =>
+                      onPatch({
+                        taxa: {
+                          tipo: "faixa",
+                          faixas: [...faixas, { ateKm: 5, valor: 0 }],
+                        },
+                      })
+                    }
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Adicionar faixa
+                  </Button>
+                </div>
+              );
+            })()
+          )}
+        </div>
+      </Bloco>
+
+      <Bloco titulo="Área de atendimento">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Raio (km)">
+            <Input
+              type="number"
+              min={0}
+              value={d.raioKm}
+              onChange={(e) => onPatch({ raioKm: Number(e.target.value) || 0 })}
+              className="max-w-[160px]"
+            />
+          </Field>
+          <Field label="Bairros atendidos">
+            <div className="flex flex-wrap gap-1.5">
+              {d.bairros.map((b, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 rounded-full bg-charcoal/5 px-2.5 py-1 text-xs text-charcoal"
+                >
+                  {b}
+                  <button
+                    onClick={() =>
+                      onPatch({
+                        bairros: d.bairros.filter((_, idx) => idx !== i),
+                      })
+                    }
+                    className="text-terracotta hover:opacity-70"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={bairroInput}
+                placeholder="Nome do bairro"
+                onChange={(e) => setBairroInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && bairroInput.trim()) {
+                    e.preventDefault();
+                    onPatch({ bairros: [...d.bairros, bairroInput.trim()] });
+                    setBairroInput("");
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (bairroInput.trim()) {
+                    onPatch({ bairros: [...d.bairros, bairroInput.trim()] });
+                    setBairroInput("");
+                  }
+                }}
+              >
+                Adicionar
+              </Button>
+            </div>
+          </Field>
+        </div>
+      </Bloco>
+
+      <Bloco titulo="Horário de funcionamento (Delivery)">
+        <HorarioSemana
+          horario={d.horario}
+          onChange={(h) => onPatch({ horario: h })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Configuração do Quiz de Delivery">
+        <p className="text-xs text-muted-foreground">
+          Datas e janelas de horário oferecidas no Quiz desta forma de
+          entrega.
+        </p>
+        <DatasHorarios
+          datas={d.datas}
+          horarios={d.horarios}
+          onDatas={(datas) => onPatch({ datas })}
+          onHorarios={(horarios) => onPatch({ horarios })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Upsell no Delivery">
+        <ToggleLinha
+          label="Habilitar upsell"
+          checked={d.upsellAtivo}
+          onChange={(v) => onPatch({ upsellAtivo: v })}
+        />
+        {d.upsellAtivo && (
+          <UpsellSeletor
+            cestas={cestas}
+            selecionadosIds={d.upsellProdutoIds}
+            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
+          />
+        )}
+      </Bloco>
+    </div>
+  );
+}
+
+/* ============================================================ */
+/*                          RETIRADA                            */
+/* ============================================================ */
+
+function RetiradaTab({
+  campanha,
+  cestas,
+  onPatch,
+}: {
+  campanha: Campanha;
+  cestas: CestaAdmin[];
+  onPatch: (p: Partial<CampanhaRetirada>) => void;
+}) {
+  const r = campanha.retirada;
+
+  return (
+    <div className="space-y-5">
+      <Bloco>
+        <ToggleLinha
+          label="Retirada ativa"
+          checked={r.ativo}
+          onChange={(v) => onPatch({ ativo: v })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Pedido">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Valor mínimo de pedido (R$)">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={r.valorMinimo}
+              onChange={(e) =>
+                onPatch({ valorMinimo: Number(e.target.value) || 0 })
+              }
+            />
+          </Field>
+          <Field label="Tempo de preparo (min)">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                value={r.tempoPreparoMin}
+                onChange={(e) =>
+                  onPatch({ tempoPreparoMin: Number(e.target.value) || 0 })
+                }
+              />
+              <span className="text-muted-foreground">até</span>
+              <Input
+                type="number"
+                min={0}
+                value={r.tempoPreparoMax}
+                onChange={(e) =>
+                  onPatch({ tempoPreparoMax: Number(e.target.value) || 0 })
+                }
+              />
+            </div>
+          </Field>
+        </div>
+      </Bloco>
+
+      <Bloco titulo="Local de retirada">
+        <Field label="Endereço de retirada">
+          <Textarea
+            rows={2}
+            value={r.enderecoRetirada}
+            onChange={(e) => onPatch({ enderecoRetirada: e.target.value })}
+            placeholder="Endereço completo onde o cliente retira o pedido"
+          />
+        </Field>
+      </Bloco>
+
+      <Bloco titulo="Horário de funcionamento (Retirada)">
+        <HorarioSemana
+          horario={r.horario}
+          onChange={(h) => onPatch({ horario: h })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Configuração do Quiz de Retirada">
+        <p className="text-xs text-muted-foreground">
+          Datas e janelas de horário oferecidas no Quiz para retirada.
+        </p>
+        <DatasHorarios
+          datas={r.datas}
+          horarios={r.horarios}
+          onDatas={(datas) => onPatch({ datas })}
+          onHorarios={(horarios) => onPatch({ horarios })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Upsell na Retirada">
+        <ToggleLinha
+          label="Habilitar upsell"
+          checked={r.upsellAtivo}
+          onChange={(v) => onPatch({ upsellAtivo: v })}
+        />
+        {r.upsellAtivo && (
+          <UpsellSeletor
+            cestas={cestas}
+            selecionadosIds={r.upsellProdutoIds}
+            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
+          />
+        )}
+      </Bloco>
+    </div>
+  );
+}
+
+/* ============================================================ */
+/*                       SHARED PIECES                          */
+/* ============================================================ */
+
+function Bloco({
+  titulo,
+  children,
+}: {
+  titulo?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+      {titulo && (
+        <h4 className="text-xs font-bold uppercase tracking-widest text-charcoal">
+          {titulo}
+        </h4>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function ToggleLinha({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-medium text-charcoal">{label}</span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function HorarioSemana({
+  horario,
+  onChange,
+}: {
+  horario: HorarioFuncionamento;
+  onChange: (h: HorarioFuncionamento) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      {DIAS.map(({ id, label }) => {
+        const dia = horario[id];
+        return (
+          <div
+            key={id}
+            className="grid grid-cols-[60px_auto_1fr_1fr] items-center gap-3 rounded-md border border-border bg-background/40 p-2"
+          >
+            <span className="text-xs font-medium uppercase text-charcoal">
+              {label}
+            </span>
+            <Switch
+              checked={dia.ativo}
+              onCheckedChange={(v) =>
+                onChange({ ...horario, [id]: { ...dia, ativo: v } })
+              }
+            />
+            <Input
+              type="time"
+              value={dia.inicio}
+              disabled={!dia.ativo}
+              onChange={(e) =>
+                onChange({
+                  ...horario,
+                  [id]: { ...dia, inicio: e.target.value },
+                })
+              }
+            />
+            <Input
+              type="time"
+              value={dia.fim}
+              disabled={!dia.ativo}
+              onChange={(e) =>
+                onChange({ ...horario, [id]: { ...dia, fim: e.target.value } })
+              }
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DatasHorarios({
+  datas,
+  horarios,
+  onDatas,
+  onHorarios,
+}: {
+  datas: { id: string; label: string; ativa: boolean }[];
+  horarios: { label: string; ativo: boolean }[];
+  onDatas: (d: { id: string; label: string; ativa: boolean }[]) => void;
+  onHorarios: (h: { label: string; ativo: boolean }[]) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div>
+        <p className="mb-2 text-xs font-semibold text-charcoal">Datas</p>
+        <div className="space-y-1.5">
+          {datas.map((d, i) => (
+            <div
+              key={d.id}
+              className="grid grid-cols-[auto_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
+            >
+              <Switch
+                checked={d.ativa}
+                onCheckedChange={(v) =>
+                  onDatas(datas.map((x, idx) => (idx === i ? { ...x, ativa: v } : x)))
+                }
+              />
+              <Input
+                value={d.label}
+                onChange={(e) =>
+                  onDatas(
+                    datas.map((x, idx) =>
+                      idx === i ? { ...x, label: e.target.value } : x,
+                    ),
+                  )
+                }
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-terracotta hover:bg-terracotta/10"
+                onClick={() => onDatas(datas.filter((_, idx) => idx !== i))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          className="mt-2 border-dashed"
+          onClick={() =>
+            onDatas([
+              ...datas,
+              { id: `d-${Date.now()}`, label: "Nova data", ativa: true },
+            ])
+          }
+        >
+          <Plus className="mr-2 h-4 w-4" /> Adicionar data
+        </Button>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-charcoal">Janelas de horário</p>
+        <div className="space-y-1.5">
+          {horarios.map((h, i) => (
+            <div
+              key={i}
+              className="grid grid-cols-[auto_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
+            >
+              <Switch
+                checked={h.ativo}
+                onCheckedChange={(v) =>
+                  onHorarios(
+                    horarios.map((x, idx) =>
+                      idx === i ? { ...x, ativo: v } : x,
+                    ),
+                  )
+                }
+              />
+              <Input
+                value={h.label}
+                onChange={(e) =>
+                  onHorarios(
+                    horarios.map((x, idx) =>
+                      idx === i ? { ...x, label: e.target.value } : x,
+                    ),
+                  )
+                }
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-terracotta hover:bg-terracotta/10"
+                onClick={() =>
+                  onHorarios(horarios.filter((_, idx) => idx !== i))
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          className="mt-2 border-dashed"
+          onClick={() =>
+            onHorarios([...horarios, { label: "Nova janela", ativo: true }])
+          }
+        >
+          <Plus className="mr-2 h-4 w-4" /> Adicionar janela
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function UpsellSeletor({
+  cestas,
+  selecionadosIds,
+  onChange,
+}: {
+  cestas: CestaAdmin[];
+  selecionadosIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
+  const fmt = (n: number) =>
+    n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const toggle = (id: string) => {
+    if (selecionadosIds.includes(id)) {
+      onChange(selecionadosIds.filter((x) => x !== id));
+    } else {
+      onChange([...selecionadosIds, id]);
+    }
+  };
+
+  const mover = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= selecionadosIds.length) return;
+    const next = [...selecionadosIds];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="mb-2 text-xs font-semibold text-charcoal">
+          Selecione os produtos do upsell
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ativos.map((c) => {
+            const sel = selecionadosIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => toggle(c.id)}
+                className={`flex items-center gap-3 rounded-lg border-2 bg-card p-2 text-left transition-all ${
+                  sel ? "border-terracotta" : "border-border hover:border-charcoal/40"
+                }`}
+              >
+                <img
+                  src={c.imagem}
+                  alt={c.nome}
+                  className="h-12 w-12 flex-none rounded-md object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-charcoal">
+                    {c.nome}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{fmt(c.preco)}</p>
+                </div>
+                <span
+                  className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border ${
+                    sel
+                      ? "border-terracotta bg-terracotta text-white"
+                      : "border-border"
+                  }`}
+                >
+                  {sel ? "✓" : ""}
+                </span>
+              </button>
+            );
+          })}
+          {ativos.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Nenhum produto ativo cadastrado.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {selecionadosIds.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold text-charcoal">
+            Ordem de exibição
+          </p>
+          <div className="space-y-1.5">
+            {selecionadosIds.map((id, i) => {
+              const p = cestas.find((c) => c.id === id);
+              if (!p) return null;
+              return (
+                <div
+                  key={id}
+                  className="flex items-center gap-2 rounded-md border border-border bg-background/40 p-2"
+                >
+                  <span className="w-5 text-center text-xs font-bold text-muted-foreground">
+                    {i + 1}
+                  </span>
+                  <img
+                    src={p.imagem}
+                    alt={p.nome}
+                    className="h-8 w-8 flex-none rounded object-cover"
+                  />
+                  <p className="min-w-0 flex-1 truncate text-sm text-charcoal">
+                    {p.nome}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => mover(i, -1)}
+                    disabled={i === 0}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => mover(i, 1)}
+                    disabled={i === selecionadosIds.length - 1}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-terracotta hover:bg-terracotta/10"
+                    onClick={() => toggle(id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

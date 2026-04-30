@@ -1,167 +1,143 @@
-# Reestruturação do Painel Casa Almeria
+# Correções e Melhorias — Casa Almeria
 
-Mudança grande, com impacto em sidebar, store, várias abas, rota pública e a Home. Abaixo o plano dividido por área, na ordem de execução.
-
----
-
-## 1. Sidebar (`src/routes/admin.tsx`)
-
-Novo menu principal:
-
-- **Site Principal** (atual aba "Textos" renomeada — controla textos da LP)
-- **Produtos** (atual "Cestas")
-- **Campanhas** (NOVO)
-- **Pedidos**
-- **Configurações** (vira hub com sub-abas)
-
-Removidos do nível raiz: Aparência, Pagamento, Integrações, Upsell, Entrega.
-
-A aba "Configurações" passa a renderizar um componente `AbaConfiguracoes` com sub-abas internas (tabs horizontais no topo do conteúdo):
-
-- Geral (atual `AbaGeral`)
-- Unidades (NOVO — ver §2)
-- Aparência (atual `AbaAparencia`)
-- Pagamento (atual `AbaPagamento`)
-- Integrações (atual `AbaIntegracoes`)
-
-A aba "Upsell" (`AbaSobremesas`) deixa de existir como item de menu — sobremesas viram opção dentro de Campanhas (§4). Mantemos o store `sobremesas` para reaproveitar como catálogo de produtos-upsell.
+Plano dividido nos 5 itens da solicitação. Sem novos recursos além do pedido.
 
 ---
 
-## 2. Configurações → Unidades
+## 1. Rotas — remover `/q/` do link da campanha
 
-Hoje as unidades vivem em `entrega.unidades` (store `admin.ts`) com campos: id, nome, endereço, lat, lng, ativa.
+**Problema atual:** o link público do Quiz é `/q/{slug}` (arquivo `src/routes/q.$slug.tsx` + texto "Slug do link (/q/...)" no formulário).
 
-Vamos **promover Unidades a entidade de primeiro nível** no store: `state.unidades[]`, com o shape ampliado:
+**Mudanças:**
+- Renomear `src/routes/q.$slug.tsx` → `src/routes/$slug.tsx` (rota dinâmica raiz `/{slug}`).
+- No componente da rota, adicionar guarda: se `slug` colidir com qualquer rota fixa existente (`admin`, `pedido`, `pedidos`, `api`), redirecionar para `/`. Isso evita que o catch-all engula rotas já reservadas.
+- Em `CampanhaForm.tsx`: trocar o label "Slug do link (/q/...)" por "Slug do link (/...)" e adicionar lista de slugs reservados na sanitização (se o usuário digitar `admin`, devolve para um valor seguro com aviso `toast`).
+- Em `AbaCampanhas.tsx`: ajustar `linkDe(slug)` de `${origin}/q/${slug}` para `${origin}/${slug}`.
+- Atualizar qualquer referência a `/q/` em comentários/textos (`.lovable/plan.md` é apenas documentação interna; ignorar).
 
-- `id`, `nome`, `endereco`, `lat?`, `lng?`
-- `horarioFuncionamento`: por dia da semana (seg–dom), cada um com `{ ativo, inicio, fim }`
-- `raioEntregaKm: number`
-- `status: "ativa" | "inativa"`
-
-Migração: copiar `entrega.unidades` existentes para `state.unidades` preenchendo defaults (horário 09:00–18:00 seg–sáb, raio = `entrega.restricaoRaio.raioKm` ou 10). Remover `entrega.unidades` e `entrega.restricaoRaio` (a restrição passa a ser por unidade).
-
-Componente novo: `src/components/admin/AbaUnidades.tsx` — lista cards editáveis com botão "Adicionar unidade". Geocodificação (lat/lng) reaproveita helper atual `geocodificarEndereco`.
-
-Regra de uso: todo seletor de unidade no sistema (checkout, campanhas, etc.) lê de `useUnidadesAtivas()` que filtra `status === "ativa"`.
+**Risco:** rota dinâmica raiz captura tudo. A guarda por slugs reservados resolve. Como o TanStack Router prioriza rotas estáticas sobre dinâmicas, `/admin` continua resolvendo para `src/routes/admin.tsx` normalmente.
 
 ---
 
-## 3. Produtos — listagem com ações + Categorias
+## 2. Configurações → Geral — remover campos
 
-`AbaCestas` (renomeada visualmente para "Produtos") vira **lista compacta** ao invés de cards expandidos. Cada linha mostra: thumb, nome, badge, preço, status, e um menu de ações (`DropdownMenu`):
+Em `src/components/admin/AbaGeral.tsx` remover os blocos:
+- Toggle "Mostrar upsell de sobremesas" (`mostrarUpsell`)
+- Toggle "Mostrar seção Informações importantes" (`mostrarInformacoes`)
+- Campo "Mensagem da página de manutenção" (`msgManutencao`)
+- Campo "Data de encerramento de encomendas" (`encerramento`)
 
-- **Abrir** — abre dialog read-only com detalhes
-- **Editar** — abre o formulário atual em `Dialog`
-- **Excluir** — `AlertDialog` de confirmação ("Tem certeza? Esta ação não pode ser desfeita.")
-- **Arquivar** — seta novo campo `arquivado: true` (produto some da Home/Quiz mas continua na lista, marcado como arquivado; ação "Desarquivar" disponível)
+Manter o toggle "Site ativo" e a Zona de risco.
 
-Adicionar no store: `arquivado?: boolean` em cestas; selectors `useCestasAtivas` passam a filtrar `!arquivado && ativo`.
-
-**Categorias**: nova entidade `state.categorias: { id, nome }[]` + campo `categoriaId?: string` em cada produto. Botão "Gerenciar categorias" no topo da página abre dialog com CRUD simples (criar / renomear / excluir; ao excluir, produtos ficam com `categoriaId` indefinido = "Sem categoria").
+**Limpeza no store (`src/store/admin.ts`):**
+- Remover esses 4 campos de `ConfigGeral` e do `initial.geral`.
+- Remover leitura desses campos em `src/routes/index.tsx` (bloco `isEncerrado` e `Manutencao msg=…` — manter somente `geral.ativa` para manutenção, com texto fixo padrão).
+- Atualizar `src/components/Hero.tsx` e `src/components/Header.tsx` para não dependerem de `isEncerrado`/`encerramento`.
+- Remover/ignorar `mostrarUpsell` e `mostrarInformacoes` onde forem lidos (a configuração de upsell passa a ser por campanha — item 4).
+- Bumpar `version` do persist para `7` e adicionar branch no `migrate` que apaga esses campos do estado salvo.
 
 ---
 
-## 4. Campanhas (NOVA página)
+## 3. Produtos — restaurar categoria "Sobremesas"
 
-Novo componente `AbaCampanhas` no admin + nova rota pública `src/routes/q.$slug.tsx` para o link da campanha.
+Em `src/store/admin.ts`:
+- Adicionar `{ id: "cat-sobremesas", nome: "Sobremesas" }` ao array `initialCategorias`.
+- No `migrate` (v7), garantir que se `categorias` não tiver `cat-sobremesas`, ela seja inserida.
+- Vincular automaticamente: produtos cuja origem é `SOBREMESAS` (em `src/lib/data.ts`) — hoje vivem em `state.sobremesas`, separados de `state.cestas`. Como a UI de Produtos lista apenas `state.cestas`, no `migrate` vamos copiar os itens de `state.sobremesas` (que ainda não existirem em `state.cestas`) para `state.cestas` com `categoriaId: "cat-sobremesas"`, mantendo `ativo: true`, `arquivado: false`. Isso "restaura" os produtos na lista de Produtos sob a categoria Sobremesas.
+- A categoria fica vazia se não houver itens migráveis — adição manual continua funcionando.
 
-Store novo: `state.campanhas: Campanha[]`
+---
 
+## 4. Campanhas — upsell múltiplo
+
+**Store (`Campanha`):** trocar `upsellProdutoId?: string` por `upsellProdutoIds: string[]` (ordem do array = ordem de exibição). Migrar no v7: se existir `upsellProdutoId`, virar `[upsellProdutoId]`.
+
+**`CampanhaForm.tsx`** — bloco Upsell:
+- Substituir o `<Select>` único por um seletor múltiplo customizado:
+  - Lista os produtos de `state.cestas` com `ativo && !arquivado`.
+  - Cada item mostra **thumbnail (imagem), nome e preço**.
+  - Checkbox para selecionar/desselecionar.
+- Abaixo, lista dos produtos já selecionados em ordem, com:
+  - Botão "remover" (X)
+  - Botões "↑" / "↓" para reordenar (ou drag-handle simples — ordenação por setas é suficiente e leve).
+- O array final é gravado em `campanha.upsellProdutoIds`.
+
+**Consumo no Quiz/Upsell:** `src/components/Upsell.tsx` e `src/components/Quiz.tsx` precisam aceitar a lista (renderizar todos os upsells da campanha ativa, na ordem). Hoje existe um único upsell — vou iterar sobre `campanha.upsellProdutoIds.map(id => cestas.find(...))` e exibir cards na mesma seção.
+
+---
+
+## 5. Editar Campanha — abas Delivery / Retirada
+
+Reescrita do `CampanhaForm.tsx` para a estrutura abaixo. Os novos campos exigem ampliar `Campanha` no store.
+
+### Cabeçalho fixo (fora das abas)
+- Nome da campanha
+- Link público gerado (read-only, copiável) — agora `/{slug}`
+- Status (ativa / pausada)
+- **Unidade vinculada** — `Select` único populado com `state.unidades` ativas. Substitui o atual seletor múltiplo de unidades por um único vínculo (campo novo `campanha.unidadeId`). O quiz herda raio, horário e endereço dessa unidade.
+
+### Aba "Delivery"
+Bloco controlado por `campanha.delivery: { ativo, valorMinimo, taxa: { tipo: "fixa"|"faixa", valor, faixas: [{ ateKm, valor }] }, tempoEstimado: { min, max }, raioKm, bairros: string[], horario: HorarioFuncionamento, quiz: QuizFlow, upsell: { ativo, produtoIds: string[] } }`.
+
+Campos visíveis:
+- Toggle "Delivery ativo"
+- Valor mínimo de pedido (input numérico)
+- Taxa de entrega: radio (Fixa / Por faixa de km) + inputs correspondentes
+- Tempo estimado (min – max em minutos)
+- Raio (km) **ou** lista de bairros atendidos (campo de tags)
+- Horário de funcionamento por dia da semana (componente reutilizando `HorarioFuncionamento` — 7 linhas com toggle + início/fim)
+- Configuração do Quiz de Delivery: editor de perguntas (lista de perguntas, cada uma com `texto`, `tipo` (única/múltipla), opções `[{ label, proxima? }]` para lógica de fluxo)
+- Upsell no Delivery: toggle + seletor múltiplo (item 4)
+
+### Aba "Retirada"
+Bloco controlado por `campanha.retirada: { ativo, valorMinimo, tempoPreparoMin, tempoPreparoMax, horario: HorarioFuncionamento, enderecoRetirada, quiz: QuizFlow, upsell: { ativo, produtoIds: string[] } }`.
+
+Campos visíveis:
+- Toggle "Retirada ativa"
+- Valor mínimo de pedido
+- Tempo estimado de preparo (min – max)
+- Horário de funcionamento por dia da semana
+- Local/endereço de retirada (texto livre, sugestão automática = endereço da unidade vinculada)
+- Configuração do Quiz de Retirada (mesmo editor da aba Delivery, dados independentes)
+- Upsell na Retirada: toggle + seletor múltiplo
+
+### Tipo `QuizFlow`
 ```ts
-type Campanha = {
-  id: string;
-  slug: string;             // gera o link /q/{slug}
-  nome: string;
-  status: "ativa" | "pausada";
-  upsellAtivo: boolean;
-  upsellProdutoId?: string; // referencia state.cestas (ou sobremesas)
-  quiz: QuizConfig;         // toda config que hoje vive em entrega
-};
-
-type QuizConfig = {
-  delivery: boolean;
-  retirada: boolean;
-  unidadeIds: string[];     // referenciam state.unidades
-  datas: { id, label, ativa }[];
-  horarios: { label, ativo }[];
-  restricaoRaio: { ativo, unidadeBaseId, raioKm };
+type QuizFlow = {
+  perguntas: Array<{
+    id: string;
+    texto: string;
+    tipo: "unica" | "multipla";
+    opcoes: Array<{ id: string; label: string; proximaPerguntaId?: string }>;
+  }>;
 };
 ```
+Editor: lista de perguntas com botões "Adicionar pergunta" / "Remover"; dentro de cada, lista de opções editáveis com `Select` opcional para "ir para pergunta…" (lógica de fluxo). Implementação simples, sem drag-and-drop (botões ↑ ↓).
 
-UI da aba: lista de campanhas com nome, status, link copiável (`https://casa.grupoalmeria.com.br/q/{slug}`), botões editar/duplicar/excluir. Ao editar, abre formulário com:
-
-1. Dados básicos (nome, slug auto, status)
-2. Bloco "Configuração do Quiz" — exatamente o conteúdo atual de `AbaEntrega` (delivery/retirada toggles, seleção de unidades dentre as cadastradas em §2, datas, horários, restrição de raio)
-3. Bloco "Upsell" — toggle + `Select` populado com `state.cestas` ativas
-
-**Migração**: ao subir a v6 do store, criar uma campanha "default" copiando `state.entrega` atual, com slug `principal`. Depois remover `state.entrega` do tipo.
-
-**Rota pública** `src/routes/q.$slug.tsx`: idêntica a `index.tsx` atual, mas lê a campanha pelo slug e injeta a config no `Quiz` via prop (Quiz hoje lê do store global — vamos passar a aceitar uma `QuizConfig` opcional via prop, com fallback ao store por compatibilidade).
-
-A aba "Entrega" deixa de existir.
+### Migração v7
+O `quiz` antigo (`QuizConfig` com `delivery/retirada/datas/horarios/restricaoRaio`) é convertido:
+- `campanha.delivery.ativo = quiz.delivery`
+- `campanha.retirada.ativo = quiz.retirada`
+- `campanha.delivery.raioKm = quiz.restricaoRaio.raioKm`
+- `unidadeId = quiz.unidadeIds[0]`
+- horários/datas antigos viram `QuizFlow` vazio (usuário recadastra) — defaults sensatos preenchidos.
+- Selectors `useDatasAtivas`, `useHorariosAtivos`, `useUnidadesAtivas` continuam funcionando lendo do novo shape (compatibilidade legada do Quiz consumidor).
 
 ---
 
-## 5. Home pública (`src/routes/index.tsx` + Quiz)
+## Resumo dos arquivos
 
-Hoje a Home renderiza diretamente o `Quiz`. Novo comportamento:
+**Editados:**
+- `src/store/admin.ts` — novo shape `Campanha`, remoções em `ConfigGeral`, novas categorias, migrate v7, selectors atualizados.
+- `src/components/admin/CampanhaForm.tsx` — reescrita com `Tabs` Delivery/Retirada, cabeçalho fixo, seletor múltiplo de upsell, editor de QuizFlow.
+- `src/components/admin/AbaCampanhas.tsx` — link `/{slug}` (sem `/q/`).
+- `src/components/admin/AbaGeral.tsx` — remover 4 campos.
+- `src/routes/index.tsx` — remover `isEncerrado` e leitura de `msgManutencao`.
+- `src/components/Hero.tsx`, `src/components/Header.tsx` — remover `isEncerrado`.
+- `src/components/Upsell.tsx`, `src/components/Quiz.tsx` — iterar sobre lista de upsells.
 
-A Home exibe **vitrine de produtos agrupados por categoria** (apenas `ativo && !arquivado`). Cada produto tem botão "Quero esse" que inicia o Quiz da campanha default. Estrutura:
+**Renomeado:** `src/routes/q.$slug.tsx` → `src/routes/$slug.tsx` (com guarda de slugs reservados).
 
-```
-<Hero />
-{categorias.map(cat => (
-  <section>
-    <h2>{cat.nome}</h2>
-    <ProdutoGrid produtos={produtosDe(cat)} />
-  </section>
-))}
-{produtosSemCategoria.length > 0 && <section title="Outros">...</section>}
-```
+**Sem novos arquivos.**
 
-Componente novo: `src/components/VitrineProdutos.tsx`. Ao clicar em "Quero esse", seleciona o produto no `usePedido` e avança o Quiz como hoje.
-
----
-
-## Resumo técnico das mudanças
-
-**Store (`src/store/admin.ts`)** — versão 6 com migrate:
-- adiciona `unidades`, `categorias`, `campanhas`
-- cestas ganham `categoriaId?`, `arquivado?`
-- remove `entrega` (migra para campanha "principal")
-- novos selectors: `useUnidadesAtivas`, `useCampanhasAtivas`, `useProdutosAtivos`, `useCategorias`
-
-**Arquivos novos:**
-- `src/components/admin/AbaConfiguracoes.tsx` (hub com tabs)
-- `src/components/admin/AbaUnidades.tsx`
-- `src/components/admin/AbaCampanhas.tsx`
-- `src/components/admin/CampanhaForm.tsx`
-- `src/components/admin/CategoriasDialog.tsx`
-- `src/components/admin/ProdutoFormDialog.tsx` (extrai form atual de AbaCestas)
-- `src/components/VitrineProdutos.tsx`
-- `src/routes/q.$slug.tsx`
-
-**Arquivos editados:**
-- `src/routes/admin.tsx` — novo array de ABAS
-- `src/routes/index.tsx` — vitrine + entrada no Quiz
-- `src/components/admin/AbaCestas.tsx` — lista + ações
-- `src/components/Quiz.tsx` — aceita prop `config?: QuizConfig`
-- arquivos que usam `entrega.*` (Quiz, Resumo, etc.) — passam a ler da campanha ativa
-
-**Arquivos removidos do menu (mas mantidos como componentes reutilizados internamente):**
-- `AbaAparencia`, `AbaPagamento`, `AbaIntegracoes`, `AbaSobremesas`, `AbaEntrega` — `AbaEntrega` será deletado depois que `AbaCampanhas` estiver completo.
-
----
-
-## Pontos de atenção / decisões
-
-1. **Sobremesas vs Upsell**: hoje há `state.sobremesas` (catálogo separado) usado como upsell no Quiz. Como o item 4 diz "selecionar um produto cadastrado (puxa da lista de Produtos)", vou fazer o Select de upsell puxar de `state.cestas` (Produtos). A aba `AbaSobremesas` é removida e `state.sobremesas` deixa de ser editável pela UI (mantenho no store por compatibilidade de migração, mas pode ser limpo depois).
-
-2. **Restrição de raio por unidade**: como cada unidade agora tem `raioEntregaKm`, a `restricaoRaio` da campanha pode virar só `{ ativo: boolean }` usando o raio da própria unidade base. Vou nessa direção (mais simples e coerente com §2).
-
-3. **Link público da campanha**: usaremos `/q/{slug}` para ficar curto. A Home (`/`) continua existindo como vitrine institucional.
-
-4. **Backward compat**: o `migrate` do persist garante que clientes com state antigo não percam dados — entrega vira campanha "principal", unidades migram para o novo lugar, cestas ganham defaults de categoria/arquivado.
-
-Posso começar pela ordem: store → Unidades → Campanhas/rota pública → Produtos lista+categorias → Sidebar/Configurações hub → Home vitrine.
+Após aprovação, executo na ordem: store/migrate → renomear rota → AbaGeral → CampanhaForm reescrito → ajustes em Quiz/Upsell.
