@@ -712,7 +712,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 8,
+      version: 9,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -726,6 +726,7 @@ export const useAdmin = create<AdminState>()(
         pagamento: { ...s.pagamento, mpAccessToken: "" },
         integracoes: { ...s.integracoes, metaAccessToken: "", webhookUrl: "" },
         geral: s.geral,
+        home: s.home,
         pedidos: s.pedidos,
       }),
       migrate: (state: any, _version) => {
