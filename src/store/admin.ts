@@ -185,7 +185,19 @@ export type PedidoSalvo = {
   enderecoOuUnidade: string;
   data?: string;
   horario?: string;
-  pagamento: { metodo: string; status: string };
+  pagamento: {
+    metodo: string;
+    status: string;
+    extras?: {
+      cartoes?: { nome: string; preco: number; mensagem: string }[];
+      polaroids?: {
+        nome: string;
+        preco: number;
+        arquivoUrl: string;
+        arquivoNome: string;
+      }[];
+    };
+  };
   total: number;
 };
 
