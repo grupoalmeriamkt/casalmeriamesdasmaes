@@ -53,14 +53,34 @@ export function AbaCampanhas() {
         title={`Editar — ${editando.nome}`}
         icon={<Megaphone className="h-5 w-5" />}
       >
-        <Button
-          variant="outline"
-          onClick={() => setEditandoId(null)}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para campanhas
-        </Button>
-        <CampanhaForm campanha={editando} />
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <Button variant="outline" onClick={() => setEditandoId(null)}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para campanhas
+          </Button>
+
+          {/* Botão de prévia para mobile/tablet */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="lg:hidden">
+                <Smartphone className="mr-2 h-4 w-4" /> Ver prévia
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-[440px]">
+              <QuizPreviewMobile campanhaId={editando.id} />
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+          <div className="min-w-0">
+            <CampanhaForm campanha={editando} />
+          </div>
+          <aside className="hidden lg:block">
+            <div className="sticky top-6">
+              <QuizPreviewMobile campanhaId={editando.id} />
+            </div>
+          </aside>
+        </div>
       </AdminSection>
     );
   }
