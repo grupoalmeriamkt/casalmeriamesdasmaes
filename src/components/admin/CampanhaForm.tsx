@@ -274,65 +274,70 @@ function DeliveryTab({
               />
             </Field>
           ) : (
-            <div className="space-y-2">
-              {d.taxa.faixas.map((f, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
-                >
-                  <Field label="Até km">
-                    <Input
-                      type="number"
-                      min={0}
-                      value={f.ateKm}
-                      onChange={(e) => {
-                        const faixas = [...d.taxa.faixas];
-                        faixas[i] = { ...f, ateKm: Number(e.target.value) || 0 };
-                        onPatch({ taxa: { tipo: "faixa", faixas } });
-                      }}
-                    />
-                  </Field>
-                  <Field label="Valor (R$)">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={f.valor}
-                      onChange={(e) => {
-                        const faixas = [...d.taxa.faixas];
-                        faixas[i] = { ...f, valor: Number(e.target.value) || 0 };
-                        onPatch({ taxa: { tipo: "faixa", faixas } });
-                      }}
-                    />
-                  </Field>
+            (() => {
+              const faixas = d.taxa.faixas;
+              return (
+                <div className="space-y-2">
+                  {faixas.map((f, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
+                    >
+                      <Field label="Até km">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={f.ateKm}
+                          onChange={(e) => {
+                            const next = [...faixas];
+                            next[i] = { ...f, ateKm: Number(e.target.value) || 0 };
+                            onPatch({ taxa: { tipo: "faixa", faixas: next } });
+                          }}
+                        />
+                      </Field>
+                      <Field label="Valor (R$)">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={f.valor}
+                          onChange={(e) => {
+                            const next = [...faixas];
+                            next[i] = { ...f, valor: Number(e.target.value) || 0 };
+                            onPatch({ taxa: { tipo: "faixa", faixas: next } });
+                          }}
+                        />
+                      </Field>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="self-end text-terracotta hover:bg-terracotta/10"
+                        onClick={() => {
+                          const next = faixas.filter((_, idx) => idx !== i);
+                          onPatch({ taxa: { tipo: "faixa", faixas: next } });
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="self-end text-terracotta hover:bg-terracotta/10"
-                    onClick={() => {
-                      const faixas = d.taxa.faixas.filter((_, idx) => idx !== i);
-                      onPatch({ taxa: { tipo: "faixa", faixas } });
-                    }}
+                    variant="outline"
+                    className="border-dashed"
+                    onClick={() =>
+                      onPatch({
+                        taxa: {
+                          tipo: "faixa",
+                          faixas: [...faixas, { ateKm: 5, valor: 0 }],
+                        },
+                      })
+                    }
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Plus className="mr-2 h-4 w-4" /> Adicionar faixa
                   </Button>
                 </div>
-              ))}
-              <Button
-                variant="outline"
-                className="border-dashed"
-                onClick={() =>
-                  onPatch({
-                    taxa: {
-                      tipo: "faixa",
-                      faixas: [...d.taxa.faixas, { ateKm: 5, valor: 0 }],
-                    },
-                  })
-                }
-              >
-                <Plus className="mr-2 h-4 w-4" /> Adicionar faixa
-              </Button>
-            </div>
+              );
+            })()
           )}
         </div>
       </Bloco>
