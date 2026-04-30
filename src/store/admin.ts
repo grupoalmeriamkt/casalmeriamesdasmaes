@@ -36,7 +36,34 @@ export type UnidadeCadastrada = Unidade & {
   horarioFuncionamento: HorarioFuncionamento;
 };
 
-export type Categoria = { id: string; nome: string };
+export type Categoria = {
+  id: string;
+  nome: string;
+  imagemCapa?: string;
+  ordem?: number;
+};
+
+export type HomeBanner = {
+  imagemUrl: string;
+  titulo: string;
+  subtitulo: string;
+  ctaLabel: string;
+  ctaHref: string;
+};
+
+export type HomeCampanhaDestaque = { ativo: boolean; ordem: number };
+
+export type HomeRodape = {
+  enderecos: string;
+  redes: { instagram: string; whatsapp: string; facebook: string };
+  textoLivre: string;
+};
+
+export type Home = {
+  banner: HomeBanner;
+  campanhasDestaque: Record<string, HomeCampanhaDestaque>;
+  rodape: HomeRodape;
+};
 
 // Mantido por compatibilidade — Quiz e Resumo ainda leem via selectors abaixo
 // que agora resolvem a partir da campanha ativa.
@@ -106,6 +133,7 @@ export type Campanha = {
   slug: string;
   nome: string;
   status: "ativa" | "pausada";
+  imagemDestaque?: string;
   unidadeId?: string;
   delivery: CampanhaDelivery;
   retirada: CampanhaRetirada;
