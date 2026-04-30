@@ -37,8 +37,23 @@ const ABAS = [
 
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
-  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>("textos");
+  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>(() => {
+    if (typeof window === "undefined") return "textos";
+    const saved = window.localStorage.getItem("admin:aba");
+    if (saved && ABAS.some((a) => a.id === saved)) {
+      return saved as (typeof ABAS)[number]["id"];
+    }
+    return "textos";
+  });
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const trocarAba = (id: (typeof ABAS)[number]["id"]) => {
+    setAba(id);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("admin:aba", id);
+    }
+    setMenuOpen(false);
+  };
 
   const logout = async () => {
     await supabase.auth.signOut();
