@@ -629,9 +629,17 @@ export const useAdmin = create<AdminState>()(
         set((s) => {
           const id = `camp-${Date.now()}`;
           const baseQuiz = s.campanhas[0]?.quiz ?? initialCampanha.quiz;
+          // slug único
+          const usados = s.campanhas.map((c) => c.slug);
+          let slugBase = `campanha-${Date.now().toString(36)}`;
+          let slug = slugBase;
+          let i = 2;
+          while (usados.includes(slug)) {
+            slug = `${slugBase}-${i++}`;
+          }
           const nova: Campanha = {
             id,
-            slug: `campanha-${Date.now().toString(36)}`,
+            slug,
             nome: "Nova campanha",
             status: "ativa",
             unidadeId: s.unidades[0]?.id,
