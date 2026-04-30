@@ -128,6 +128,22 @@ export type CampanhaTextos = {
   confirmacao: string;
 };
 
+export type UpsellItem =
+  | { tipo: "produto"; itemId: string; produtoId: string }
+  | {
+      tipo: "cartao";
+      itemId: string;
+      nome: string;
+      preco: number;
+      maxCaracteres: number;
+    }
+  | { tipo: "polaroid"; itemId: string; nome: string; preco: number };
+
+export type CampanhaUpsell = {
+  ativo: boolean;
+  itens: UpsellItem[];
+};
+
 export type Campanha = {
   id: string;
   slug: string;
@@ -139,6 +155,7 @@ export type Campanha = {
   retirada: CampanhaRetirada;
   // novos
   produtosPrincipaisIds: string[];
+  upsell: CampanhaUpsell;
   dataInicio?: string;
   dataFim?: string;
   dataLimitePedidos?: string;
