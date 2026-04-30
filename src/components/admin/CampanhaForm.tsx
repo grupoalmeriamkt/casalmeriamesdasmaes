@@ -112,6 +112,7 @@ function InfoGeralTab({
   onPatch: (p: Partial<Campanha>) => void;
 }) {
   const unidades = useAdmin((s) => s.unidades);
+  const todasCampanhas = useAdmin((s) => s.campanhas);
   const linkPublico = `${typeof window !== "undefined" ? window.location.origin : ""}/${campanha.slug}`;
   const copiarLink = async () => {
     try {
@@ -122,7 +123,37 @@ function InfoGeralTab({
     }
   };
 
+  // Slug: edição local com validação no blur
+  const [slugInput, setSlugInput] = useState(campanha.slug);
+  const [slugErro, setSlugErro] = useState<string | null>(null);
+  useEffect(() => {
+    setSlugInput(campanha.slug);
+    setSlugErro(null);
+  }, [campanha.id, campanha.slug]);
+
+  const aplicarSlug = () => {
+    const usadosPorOutras = todasCampanhas
+      .filter((c) => c.id !== campanha.id)
+      .map((c) => c.slug);
+    const res = validarSlug(slugInput, usadosPorOutras);
+    if (!res.ok) {
+      setSlugErro(res.mensagem);
+      toast.error(res.mensagem);
+      return;
+    }
+    setSlugErro(null);
+    if (res.slug !== campanha.slug) {
+      onPatch({ slug: res.slug });
+      setSlugInput(res.slug);
+      toast.success("Slug atualizado.");
+    } else {
+      // normalizou para o mesmo valor — só atualiza input
+      setSlugInput(res.slug);
+    }
+  };
+
   const textos = campanha.textos;
+  const semProdutos = (campanha.produtosPrincipaisIds ?? []).length === 0;
 
   return (
     <div className="space-y-5">
@@ -136,16 +167,33 @@ function InfoGeralTab({
           </Field>
           <Field label="Slug do link (/...)">
             <Input
-              value={campanha.slug}
-              onChange={(e) =>
-                onPatch({
-                  slug: e.target.value
+              value={slugInput}
+              onChange={(e) => {
+                setSlugInput(
+                  e.target.value
                     .toLowerCase()
                     .replace(/[^a-z0-9-]/g, "-")
                     .replace(/-+/g, "-"),
-                })
-              }
+                );
+                if (slugErro) setSlugErro(null);
+              }}
+              onBlur={aplicarSlug}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className={slugErro ? "border-terracotta focus-visible:ring-terracotta" : ""}
             />
+            {slugErro && (
+              <p className="mt-1 text-xs text-terracotta">{slugErro}</p>
+            )}
+            {!slugErro && normalizarSlug(slugInput) !== campanha.slug && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pressione Enter ou clique fora para aplicar.
+              </p>
+            )}
           </Field>
           <div className="md:col-span-2">
             <Field label="Link público gerado">
@@ -201,28 +249,20 @@ function InfoGeralTab({
 
       <Bloco titulo="Produtos Principais">
         <p className="text-xs text-muted-foreground">
-          Produtos em destaque exibidos na página pública desta campanha.
+          Selecione os produtos que serão exibidos no Quiz desta campanha. Apenas
+          os produtos marcados aqui aparecerão para o cliente.
         </p>
+        {semProdutos && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            ⚠️ Nenhum produto selecionado — o Quiz desta campanha ficará sem
+            opções para o cliente. Selecione ao menos um produto abaixo.
+          </div>
+        )}
         <ProdutosSeletor
           cestas={cestas}
           selecionadosIds={campanha.produtosPrincipaisIds}
           onChange={(ids) => onPatch({ produtosPrincipaisIds: ids })}
         />
-      </Bloco>
-
-      <Bloco titulo="Upsell">
-        <ToggleLinha
-          label="Habilitar upsell"
-          checked={campanha.upsellAtivo}
-          onChange={(v) => onPatch({ upsellAtivo: v })}
-        />
-        {campanha.upsellAtivo && (
-          <ProdutosSeletor
-            cestas={cestas}
-            selecionadosIds={campanha.upsellProdutoIds}
-            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
-          />
-        )}
       </Bloco>
 
       <Bloco titulo="Datas">
