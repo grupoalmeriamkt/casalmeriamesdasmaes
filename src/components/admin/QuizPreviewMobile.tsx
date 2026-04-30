@@ -21,6 +21,7 @@ const PASSOS = [
   { value: "2", label: "2 — Dados" },
   { value: "3", label: "3 — Entrega" },
   { value: "4", label: "4 — Data/Horário" },
+  { value: "4.5", label: "4 — Personalização" },
   { value: "5", label: "5 — Resumo" },
 ] as const;
 
