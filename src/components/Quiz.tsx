@@ -592,6 +592,16 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
 
             {entregaTipo === "retirada" && (
               <div className="animate-fade-up space-y-3">
+                {horarios.length > 0 && (
+                  <div className="rounded-2xl border border-sand/70 bg-linen/60 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/70">
+                      Janela de horário para retirada
+                    </p>
+                    <p className="mt-1 text-sm text-ink/80">
+                      {horarios.map((h) => h.label).join(" · ")}
+                    </p>
+                  </div>
+                )}
                 {unidades.map((u) => {
                   const sel = unidade?.id === u.id;
                   return (
