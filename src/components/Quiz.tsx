@@ -1314,3 +1314,163 @@ function BotoesNav({
     </div>
   );
 }
+
+function PersonalizacaoExtras({
+  onAvancar,
+  onVoltar,
+}: {
+  onAvancar: () => void;
+  onVoltar: () => void;
+}) {
+  const extras = usePedido((s) => s.extras);
+  const setCartao = usePedido((s) => s.setCartao);
+  const setPolaroid = usePedido((s) => s.setPolaroid);
+  const campanhaAtiva = useCampanhaAtiva();
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+
+  const getMaxCaracteres = (itemId: string): number => {
+    const found = (campanhaAtiva?.upsell?.itens ?? []).find(
+      (i) => i.tipo === "cartao" && i.itemId === itemId,
+    );
+    return found && found.tipo === "cartao" ? found.maxCaracteres : 150;
+  };
+
+  const handleFile = async (
+    polaroid: { itemId: string; nome: string; preco: number },
+    file: File,
+  ) => {
+    setUploading((u) => ({ ...u, [polaroid.itemId]: true }));
+    const result = await uploadPolaroid(file);
+    setUploading((u) => ({ ...u, [polaroid.itemId]: false }));
+    if (!result.ok) {
+      toast.error(result.erro);
+      return;
+    }
+    setPolaroid({
+      itemId: polaroid.itemId,
+      nome: polaroid.nome,
+      preco: polaroid.preco,
+      arquivoUrl: result.url,
+      arquivoNome: result.nome,
+    });
+    toast.success("Foto enviada!");
+  };
+
+  return (
+    <section className="animate-fade-up space-y-6">
+      <div>
+        <p className="eyebrow-gold mb-2">Personalização</p>
+        <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
+          Deixe seu pedido <em className="italic text-terracotta">único</em>
+        </h1>
+        <p className="mt-2 text-sm text-ink/65">
+          Preencha os detalhes dos itens que você adicionou
+        </p>
+      </div>
+
+      {extras.cartoes.map((c) => {
+        const max = getMaxCaracteres(c.itemId);
+        return (
+          <div
+            key={`cartao-${c.itemId}`}
+            className="space-y-2 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5"
+          >
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-terracotta" />
+              <h3 className="font-serif text-base font-semibold text-charcoal">
+                {c.nome}
+              </h3>
+            </div>
+            <p className="text-xs text-ink/60">
+              Escreva a mensagem que vai no cartãozinho
+            </p>
+            <Textarea
+              value={c.mensagem}
+              maxLength={max}
+              onChange={(e) =>
+                setCartao({
+                  itemId: c.itemId,
+                  nome: c.nome,
+                  preco: c.preco,
+                  mensagem: e.target.value,
+                })
+              }
+              placeholder="Ex.: Para a melhor mãe do mundo, com todo amor..."
+              className="min-h-[110px] rounded-xl border-[1.5px] border-sand/80 bg-white text-[15px] text-ink"
+            />
+            <div className="flex justify-end text-[11px] text-ink/55">
+              {c.mensagem.length} / {max}
+            </div>
+          </div>
+        );
+      })}
+
+      {extras.polaroids.map((p) => {
+        const enviada = !!p.arquivoUrl;
+        const isUploading = !!uploading[p.itemId];
+        return (
+          <div
+            key={`pol-${p.itemId}`}
+            className="space-y-2 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5"
+          >
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-terracotta" />
+              <h3 className="font-serif text-base font-semibold text-charcoal">
+                {p.nome}
+              </h3>
+            </div>
+            <p className="text-xs text-ink/60">
+              Envie a foto que será impressa (JPG ou PNG, até 10 MB)
+            </p>
+            <label
+              className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-sm font-medium transition-colors ${
+                enviada
+                  ? "border-olive bg-olive/[0.06] text-olive"
+                  : "border-sand/80 bg-linen/40 text-charcoal hover:border-terracotta hover:text-terracotta"
+              } ${isUploading ? "pointer-events-none opacity-60" : ""}`}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : enviada ? (
+                <>
+                  <Check className="h-4 w-4" strokeWidth={3} />
+                  <span className="truncate">{p.arquivoNome}</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Escolher foto
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) handleFile(p, file);
+                }}
+              />
+            </label>
+            {enviada && (
+              <p className="text-center text-[11px] text-ink/55">
+                Foto recebida com sucesso. Você pode trocar clicando acima.
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      <BotoesNav
+        onAvancar={onAvancar}
+        onVoltar={onVoltar}
+        avancarLabel="Ver resumo do pedido →"
+      />
+    </section>
+  );
+}
+
