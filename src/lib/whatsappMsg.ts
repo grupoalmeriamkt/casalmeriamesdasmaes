@@ -39,6 +39,14 @@ export function montarMensagemWhats(p: Args): string {
       `• ${s.sobremesa.nome} — ${s.quantidade}x — ${formatBRL(s.sobremesa.preco * s.quantidade)}`,
     );
   });
+  (p.extras?.cartoes ?? []).forEach((c) => {
+    linhas.push(`• ${c.nome} — ${formatBRL(c.preco)}`);
+    linhas.push(`   _Mensagem:_ "${c.mensagem}"`);
+  });
+  (p.extras?.polaroids ?? []).forEach((pl) => {
+    linhas.push(`• ${pl.nome} — ${formatBRL(pl.preco)}`);
+    linhas.push(`   _Foto:_ ${pl.arquivoUrl}`);
+  });
 
   linhas.push("");
   if (p.entregaTipo === "delivery" && p.endereco) {
