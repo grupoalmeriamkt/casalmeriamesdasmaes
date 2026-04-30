@@ -8,16 +8,7 @@ import { usePedido } from "@/store/pedido";
 import { useAdmin } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 import { loadCloudConfig } from "@/lib/cloudConfig";
-
-const RESERVED_SLUGS = new Set([
-  "admin",
-  "pedido",
-  "pedidos",
-  "api",
-  "checkout",
-  "q",
-  "",
-]);
+import { RESERVED_SLUGS } from "@/lib/slugs";
 
 export const Route = createFileRoute("/$slug")({
   head: () => ({
