@@ -1,11 +1,13 @@
 import { useMemo, useEffect } from "react";
 import { useCampanhaAtiva, useAdmin } from "@/store/admin";
+import { useIsPreview } from "@/components/admin/PreviewContext";
 import { usePedido, formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
 
 type Props = { onFinalizar: () => void; onPular: () => void };
 
 export function Upsell({ onFinalizar, onPular }: Props) {
+  const isPreview = useIsPreview();
   const sobremesas = usePedido((s) => s.sobremesas);
   const toggle = usePedido((s) => s.toggleSobremesa);
   const setQtd = usePedido((s) => s.setSobremesaQtd);
@@ -37,14 +39,15 @@ export function Upsell({ onFinalizar, onPular }: Props) {
       }));
   }, [campanha, tipo, cestas]);
 
-  // Sem itens? Pula direto para o pagamento ao montar.
+  // Sem itens? Pula direto para o pagamento ao montar (exceto na prévia).
   useEffect(() => {
+    if (isPreview) return;
     if (lista.length === 0) onPular();
     // intencional: roda só na montagem
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (lista.length === 0) return null;
+  if (lista.length === 0 && !isPreview) return null;
 
   const totalAdicionadas = Object.values(sobremesas).reduce(
     (acc, it) => acc + it.sobremesa.preco * it.quantidade,

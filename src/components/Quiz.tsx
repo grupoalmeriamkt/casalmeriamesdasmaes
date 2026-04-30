@@ -21,6 +21,7 @@ import {
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
 import { Logo } from "@/components/Logo";
+import { useIsPreview } from "@/components/admin/PreviewContext";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -59,6 +60,7 @@ const maskCep = (v: string) => {
 };
 
 export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
+  const isPreview = useIsPreview();
   const [step, setStep] = useState(initialStep);
 
   // Pedido store
@@ -113,12 +115,25 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
+    if (isPreview) return;
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (step === 1) trackBeginCheckout({ value: total, currency: "BRL" });
     if (step === 2) trackLeadStart();
-  }, [step]);
+  }, [step, isPreview]);
 
   const buscarCep = async () => {
+    if (isPreview) {
+      setEnd({
+        rua: "Rua Exemplo",
+        numero: "123",
+        complemento: "",
+        bairro: "Centro",
+        cidade: "Brasília",
+        estado: "DF",
+      });
+      toast.success("Endereço de exemplo (prévia).");
+      return;
+    }
     const limpo = cep.replace(/\D/g, "");
     if (limpo.length !== 8) return toast.error("CEP inválido");
     setBuscando(true);
@@ -187,6 +202,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   };
 
   const salvarRascunho = async (extras: Record<string, unknown> = {}) => {
+    if (isPreview) return;
     const st = usePedido.getState();
     const nomeAtual = (extras.nome as string) ?? st.cliente.nome;
     const whatsAtual = (extras.whatsapp as string) ?? st.cliente.whatsapp;
@@ -238,9 +254,9 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
       setCliente({ nome, whatsapp: whats });
       // grava rascunho com nome+whatsapp para a cozinha ver mesmo se não concluir
       salvarRascunho({ cliente: { nome, whatsapp: whats } });
-      trackLeadComplete();
-      // Meta Ads: Lead (Pixel + CAPI deduplicado)
-      {
+      if (!isPreview) {
+        trackLeadComplete();
+        // Meta Ads: Lead (Pixel + CAPI deduplicado)
         const integ = useAdmin.getState().integracoes;
         if (integ.metaPixelId) {
           const eventId = newEventId("lead");
@@ -842,6 +858,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
             <button
               disabled={enviando}
               onClick={async () => {
+                if (isPreview) {
+                  toast.info("Prévia: pedido não é enviado.");
+                  onConcluir();
+                  return;
+                }
                 setEnviando(true);
                 const st = usePedido.getState();
                 const usandoMp = pagamento.checkoutAtivo;
