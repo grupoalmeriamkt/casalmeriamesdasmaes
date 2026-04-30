@@ -22,6 +22,7 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
   const total = usePedido(selectTotal);
   const finalizar = usePedido((s) => s.finalizarPedido);
   const pedidoId = usePedido((s) => s.pedidoId);
+  const extras = usePedido((s) => s.extras);
 
   const pagamentoCfg = useAdmin((s) => s.pagamento);
   const integracoes = useAdmin((s) => s.integracoes);
