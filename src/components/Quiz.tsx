@@ -22,6 +22,8 @@ import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
 import { Logo } from "@/components/Logo";
 import { useIsPreview } from "@/components/admin/PreviewContext";
+import { Textarea } from "@/components/ui/textarea";
+import { uploadPolaroid } from "@/lib/uploadPolaroid";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -33,9 +35,17 @@ import {
   Plus,
   MessageCircle,
   CreditCard,
+  Mail,
+  Camera,
+  Upload,
 } from "lucide-react";
 
-type Props = { onConcluir: () => void; onVoltar: () => void; initialStep?: number };
+type Props = {
+  onConcluir: () => void;
+  onVoltar: () => void;
+  initialStep?: number;
+  initialPersonalizacao?: boolean;
+};
 
 const TITULOS = [
   "ESCOLHA SUA CESTA",
@@ -59,9 +69,10 @@ const maskCep = (v: string) => {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 };
 
-export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
+export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonalizacao = false }: Props) {
   const isPreview = useIsPreview();
   const [step, setStep] = useState(initialStep);
+  const [mostrarPersonalizacao, setMostrarPersonalizacao] = useState(initialPersonalizacao);
 
   // Pedido store
   const cesta = usePedido((s) => s.cesta);
@@ -81,6 +92,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const setData = usePedido((s) => s.setData);
   const horario = usePedido((s) => s.horario);
   const setHorario = usePedido((s) => s.setHorario);
+  const extras = usePedido((s) => s.extras);
+  const setCartao = usePedido((s) => s.setCartao);
+  const removeCartao = usePedido((s) => s.removeCartao);
+  const setPolaroid = usePedido((s) => s.setPolaroid);
+  const removePolaroid = usePedido((s) => s.removePolaroid);
   const total = usePedido(selectTotal);
 
   // Admin store
@@ -297,6 +313,26 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
       if (!data) return toast.error("Escolha um dia.");
       if (!horario) return toast.error("Escolha um horário.");
       salvarRascunho();
+      const precisaPersonalizar =
+        extras.cartoes.length > 0 || extras.polaroids.length > 0;
+      if (precisaPersonalizar && !mostrarPersonalizacao) {
+        setMostrarPersonalizacao(true);
+        return;
+      }
+      // Validações do passo de personalização
+      if (mostrarPersonalizacao) {
+        for (const c of extras.cartoes) {
+          if (c.mensagem.trim().length < 3) {
+            return toast.error(`Escreva a mensagem do "${c.nome}".`);
+          }
+        }
+        for (const p of extras.polaroids) {
+          if (!p.arquivoUrl) {
+            return toast.error(`Envie a foto do "${p.nome}".`);
+          }
+        }
+        setMostrarPersonalizacao(false);
+      }
       return setStep(5);
     }
     if (step === 5) {
@@ -304,7 +340,19 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
     }
   };
 
-  const voltar = () => (step === 1 ? onVoltar() : setStep((s) => s - 1));
+  const voltar = () => {
+    if (step === 4 && mostrarPersonalizacao) {
+      setMostrarPersonalizacao(false);
+      return;
+    }
+    if (step === 5 && (extras.cartoes.length > 0 || extras.polaroids.length > 0)) {
+      // Permite revisitar a personalização ao voltar do resumo
+      setMostrarPersonalizacao(true);
+      setStep(4);
+      return;
+    }
+    return step === 1 ? onVoltar() : setStep((s) => s - 1);
+  };
 
   const progresso = (step / 5) * 100;
 
@@ -673,7 +721,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
         )}
 
         {/* ============== STEP 4 — Data e Horário + Upsell ============== */}
-        {step === 4 && (
+        {step === 4 && !mostrarPersonalizacao && (
           <section className="animate-fade-up space-y-6">
             <div>
               <p className="eyebrow-gold mb-2">Agendamento</p>
@@ -698,7 +746,6 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 {datas.map((d) => {
                   const sel = data === d.label;
-                  // tenta extrair "10/05" e "Sábado"
                   const partes = d.label.split(",").map((s) => s.trim());
                   const semana = partes[0] || d.label;
                   const numero = partes[1]?.split("/")?.[0] || "•";
@@ -760,19 +807,84 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
 
             {(() => {
               if (!horario || !campanhaAtiva?.upsell?.ativo) return null;
-              const itensProduto = (campanhaAtiva.upsell.itens ?? []).filter(
-                (i) => i.tipo === "produto",
-              );
-              const produtosUpsell = itensProduto
-                .map((i) =>
-                  i.tipo === "produto"
-                    ? cestasAdmin.find(
-                        (c) => c.id === i.produtoId && c.ativo && !c.arquivado,
-                      )
-                    : null,
-                )
-                .filter((c): c is NonNullable<typeof c> => !!c);
-              if (produtosUpsell.length === 0) return null;
+              const itens = campanhaAtiva.upsell.itens ?? [];
+              type Card = {
+                key: string;
+                tipo: "produto" | "cartao" | "polaroid";
+                nome: string;
+                descricao?: string;
+                preco: number;
+                imagem?: string;
+                added: boolean;
+                onToggle: () => void;
+              };
+              const cards: Card[] = [];
+              for (const i of itens) {
+                if (i.tipo === "produto") {
+                  const p = cestasAdmin.find(
+                    (c) => c.id === i.produtoId && c.ativo && !c.arquivado,
+                  );
+                  if (!p) continue;
+                  const added = !!sobremesas[p.id];
+                  cards.push({
+                    key: `prod-${p.id}`,
+                    tipo: "produto",
+                    nome: p.nome,
+                    descricao: p.descricao,
+                    preco: p.preco,
+                    imagem: p.imagem,
+                    added,
+                    onToggle: () =>
+                      toggleSobremesa({
+                        id: p.id,
+                        nome: p.nome,
+                        descricao: p.descricao,
+                        preco: p.preco,
+                        imagem: p.imagem,
+                      }),
+                  });
+                } else if (i.tipo === "cartao") {
+                  const added = extras.cartoes.some((c) => c.itemId === i.itemId);
+                  cards.push({
+                    key: `cart-${i.itemId}`,
+                    tipo: "cartao",
+                    nome: i.nome,
+                    descricao: `Cartãozinho com mensagem (até ${i.maxCaracteres} caracteres)`,
+                    preco: i.preco,
+                    added,
+                    onToggle: () =>
+                      added
+                        ? removeCartao(i.itemId)
+                        : setCartao({
+                            itemId: i.itemId,
+                            nome: i.nome,
+                            preco: i.preco,
+                            mensagem: "",
+                          }),
+                  });
+                } else if (i.tipo === "polaroid") {
+                  const added = extras.polaroids.some((p) => p.itemId === i.itemId);
+                  cards.push({
+                    key: `pol-${i.itemId}`,
+                    tipo: "polaroid",
+                    nome: i.nome,
+                    descricao: "Foto polaroid impressa (você envia a imagem)",
+                    preco: i.preco,
+                    added,
+                    onToggle: () =>
+                      added
+                        ? removePolaroid(i.itemId)
+                        : setPolaroid({
+                            itemId: i.itemId,
+                            nome: i.nome,
+                            preco: i.preco,
+                            arquivoUrl: "",
+                            arquivoNome: "",
+                          }),
+                  });
+                }
+              }
+              if (cards.length === 0) return null;
               return (
                 <div className="animate-fade-up space-y-3 border-t border-sand/60 pt-5">
                   <div>
@@ -783,59 +895,78 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                       Entregue junto com sua cesta
                     </p>
                   </div>
-                  {produtosUpsell.map((s) => {
-                    const added = !!sobremesas[s.id];
-                    const item = {
-                      id: s.id,
-                      nome: s.nome,
-                      descricao: s.descricao,
-                      preco: s.preco,
-                      imagem: s.imagem,
-                    };
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => toggleSobremesa(item)}
-                        className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
-                          added
-                            ? "border-olive bg-olive/[0.04]"
-                            : "border-sand/70 hover:border-terracotta/60"
-                        }`}
-                      >
+                  {cards.map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={s.onToggle}
+                      className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
+                        s.added
+                          ? "border-olive bg-olive/[0.04]"
+                          : "border-sand/70 hover:border-terracotta/60"
+                      }`}
+                    >
+                      {s.imagem ? (
                         <img
                           src={s.imagem}
                           alt=""
                           className="h-12 w-12 flex-none rounded-lg object-cover"
                         />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-charcoal">
-                            {s.nome}
-                          </p>
-                          <p className="text-xs text-ink/60">
-                            {formatBRL(s.preco)}
-                          </p>
-                        </div>
-                        <span
-                          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
-                            added ? "bg-olive" : "bg-charcoal"
-                          }`}
-                        >
-                          {added ? (
-                            <Check className="h-4 w-4" strokeWidth={3} />
+                      ) : (
+                        <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg bg-linen text-charcoal">
+                          {s.tipo === "cartao" ? (
+                            <Mail className="h-5 w-5" />
                           ) : (
-                            <Plus className="h-4 w-4" />
+                            <Camera className="h-5 w-5" />
                           )}
-                        </span>
-                      </button>
-                    );
-                  })}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-charcoal">
+                          {s.nome}
+                        </p>
+                        {s.descricao && (
+                          <p className="line-clamp-1 text-[11px] text-ink/55">
+                            {s.descricao}
+                          </p>
+                        )}
+                        <p className="text-xs text-ink/60">
+                          {formatBRL(s.preco)}
+                        </p>
+                      </div>
+                      <span
+                        className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
+                          s.added ? "bg-olive" : "bg-charcoal"
+                        }`}
+                      >
+                        {s.added ? (
+                          <Check className="h-4 w-4" strokeWidth={3} />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               );
             })()}
 
-            <BotoesNav onAvancar={avancar} onVoltar={voltar} avancarLabel="Ver resumo do pedido →" />
+            <BotoesNav
+              onAvancar={avancar}
+              onVoltar={voltar}
+              avancarLabel={
+                extras.cartoes.length > 0 || extras.polaroids.length > 0
+                  ? "Personalizar →"
+                  : "Ver resumo do pedido →"
+              }
+            />
           </section>
         )}
+
+        {/* ============== STEP 4.5 — Personalização (cartão / polaroid) ============== */}
+        {step === 4 && mostrarPersonalizacao && (
+          <PersonalizacaoExtras onAvancar={avancar} onVoltar={voltar} />
+        )}
+
 
         {/* ============== STEP 5 — Resumo + Pagamento ============== */}
         {step === 5 && (
@@ -932,6 +1063,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                   pagamento: {
                     metodo: usandoMp ? "mercadopago" : "whatsapp",
                     status: "pendente",
+                    extras: st.extras,
                   },
                   total,
                 };
@@ -1024,6 +1156,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
                   horario,
                   total,
                   pedidoId: id || st.pedidoId,
+                  extras: st.extras,
                 });
                 const link = montarLinkWhats(textos.whatsapp, mensagem);
                 window.open(link, "_blank", "noopener");
@@ -1181,3 +1314,163 @@ function BotoesNav({
     </div>
   );
 }
+
+function PersonalizacaoExtras({
+  onAvancar,
+  onVoltar,
+}: {
+  onAvancar: () => void;
+  onVoltar: () => void;
+}) {
+  const extras = usePedido((s) => s.extras);
+  const setCartao = usePedido((s) => s.setCartao);
+  const setPolaroid = usePedido((s) => s.setPolaroid);
+  const campanhaAtiva = useCampanhaAtiva();
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+
+  const getMaxCaracteres = (itemId: string): number => {
+    const found = (campanhaAtiva?.upsell?.itens ?? []).find(
+      (i) => i.tipo === "cartao" && i.itemId === itemId,
+    );
+    return found && found.tipo === "cartao" ? found.maxCaracteres : 150;
+  };
+
+  const handleFile = async (
+    polaroid: { itemId: string; nome: string; preco: number },
+    file: File,
+  ) => {
+    setUploading((u) => ({ ...u, [polaroid.itemId]: true }));
+    const result = await uploadPolaroid(file);
+    setUploading((u) => ({ ...u, [polaroid.itemId]: false }));
+    if (!result.ok) {
+      toast.error(result.erro);
+      return;
+    }
+    setPolaroid({
+      itemId: polaroid.itemId,
+      nome: polaroid.nome,
+      preco: polaroid.preco,
+      arquivoUrl: result.url,
+      arquivoNome: result.nome,
+    });
+    toast.success("Foto enviada!");
+  };
+
+  return (
+    <section className="animate-fade-up space-y-6">
+      <div>
+        <p className="eyebrow-gold mb-2">Personalização</p>
+        <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
+          Deixe seu pedido <em className="italic text-terracotta">único</em>
+        </h1>
+        <p className="mt-2 text-sm text-ink/65">
+          Preencha os detalhes dos itens que você adicionou
+        </p>
+      </div>
+
+      {extras.cartoes.map((c) => {
+        const max = getMaxCaracteres(c.itemId);
+        return (
+          <div
+            key={`cartao-${c.itemId}`}
+            className="space-y-2 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5"
+          >
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-terracotta" />
+              <h3 className="font-serif text-base font-semibold text-charcoal">
+                {c.nome}
+              </h3>
+            </div>
+            <p className="text-xs text-ink/60">
+              Escreva a mensagem que vai no cartãozinho
+            </p>
+            <Textarea
+              value={c.mensagem}
+              maxLength={max}
+              onChange={(e) =>
+                setCartao({
+                  itemId: c.itemId,
+                  nome: c.nome,
+                  preco: c.preco,
+                  mensagem: e.target.value,
+                })
+              }
+              placeholder="Ex.: Para a melhor mãe do mundo, com todo amor..."
+              className="min-h-[110px] rounded-xl border-[1.5px] border-sand/80 bg-white text-[15px] text-ink"
+            />
+            <div className="flex justify-end text-[11px] text-ink/55">
+              {c.mensagem.length} / {max}
+            </div>
+          </div>
+        );
+      })}
+
+      {extras.polaroids.map((p) => {
+        const enviada = !!p.arquivoUrl;
+        const isUploading = !!uploading[p.itemId];
+        return (
+          <div
+            key={`pol-${p.itemId}`}
+            className="space-y-2 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5"
+          >
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-terracotta" />
+              <h3 className="font-serif text-base font-semibold text-charcoal">
+                {p.nome}
+              </h3>
+            </div>
+            <p className="text-xs text-ink/60">
+              Envie a foto que será impressa (JPG ou PNG, até 10 MB)
+            </p>
+            <label
+              className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-sm font-medium transition-colors ${
+                enviada
+                  ? "border-olive bg-olive/[0.06] text-olive"
+                  : "border-sand/80 bg-linen/40 text-charcoal hover:border-terracotta hover:text-terracotta"
+              } ${isUploading ? "pointer-events-none opacity-60" : ""}`}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : enviada ? (
+                <>
+                  <Check className="h-4 w-4" strokeWidth={3} />
+                  <span className="truncate">{p.arquivoNome}</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Escolher foto
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) handleFile(p, file);
+                }}
+              />
+            </label>
+            {enviada && (
+              <p className="text-center text-[11px] text-ink/55">
+                Foto recebida com sucesso. Você pode trocar clicando acima.
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      <BotoesNav
+        onAvancar={onAvancar}
+        onVoltar={onVoltar}
+        avancarLabel="Ver resumo do pedido →"
+      />
+    </section>
+  );
+}
+

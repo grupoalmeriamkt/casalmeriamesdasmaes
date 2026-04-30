@@ -21,15 +21,19 @@ const PASSOS = [
   { value: "2", label: "2 — Dados" },
   { value: "3", label: "3 — Entrega" },
   { value: "4", label: "4 — Data/Horário" },
+  { value: "4.5", label: "4 — Personalização" },
   { value: "5", label: "5 — Resumo" },
 ] as const;
 
 export function QuizPreviewMobile({ campanhaId }: Props) {
   const setCampanhaAtivaId = useAdmin((s) => s.setCampanhaAtivaId);
   const campanhaAtivaIdAtual = useAdmin((s) => s.campanhaAtivaId);
-  const [step, setStep] = useState<number>(1);
-  // chave para forçar remount ao trocar passo / recarregar
+  const campanhas = useAdmin((s) => s.campanhas);
+  const [stepValue, setStepValue] = useState<string>("1");
   const [nonce, setNonce] = useState(0);
+
+  const stepNumero = stepValue === "4.5" ? 4 : Number(stepValue);
+  const initialPersonalizacao = stepValue === "4.5";
 
   // Aponta a campanha em edição como ativa enquanto a prévia está aberta
   useEffect(() => {
@@ -43,8 +47,40 @@ export function QuizPreviewMobile({ campanhaId }: Props) {
 
   const recarregar = () => {
     usePedido.getState().reset();
+    semearExtrasSeNecessario();
     setNonce((n) => n + 1);
   };
+
+  const semearExtrasSeNecessario = () => {
+    if (!initialPersonalizacao) return;
+    const camp = campanhas.find((c) => c.id === campanhaId);
+    const itens = camp?.upsell?.itens ?? [];
+    const st = usePedido.getState();
+    for (const i of itens) {
+      if (i.tipo === "cartao") {
+        st.setCartao({
+          itemId: i.itemId,
+          nome: i.nome,
+          preco: i.preco,
+          mensagem: "",
+        });
+      } else if (i.tipo === "polaroid") {
+        st.setPolaroid({
+          itemId: i.itemId,
+          nome: i.nome,
+          preco: i.preco,
+          arquivoUrl: "",
+          arquivoNome: "",
+        });
+      }
+    }
+  };
+
+  // Reaplica seed sempre que entra no passo de personalização
+  useEffect(() => {
+    if (initialPersonalizacao) semearExtrasSeNecessario();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepValue, nonce]);
 
   return (
     <div className="space-y-3">
@@ -55,9 +91,9 @@ export function QuizPreviewMobile({ campanhaId }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <Select
-            value={String(step)}
+            value={stepValue}
             onValueChange={(v) => {
-              setStep(Number(v));
+              setStepValue(v);
               setNonce((n) => n + 1);
             }}
           >
@@ -104,8 +140,9 @@ export function QuizPreviewMobile({ campanhaId }: Props) {
               <PreviewProvider>
                 <ThemeApplier />
                 <Quiz
-                  key={`${campanhaId}-${step}-${nonce}`}
-                  initialStep={step}
+                  key={`${campanhaId}-${stepValue}-${nonce}`}
+                  initialStep={stepNumero}
+                  initialPersonalizacao={initialPersonalizacao}
                   onConcluir={() => {
                     /* prévia: no-op */
                   }}

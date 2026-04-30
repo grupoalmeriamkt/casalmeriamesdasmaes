@@ -1,206 +1,80 @@
+## Objetivo
 
-# Plano — Melhorias no sistema de pedidos
-
-Quatro mudanças independentes no Quiz, no editor de campanha e no painel de pedidos.
-
----
-
-## 1) Label condicional no Quiz (Retirada vs Delivery)
-
-Arquivo: `src/components/Quiz.tsx` (Step 4, linhas ~679-684).
-
-- Trocar o `<h1>` "Quando deseja receber?" por:
-  - `entregaTipo === "retirada"` → "Quando deseja **Retirar?**"
-  - caso contrário (delivery) → mantém "Quando deseja **receber?**"
-- Ajustar também o subtítulo: "Escolha o melhor dia e horário para retirar / receber".
-
-Mudança trivial, somente texto.
+No Quiz, exibir os itens de **Cartão** e **Polaroid** definidos no Upsell da campanha junto com os produtos no STEP 4. Ao selecionar pelo menos um deles, inserir um **novo passo de personalização** (entre o atual STEP 4 e o resumo) onde o cliente digita o texto do cartão e/ou faz upload da foto da polaroid.
 
 ---
 
-## 2) Upsell único em "Informações Gerais"
+## Fluxo (UX)
 
-Hoje o upsell vive em dois lugares (`campanha.delivery.upsell*` e `campanha.retirada.upsell*`). Vamos unificar em um único campo na campanha.
-
-### Modelo de dados (`src/store/admin.ts`)
-
-Adicionar à `Campanha`:
-
-```ts
-type UpsellItem =
-  | { tipo: "produto"; produtoId: string }                     // cesta/sobremesa do catálogo
-  | { tipo: "cartao";  id: string; nome: string; preco: number; maxCaracteres: number }
-  | { tipo: "polaroid"; id: string; nome: string; preco: number };
-
-type CampanhaUpsell = {
-  ativo: boolean;
-  itens: UpsellItem[]; // ordem = ordem de exibição no Quiz
-};
-
-type Campanha = {
-  // ...existente
-  upsell: CampanhaUpsell;
-};
+```
+1 Cesta → 2 Dados → 3 Entrega → 4 Data + Upsell → [4.5 Personalização] → 5 Resumo
+                                                       ↑
+                                  Só aparece se houver cartão e/ou polaroid selecionado
 ```
 
-- Manter `upsellAtivo` / `upsellProdutoIds` legados na tipagem como `@deprecated` por compat, mas **não** mais ler/gravar deles na UI.
-- Migration (`migrate` no `persist`, bumpando versão para 10): para cada campanha, montar `upsell.itens` a partir de `delivery.upsellProdutoIds ∪ retirada.upsellProdutoIds` (dedup, mantendo ordem do delivery primeiro). `upsell.ativo = delivery.upsellAtivo || retirada.upsellAtivo`.
-
-Os campos `delivery.upsellAtivo`, `delivery.upsellProdutoIds`, `retirada.upsellAtivo`, `retirada.upsellProdutoIds` deixam de existir no shape novo (removidos do tipo e da migration).
-
-### Editor (`src/components/admin/CampanhaForm.tsx`)
-
-- **Remover** o bloco "Upsell no Delivery" do `DeliveryTab` e "Upsell na Retirada" do `RetiradaTab`.
-- **Adicionar** em `InfoGeralTab`, após "Produtos Principais", um novo `Bloco titulo="Upsell (todos os modos)"` contendo:
-  - Switch "Habilitar upsell" (`campanha.upsell.ativo`).
-  - Componente `UpsellEditor` (novo) que renderiza:
-    - Lista de itens já selecionados, com:
-      - imagem/ícone, nome, preço, badges (Produto / Cartão / Polaroid),
-      - botões ordenar (↑/↓) e remover,
-      - se for `cartao`: input para `maxCaracteres` (default 150),
-      - se for `cartao`/`polaroid`: inputs para nome e preço.
-    - Três botões "Adicionar":
-      - "Adicionar produto" → abre seletor (reaproveita `ProdutosSeletor` em modo single, ou cards inline) — adiciona `{ tipo: "produto", produtoId }`.
-      - "Adicionar Cartãozinho" → adiciona `{ tipo: "cartao", id: crypto.randomUUID(), nome: "Cartãozinho Especial", preco: 0, maxCaracteres: 150 }`.
-      - "Adicionar Foto Polaroid" → adiciona `{ tipo: "polaroid", id: crypto.randomUUID(), nome: "Foto Polaroid", preco: 0 }`.
+- Os itens de **cartão** e **polaroid** aparecem na mesma seção "Quer adicionar algo a mais?" do STEP 4, com o mesmo visual dos produtos, mostrando nome e preço.
+- Cada item selecionado (toggle on/off) entra no estado `extras.cartoes` / `extras.polaroids` do `usePedido` com valores temporários (mensagem vazia / arquivo vazio).
+- Se ao menos um item de cartão ou polaroid estiver selecionado ao clicar **Continuar** no STEP 4, o Quiz vai para o **passo de Personalização**. Caso contrário, vai direto para o STEP 5 (Resumo).
+- O passo de Personalização renderiza um cartão para cada item selecionado:
+  - **Cartão**: `<Textarea>` com `maxLength` igual a `maxCaracteres` do item, contador "X / max" abaixo.
+  - **Polaroid**: input `file` (accept `image/jpeg,image/png`), botão "Escolher foto", mostra nome do arquivo após upload + ✓; reupload substitui.
+- Validação ao avançar:
+  - Cartão: mensagem com pelo menos 3 caracteres (trim).
+  - Polaroid: arquivo enviado com sucesso (URL preenchida).
+- Botão "Voltar" no passo de Personalização retorna ao STEP 4 mantendo seleções; "Continuar" salva rascunho e vai ao STEP 5.
 
 ---
 
-## 3) Substituir sobremesas do Quiz pelo Upsell
+## Mudanças técnicas
 
-### Quiz (`src/components/Quiz.tsx`)
+### 1) `src/components/Quiz.tsx`
+- **Numeração de passos**: continuar com `step` 1–5, mas tratar o passo de personalização como `step === 4.5` usando um sub-estado booleano `mostrarPersonalizacao` (mais simples que renumerar todo o array de `TITULOS` e o `progresso`). Header mostrará "Passo 4 de 5 — PERSONALIZAÇÃO" quando ativo. (Alternativa considerada: virar 6 passos; rejeitado para não quebrar a barra de progresso e prévia já indexada por 5).
+- No STEP 4, dentro do bloco que lista produtos do upsell, **também listar** itens com `tipo === "cartao"` e `tipo === "polaroid"`, controlados via `usePedido.extras`:
+  - Toggle de cartão → chama `setCartao({ itemId, nome, preco, mensagem: "" })` ou `removeCartao(itemId)`.
+  - Toggle de polaroid → `setPolaroid({ itemId, nome, preco, arquivoUrl: "", arquivoNome: "" })` ou `removePolaroid(itemId)`.
+  - Selecionado = item presente em `extras.cartoes/polaroids` por `itemId`.
+- No `avancar()` do STEP 4, depois das validações de data/horário:
+  - Calcular `precisaPersonalizar = extras.cartoes.length > 0 || extras.polaroids.length > 0`.
+  - Se sim: `setMostrarPersonalizacao(true)` e **não** mudar `step`. O JSX do step de personalização é mostrado quando `step === 4 && mostrarPersonalizacao`.
+  - Se não: `setStep(5)`.
+- No `voltar()` do passo de personalização: `setMostrarPersonalizacao(false)`.
+- Ao concluir o passo de personalização, validar campos preenchidos, gravar rascunho e ir para `step = 5` (resetando o flag).
 
-- **Remover** o bloco de sobremesas no Step 4 (linhas ~754-792 — "Quer adicionar uma sobremesa? 🍓").
-- **Adicionar** novo Step entre o atual passo 4 (Data/Horário) e o 5 (Resumo): **"Personalize seu pedido"** (Upsell).
-  - Passa a haver 6 passos. Atualizar `TITULOS` (adicionar `"PERSONALIZE"` antes de `"REVISÃO E ENVIO"`), `progresso = step/6`, `initialStep` selector preview e validações em `avancar`.
-  - Se `campanha.upsell.ativo === false` ou `upsell.itens.length === 0` → pular automaticamente (em runtime; não em modo `isPreview`).
-- Conteúdo do passo Upsell:
-  - Renderiza cada item de `campanha.upsell.itens`:
-    - **Produto** (resolve via `cestas.find(c => c.id === produtoId && ativo && !arquivado)`): card igual ao atual de sobremesas, com toggle (`toggleSobremesa` continua válido — qualquer Cesta vira "extra").
-    - **Cartão**: card com checkbox "Adicionar"; quando marcado, mostra `<Textarea>` com contador `{n}/{maxCaracteres}` e `maxLength`. Salva no `usePedido.extras`.
-    - **Polaroid**: card com checkbox "Adicionar"; quando marcado, mostra `<input type="file" accept="image/jpeg,image/png">`. Após selecionar, mostra "✓ Foto enviada — pronto para envio" (não exibe preview). Faz upload imediato para Supabase Storage (bucket `polaroids`, path `{pedidoId|tmp-{uuid}}/{filename}`) e salva a URL em `usePedido.extras`.
-- O `Resumo` (Step final) lista os extras (cartão + polaroid + sobremesas) somando ao `total`.
+### 2) Componente novo `PersonalizacaoExtras` (interno ao `Quiz.tsx`, junto dos outros subcomponentes)
+- Props: nada (lê/escreve diretamente do `usePedido`) — segue padrão do arquivo.
+- Para cada `cartao` em `extras.cartoes`:
+  - Buscar `maxCaracteres` no `campanhaAtiva.upsell.itens` correspondente.
+  - `<Textarea>` controlado, `onChange` chama `setCartao({...cartao, mensagem: novoTexto})`. Mostra `mensagem.length / maxCaracteres`.
+- Para cada `polaroid` em `extras.polaroids`:
+  - `<input type="file" accept="image/jpeg,image/png">` escondido + botão estilizado.
+  - Estado local `uploading[itemId]` para mostrar `Loader2`.
+  - Em `onChange`, chama `uploadPolaroid(file)` (já existe em `src/lib/uploadPolaroid.ts`).
+  - Em sucesso: `setPolaroid({...polaroid, arquivoUrl, arquivoNome})` + toast de sucesso.
+  - Em erro: `toast.error(result.erro)`.
+  - Após upload, mostra `✓ {arquivoNome}` e botão "Trocar foto".
+- Reaproveita `BotoesNav` para Avançar/Voltar.
 
-### `usePedido` (`src/store/pedido.ts`)
+### 3) Pré-visualização (`QuizPreviewMobile.tsx`)
+- Adicionar opção `"4.5"` ao seletor `PASSOS` chamada `"4 — Personalização"`. Para que o passo apareça, ao selecionar essa opção: forçar `step=4` e popular `extras` com itens fake de cartão/polaroid baseados no upsell da campanha em edição (apenas dentro do `PreviewProvider`, não persiste em produção). Também aceitar `initialStep` fracionário no `Quiz` (parsear) — mais simples: passar uma nova prop opcional `initialPersonalizacao?: boolean` e setar o flag ao montar.
 
-Adicionar slice:
+### 4) Resumo (STEP 5) e mensagem WhatsApp — sem mudanças de lógica
+- `selectTotal` já soma cartões e polaroids.
+- `montarMensagemWhats` já recebe `extras`. **Mas** o botão de envio no STEP 5 atualmente não passa `extras` no payload — adicionar `extras: st.extras` em `payload.pagamento.extras` (compat com `pedidos.ts` atual que coloca extras dentro de `pagamento`) e em `montarMensagemWhats({ ..., extras: st.extras })`.
+- No bloco `ResumoLinha` do STEP 5, adicionar linhas:
+  - `Cartões: nome (+ trecho da mensagem...)` se houver.
+  - `Foto Polaroid: ✓ enviada` se houver.
 
-```ts
-extras: {
-  cartoes: { itemId: string; nome: string; preco: number; mensagem: string }[];
-  polaroids: { itemId: string; nome: string; preco: number; arquivoUrl: string; arquivoNome: string }[];
-}
-setCartao(itemId, patch)
-removeCartao(itemId)
-setPolaroid(itemId, patch)
-removePolaroid(itemId)
-```
-
-`selectTotal` passa a somar também os extras (`cartoes` + `polaroids` + `sobremesas`).
-
-### Persistência no pedido (`src/lib/pedidos.ts`)
-
-- O payload enviado para `upsert_pedido_rascunho` ganha um campo `extras` dentro do JSON (já é JSONB):
-  ```
-  extras: { cartoes: [...], polaroids: [{ nome, preco, arquivoUrl, arquivoNome }] }
-  ```
-- `PedidoRow`/`rowToPedidoSalvo` expõem `extras`.
-- `WhatsApp message` (`src/lib/whatsappMsg.ts`): adicionar linhas:
-  - `*Cartão:* "<mensagem>"`
-  - `*Foto Polaroid:* <url assinada>`
-
----
-
-## 4) Cartãozinho + Foto Polaroid — back-end
-
-### Storage (migration nova)
-
-```sql
--- bucket público (URLs de download para o admin)
-insert into storage.buckets (id, name, public)
-values ('polaroids', 'polaroids', true)
-on conflict (id) do nothing;
-
--- RLS: permitir INSERT anônimo (cliente sobe foto antes de finalizar)
-create policy "polaroids_insert_anon"
-on storage.objects for insert
-to anon, authenticated
-with check (bucket_id = 'polaroids');
-
--- leitura pública (já implícita por bucket público) — manter explícita:
-create policy "polaroids_read_public"
-on storage.objects for select
-to anon, authenticated
-using (bucket_id = 'polaroids');
-```
-
-### Tabela `pedidos`
-
-Sem mudança de schema: o JSONB já existente recebe `extras`. Se o RPC `upsert_pedido_rascunho` espelha colunas tipadas, **adicionar coluna**:
-
-```sql
-alter table public.pedidos add column if not exists extras jsonb not null default '{}'::jsonb;
-```
-
-E atualizar a função `upsert_pedido_rascunho` para gravar `_payload->'extras'` em `extras`.
-
-### Painel de pedidos (`src/components/admin/AbaPedidos.tsx`)
-
-- Nova coluna "Extras" (ou ícones na linha) com:
-  - Se `extras.cartoes?.length`: ícone ✉️ + tooltip/expand mostrando a mensagem.
-  - Se `extras.polaroids?.length`: ícone 📷 com link "Baixar foto" apontando para `arquivoUrl` (download attribute).
-- CSV exportado ganha colunas "Cartão" e "Polaroid (URL)".
-
-### Upload (cliente)
-
-Helper `src/lib/uploadPolaroid.ts`:
-
-```ts
-import { supabase } from "@/integrations/supabase/client";
-
-export async function uploadPolaroid(file: File): Promise<{ url: string; nome: string } | null> {
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from("polaroids").upload(path, file, {
-    contentType: file.type, upsert: false,
-  });
-  if (error) return null;
-  const { data } = supabase.storage.from("polaroids").getPublicUrl(path);
-  return { url: data.publicUrl, nome: file.name };
-}
-```
-
-Validações: `accept="image/jpeg,image/png"`, `file.size <= 10 * 1024 * 1024` (10 MB), erro via `toast`.
-
-Em modo `isPreview` (preview do editor): mockar — não sobe arquivo, apenas marca como "✓ Foto (prévia)".
+### 5) Tipos / store
+- Não há mudanças necessárias. `usePedido` já expõe `extras`, `setCartao`, `removeCartao`, `setPolaroid`, `removePolaroid` e o `selectTotal` já contabiliza.
 
 ---
 
-## Arquivos tocados
+## Arquivos editados
+- `src/components/Quiz.tsx` (principal — adicionar UI dos itens cartão/polaroid no STEP 4, novo bloco do passo de personalização, ajustes em `avancar`/`voltar`, payload de envio).
+- `src/components/admin/QuizPreviewMobile.tsx` (opção de prévia para o passo de personalização).
 
-**Edit**:
-- `src/components/Quiz.tsx` — label condicional (#1), remover sobremesas (#3), novo step Upsell (#3,#4), TITULOS/progresso.
-- `src/components/admin/CampanhaForm.tsx` — remover blocos Upsell de Delivery/Retirada (#2), adicionar bloco em InfoGeral (#2,#4).
-- `src/store/admin.ts` — tipo `CampanhaUpsell`/`UpsellItem`, migration v10, defaults, remoção dos campos `upsell*` de delivery/retirada.
-- `src/store/pedido.ts` — slice `extras`, `selectTotal` com extras.
-- `src/lib/pedidos.ts` — payload com `extras`, `PedidoRow.extras`, `rowToPedidoSalvo`.
-- `src/lib/whatsappMsg.ts` — incluir cartão/polaroid na mensagem.
-- `src/components/admin/AbaPedidos.tsx` — coluna Extras + CSV.
-- `src/components/Resumo.tsx` / `Sucesso.tsx` se aplicável — exibir extras.
-- `src/components/Upsell.tsx` — pode ser removido (não usado mais) ou re-aproveitado pelo novo step; vamos remover o uso atual e deletar o arquivo se não houver outros consumidores.
+## Sem alterações
+- `src/store/pedido.ts`, `src/store/admin.ts`, `src/lib/uploadPolaroid.ts`, `src/lib/whatsappMsg.ts`, `src/lib/pedidos.ts` (já estão prontos para o fluxo).
 
-**Create**:
-- `src/lib/uploadPolaroid.ts` — helper de upload.
-- Migration SQL — bucket `polaroids` + policies + coluna `extras` em `pedidos` + atualização do RPC `upsert_pedido_rascunho`.
-
----
-
-## Critérios de aceite
-
-1. Quiz step de data/horário mostra "Quando deseja Retirar?" quando entrega = retirada; "Quando deseja receber?" caso contrário.
-2. Editor de campanha não tem mais bloco de Upsell em Delivery/Retirada; tem um bloco único em "Informações Gerais".
-3. Bloco de upsell aceita produtos do catálogo, "Cartãozinho Especial" (com `maxCaracteres` configurável) e "Foto Polaroid".
-4. No Quiz, sobremesas não aparecem mais no passo de data/horário; aparecem como itens de upsell quando o admin as inclui.
-5. Cliente que escolhe "Cartãozinho" digita mensagem com contador `n/max`; texto vai junto ao pedido (Supabase + WhatsApp + painel).
-6. Cliente que escolhe "Foto Polaroid" envia JPG/PNG (≤10 MB); vê confirmação "✓ enviada"; admin baixa pelo painel de pedidos.
-7. Pedidos antigos continuam abrindo (migration preserva dados de upsell legado).
+## Pendência conhecida (já mencionada antes)
+- A coluna `extras jsonb` e o bucket `polaroids` precisam estar criados no Supabase para o upload funcionar de fato. Sem o bucket, o `uploadPolaroid` retornará erro e o passo bloqueará o avanço — comportamento desejado para evitar pedidos sem foto.
