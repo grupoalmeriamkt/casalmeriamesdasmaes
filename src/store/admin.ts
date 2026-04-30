@@ -346,6 +346,7 @@ const initialCampanha: Campanha = {
   retirada: retiradaDefault(initialUnidades[0]?.endereco ?? ""),
   upsellAtivo: true,
   upsellProdutoIds: [],
+  upsell: { ativo: true, itens: [] },
   produtosPrincipaisIds: [],
   textos: textosDefault("Campanha principal"),
   quiz: {
