@@ -1070,3 +1070,284 @@ function ProdutosSeletor({
     </div>
   );
 }
+
+/* ============================================================ */
+/*                       UPSELL EDITOR                          */
+/* ============================================================ */
+
+function UpsellEditor({
+  cestas,
+  upsell,
+  onChange,
+}: {
+  cestas: CestaAdmin[];
+  upsell: CampanhaUpsell;
+  onChange: (u: CampanhaUpsell) => void;
+}) {
+  const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
+  const fmt = (n: number) =>
+    n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const setItens = (itens: UpsellItem[]) => onChange({ ...upsell, itens });
+
+  const addProduto = (produtoId: string) => {
+    if (
+      upsell.itens.some(
+        (i) => i.tipo === "produto" && i.produtoId === produtoId,
+      )
+    )
+      return;
+    setItens([
+      ...upsell.itens,
+      { tipo: "produto", itemId: `up-${produtoId}`, produtoId },
+    ]);
+  };
+
+  const addCartao = () =>
+    setItens([
+      ...upsell.itens,
+      {
+        tipo: "cartao",
+        itemId: `cartao-${Date.now()}`,
+        nome: "Cartãozinho Especial",
+        preco: 0,
+        maxCaracteres: 150,
+      },
+    ]);
+
+  const addPolaroid = () =>
+    setItens([
+      ...upsell.itens,
+      {
+        tipo: "polaroid",
+        itemId: `polaroid-${Date.now()}`,
+        nome: "Foto Polaroid",
+        preco: 0,
+      },
+    ]);
+
+  const remove = (itemId: string) =>
+    setItens(upsell.itens.filter((i) => i.itemId !== itemId));
+
+  const mover = (idx: number, dir: -1 | 1) => {
+    const j = idx + dir;
+    if (j < 0 || j >= upsell.itens.length) return;
+    const next = [...upsell.itens];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setItens(next);
+  };
+
+  const patch = (itemId: string, p: Partial<UpsellItem>) =>
+    setItens(
+      upsell.itens.map((i) =>
+        i.itemId === itemId ? ({ ...i, ...p } as UpsellItem) : i,
+      ),
+    );
+
+  const temCartao = upsell.itens.some((i) => i.tipo === "cartao");
+  const temPolaroid = upsell.itens.some((i) => i.tipo === "polaroid");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addCartao}
+          disabled={temCartao}
+        >
+          <Plus className="mr-1 h-3 w-3" /> Cartãozinho Especial
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addPolaroid}
+          disabled={temPolaroid}
+        >
+          <Plus className="mr-1 h-3 w-3" /> Foto Polaroid
+        </Button>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-charcoal">
+          Produtos do catálogo
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ativos.map((c) => {
+            const sel = upsell.itens.some(
+              (i) => i.tipo === "produto" && i.produtoId === c.id,
+            );
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() =>
+                  sel ? remove(`up-${c.id}`) : addProduto(c.id)
+                }
+                className={`flex items-center gap-2 rounded-lg border-2 bg-card p-2 text-left transition-all ${
+                  sel ? "border-terracotta" : "border-border hover:border-charcoal/40"
+                }`}
+              >
+                <img
+                  src={c.imagem}
+                  alt=""
+                  className="h-10 w-10 flex-none rounded object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-charcoal">
+                    {c.nome}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {fmt(c.preco)}
+                  </p>
+                </div>
+                <span
+                  className={`flex h-5 w-5 flex-none items-center justify-center rounded border ${
+                    sel
+                      ? "border-terracotta bg-terracotta text-white"
+                      : "border-border"
+                  }`}
+                >
+                  {sel ? "✓" : ""}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {upsell.itens.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold text-charcoal">
+            Itens do upsell ({upsell.itens.length})
+          </p>
+          <div className="space-y-2">
+            {upsell.itens.map((it, i) => {
+              const produto =
+                it.tipo === "produto"
+                  ? cestas.find((c) => c.id === it.produtoId)
+                  : null;
+              return (
+                <div
+                  key={it.itemId}
+                  className="rounded-md border border-border bg-background/40 p-3 space-y-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 text-center text-xs font-bold text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="rounded-full bg-charcoal/10 px-2 py-0.5 text-[10px] font-bold uppercase text-charcoal">
+                      {it.tipo}
+                    </span>
+                    <p className="min-w-0 flex-1 truncate text-sm text-charcoal">
+                      {it.tipo === "produto"
+                        ? (produto?.nome ?? "(produto removido)")
+                        : it.nome}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => mover(i, -1)}
+                      disabled={i === 0}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => mover(i, 1)}
+                      disabled={i === upsell.itens.length - 1}
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-terracotta hover:bg-terracotta/10"
+                      onClick={() => remove(it.itemId)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {it.tipo === "cartao" && (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <Field label="Nome">
+                        <Input
+                          value={it.nome}
+                          onChange={(e) =>
+                            patch(it.itemId, { nome: e.target.value })
+                          }
+                        />
+                      </Field>
+                      <Field label="Preço (R$)">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={it.preco}
+                          onChange={(e) =>
+                            patch(it.itemId, {
+                              preco: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field label="Máx. caracteres">
+                        <Input
+                          type="number"
+                          min={10}
+                          max={500}
+                          value={it.maxCaracteres}
+                          onChange={(e) =>
+                            patch(it.itemId, {
+                              maxCaracteres: Number(e.target.value) || 150,
+                            })
+                          }
+                        />
+                      </Field>
+                    </div>
+                  )}
+
+                  {it.tipo === "polaroid" && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Field label="Nome">
+                        <Input
+                          value={it.nome}
+                          onChange={(e) =>
+                            patch(it.itemId, { nome: e.target.value })
+                          }
+                        />
+                      </Field>
+                      <Field label="Preço (R$)">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={it.preco}
+                          onChange={(e) =>
+                            patch(it.itemId, {
+                              preco: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </Field>
+                    </div>
+                  )}
+
+                  {it.tipo === "produto" && produto && (
+                    <p className="text-xs text-muted-foreground">
+                      {fmt(produto.preco)}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
