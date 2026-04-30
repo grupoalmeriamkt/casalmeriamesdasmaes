@@ -858,6 +858,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
             <button
               disabled={enviando}
               onClick={async () => {
+                if (isPreview) {
+                  toast.info("Prévia: pedido não é enviado.");
+                  onConcluir();
+                  return;
+                }
                 setEnviando(true);
                 const st = usePedido.getState();
                 const usandoMp = pagamento.checkoutAtivo;
