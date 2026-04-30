@@ -101,14 +101,19 @@ function CozinhaPage() {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            const valor = senhaInput.trim();
+            if (!valor) {
+              setSenhaErro("Informe a senha.");
+              return;
+            }
             const { validarSenhaToken } = await import("@/lib/shareToken");
-            const ok = await validarSenhaToken(token, senhaInput);
+            const ok = await validarSenhaToken(token, valor);
             if (!ok) {
               setSenhaErro("Senha incorreta.");
               return;
             }
-            window.sessionStorage.setItem(sessionKey, senhaInput);
-            setSenha(senhaInput);
+            window.sessionStorage.setItem(sessionKey, valor);
+            setSenha(valor);
             setSenhaErro("");
           }}
           className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 ring-1 ring-border"
@@ -122,9 +127,13 @@ function CozinhaPage() {
           <input
             type="password"
             value={senhaInput}
-            onChange={(e) => setSenhaInput(e.target.value)}
+            onChange={(e) => {
+              setSenhaInput(e.target.value);
+              if (senhaErro) setSenhaErro("");
+            }}
             maxLength={64}
             autoFocus
+            autoComplete="current-password"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             placeholder="Senha"
           />
@@ -137,6 +146,15 @@ function CozinhaPage() {
           </Button>
         </form>
         <Toaster position="bottom-right" />
+      </div>
+    );
+  }
+
+  // Loading inicial enquanto descobre se requer senha
+  if (requerSenha === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linen">
+        <p className="text-sm text-muted-foreground">Carregando…</p>
       </div>
     );
   }
