@@ -115,10 +115,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
+    if (isPreview) return;
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (step === 1) trackBeginCheckout({ value: total, currency: "BRL" });
     if (step === 2) trackLeadStart();
-  }, [step]);
+  }, [step, isPreview]);
 
   const buscarCep = async () => {
     const limpo = cep.replace(/\D/g, "");
