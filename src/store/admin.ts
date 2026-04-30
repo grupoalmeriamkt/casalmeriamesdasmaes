@@ -953,6 +953,28 @@ export const useAdmin = create<AdminState>()(
           state.campanhas[0];
         state.entrega = entregaFromCampanha(campanhaAtiva, state.unidades);
 
+        // Home (slice novo na v9)
+        if (!state.home || typeof state.home !== "object") {
+          state.home = initial.home;
+        } else {
+          state.home = {
+            banner: { ...initial.home.banner, ...(state.home.banner ?? {}) },
+            campanhasDestaque: state.home.campanhasDestaque ?? {},
+            rodape: {
+              ...initial.home.rodape,
+              ...(state.home.rodape ?? {}),
+              redes: {
+                ...initial.home.rodape.redes,
+                ...((state.home.rodape ?? {}).redes ?? {}),
+              },
+            },
+          };
+        }
+        // Limpar textos hardcoded de Dia das Mães em instalações antigas
+        if (state.textos && /dia das m[aã]es/i.test(state.textos.heroTitulo ?? "")) {
+          state.textos = { ...state.textos, ...initial.textos };
+        }
+
         return state;
       },
     },
