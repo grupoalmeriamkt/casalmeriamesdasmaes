@@ -2,9 +2,23 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { AdminSection } from "./AdminField";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatBRL } from "@/store/pedido";
 import { toast } from "sonner";
-import { ListOrdered, RefreshCw, Link2, Copy, Trash2, Plus } from "lucide-react";
+import {
+  ListOrdered,
+  RefreshCw,
+  Link2,
+  Copy,
+  Trash2,
+  Plus,
+  MessageCircle,
+} from "lucide-react";
 import {
   listarPedidos,
   rowToPedidoSalvo,
@@ -18,6 +32,7 @@ import {
   type ShareToken,
 } from "@/lib/shareToken";
 import type { PedidoSalvo } from "@/store/admin";
+import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 
 const STATUSES = ["todos", "aprovado", "pendente", "abandonado"] as const;
 
