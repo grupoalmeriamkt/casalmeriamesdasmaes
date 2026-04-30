@@ -43,6 +43,7 @@ export function AbaPedidos() {
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("todos");
   const [tokens, setTokens] = useState<ShareToken[]>([]);
   const [tokensLoading, setTokensLoading] = useState(false);
+  const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
