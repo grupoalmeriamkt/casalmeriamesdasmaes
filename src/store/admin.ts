@@ -36,7 +36,34 @@ export type UnidadeCadastrada = Unidade & {
   horarioFuncionamento: HorarioFuncionamento;
 };
 
-export type Categoria = { id: string; nome: string };
+export type Categoria = {
+  id: string;
+  nome: string;
+  imagemCapa?: string;
+  ordem?: number;
+};
+
+export type HomeBanner = {
+  imagemUrl: string;
+  titulo: string;
+  subtitulo: string;
+  ctaLabel: string;
+  ctaHref: string;
+};
+
+export type HomeCampanhaDestaque = { ativo: boolean; ordem: number };
+
+export type HomeRodape = {
+  enderecos: string;
+  redes: { instagram: string; whatsapp: string; facebook: string };
+  textoLivre: string;
+};
+
+export type Home = {
+  banner: HomeBanner;
+  campanhasDestaque: Record<string, HomeCampanhaDestaque>;
+  rodape: HomeRodape;
+};
 
 // Mantido por compatibilidade — Quiz e Resumo ainda leem via selectors abaixo
 // que agora resolvem a partir da campanha ativa.
@@ -106,6 +133,7 @@ export type Campanha = {
   slug: string;
   nome: string;
   status: "ativa" | "pausada";
+  imagemDestaque?: string;
   unidadeId?: string;
   delivery: CampanhaDelivery;
   retirada: CampanhaRetirada;
@@ -180,6 +208,7 @@ type AdminState = {
   pagamento: Pagamento;
   integracoes: Integracoes;
   geral: ConfigGeral;
+  home: Home;
   pedidos: PedidoSalvo[];
 
   setTema: (t: Partial<Tema>) => void;
@@ -214,6 +243,10 @@ type AdminState = {
   setPagamento: (patch: Partial<Pagamento>) => void;
   setIntegracoes: (patch: Partial<Integracoes>) => void;
   setGeral: (patch: Partial<ConfigGeral>) => void;
+  setHome: (patch: Partial<Home>) => void;
+  setHomeBanner: (patch: Partial<HomeBanner>) => void;
+  setHomeRodape: (patch: Partial<HomeRodape>) => void;
+  setHomeCampanhaDestaque: (campanhaId: string, patch: Partial<HomeCampanhaDestaque>) => void;
   registrarPedido: (p: PedidoSalvo) => void;
   limparPedidos: () => void;
   resetTudo: () => void;
@@ -337,10 +370,11 @@ const initial = {
     modo: "claro" as const,
   },
   textos: {
-    heroTitulo: "Presenteie sua mãe com um café da manhã inesquecível",
-    heroSubtitulo: "Cestas artesanais com entrega ou retirada em Brasília",
-    badgePrazo: "Encomendas encerram quinta-feira, 07 de maio",
-    ctaPrincipal: "MONTAR MEU PEDIDO",
+    heroTitulo: "Sabores artesanais do Casa Almeria",
+    heroSubtitulo:
+      "Cestas, sobremesas e produtos cuidadosamente selecionados, com entrega ou retirada em Brasília.",
+    badgePrazo: "",
+    ctaPrincipal: "VER CARDÁPIO",
     taglineFooter: "pra alimentar corpo e alma",
     whatsapp: "5561999999999",
     msgConfirmacao:
@@ -395,6 +429,26 @@ const initial = {
   geral: {
     ativa: true,
   },
+  home: {
+    banner: {
+      imagemUrl:
+        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=1600&q=80",
+      titulo: "Casa Almeria",
+      subtitulo: "Sabores artesanais com entrega ou retirada em Brasília",
+      ctaLabel: "Ver cardápio",
+      ctaHref: "#cardapio",
+    },
+    campanhasDestaque: {} as Record<string, HomeCampanhaDestaque>,
+    rodape: {
+      enderecos: "",
+      redes: {
+        instagram: "https://instagram.com",
+        whatsapp: "https://wa.me/5561999999999",
+        facebook: "",
+      },
+      textoLivre: "",
+    },
+  } as Home,
 };
 
 function syncEntregaLegado(state: AdminState): EntregaConfig {
@@ -619,6 +673,37 @@ export const useAdmin = create<AdminState>()(
         set((s) => ({ integracoes: { ...s.integracoes, ...patch } })),
       setGeral: (patch) => set((s) => ({ geral: { ...s.geral, ...patch } })),
 
+      setHome: (patch) => set((s) => ({ home: { ...s.home, ...patch } })),
+      setHomeBanner: (patch) =>
+        set((s) => ({ home: { ...s.home, banner: { ...s.home.banner, ...patch } } })),
+      setHomeRodape: (patch) =>
+        set((s) => ({
+          home: {
+            ...s.home,
+            rodape: {
+              ...s.home.rodape,
+              ...patch,
+              redes: { ...s.home.rodape.redes, ...(patch.redes ?? {}) },
+            },
+          },
+        })),
+      setHomeCampanhaDestaque: (campanhaId, patch) =>
+        set((s) => {
+          const atual = s.home.campanhasDestaque[campanhaId] ?? {
+            ativo: false,
+            ordem: 0,
+          };
+          return {
+            home: {
+              ...s.home,
+              campanhasDestaque: {
+                ...s.home.campanhasDestaque,
+                [campanhaId]: { ...atual, ...patch },
+              },
+            },
+          };
+        }),
+
       registrarPedido: (p) =>
         set((s) => ({ pedidos: [p, ...s.pedidos].slice(0, 500) })),
       limparPedidos: () => set({ pedidos: [] }),
@@ -627,7 +712,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 8,
+      version: 9,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -641,6 +726,7 @@ export const useAdmin = create<AdminState>()(
         pagamento: { ...s.pagamento, mpAccessToken: "" },
         integracoes: { ...s.integracoes, metaAccessToken: "", webhookUrl: "" },
         geral: s.geral,
+        home: s.home,
         pedidos: s.pedidos,
       }),
       migrate: (state: any, _version) => {
@@ -866,6 +952,28 @@ export const useAdmin = create<AdminState>()(
           state.campanhas.find((c: any) => c.id === state.campanhaAtivaId) ??
           state.campanhas[0];
         state.entrega = entregaFromCampanha(campanhaAtiva, state.unidades);
+
+        // Home (slice novo na v9)
+        if (!state.home || typeof state.home !== "object") {
+          state.home = initial.home;
+        } else {
+          state.home = {
+            banner: { ...initial.home.banner, ...(state.home.banner ?? {}) },
+            campanhasDestaque: state.home.campanhasDestaque ?? {},
+            rodape: {
+              ...initial.home.rodape,
+              ...(state.home.rodape ?? {}),
+              redes: {
+                ...initial.home.rodape.redes,
+                ...((state.home.rodape ?? {}).redes ?? {}),
+              },
+            },
+          };
+        }
+        // Limpar textos hardcoded de Dia das Mães em instalações antigas
+        if (state.textos && /dia das m[aã]es/i.test(state.textos.heroTitulo ?? "")) {
+          state.textos = { ...state.textos, ...initial.textos };
+        }
 
         return state;
       },

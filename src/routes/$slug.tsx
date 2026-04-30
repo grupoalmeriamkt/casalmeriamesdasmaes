@@ -13,6 +13,7 @@ const RESERVED_SLUGS = new Set([
   "pedido",
   "pedidos",
   "api",
+  "checkout",
   "q",
   "",
 ]);
@@ -32,17 +33,15 @@ function CampanhaPage() {
   const cestaSelecionada = usePedido((s) => s.cesta);
   const [concluido, setConcluido] = useState(false);
 
-  if (RESERVED_SLUGS.has(slug)) {
-    return <Navigate to="/" />;
-  }
+  const reservado = RESERVED_SLUGS.has(slug);
+  const campanha = reservado ? undefined : campanhas.find((c) => c.slug === slug);
 
-  const campanha = campanhas.find((c) => c.slug === slug);
-
+  // Hook SEMPRE chamado antes de qualquer return — evita "rendered fewer hooks"
   useEffect(() => {
     if (campanha) setCampanhaAtivaId(campanha.id);
-  }, [campanha?.id, setCampanhaAtivaId]);
+  }, [campanha, setCampanhaAtivaId]);
 
-  if (!campanha) {
+  if (reservado || !campanha) {
     return <Navigate to="/" />;
   }
 

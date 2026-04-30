@@ -91,9 +91,13 @@ export async function listarPedidos(): Promise<PedidoRow[]> {
 }
 
 /** Lista pedidos via token público (para a tela da cozinha). */
-export async function listarPedidosPorToken(token: string): Promise<PedidoRow[]> {
+export async function listarPedidosPorToken(
+  token: string,
+  senha?: string,
+): Promise<PedidoRow[]> {
   const { data, error } = await supabase.rpc("pedidos_por_token", {
     _token: token,
+    _senha: senha ?? null,
   });
   if (error) {
     console.error("Erro ao listar pedidos por token:", error);
