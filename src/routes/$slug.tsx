@@ -8,7 +8,7 @@ import { usePedido } from "@/store/pedido";
 import { useAdmin } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 
-export const Route = createFileRoute("/q/$slug")({
+export const Route = createFileRoute("/$slug")({
   head: () => ({
     meta: [{ title: "Monte seu pedido — Casa Almeria" }],
   }),
