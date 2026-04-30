@@ -1,119 +1,209 @@
-# Plano — Melhorias no Editor de Campanha + correções
+## Visão geral
 
-## 1. Editor de Campanha: nova aba "Informações Gerais"
+Reformular a Home pública (`/`) para ser um cardápio digital genérico do Casa Almeria (sem viés "Dia das Mães"), criar um Editor da Home no painel, adicionar carrinho de múltiplos produtos com checkout via Mercado Pago, proteger o link público de pedidos com senha, e varrer bugs.
 
-**Reorganizar `src/components/admin/CampanhaForm.tsx`** transformando o cabeçalho atual em uma aba e adicionando duas novas abas no `Tabs`:
+---
 
-```text
-[Informações Gerais]  [Delivery]  [Retirada]
-```
+## 1. Rota "/" — Home como cardápio
 
-A aba **Informações Gerais** conterá:
+A rota `/` hoje **não** redireciona para campanha, mas usa textos e badge de "Dia das Mães" vindos de `useAdmin().textos` (defaults em `src/store/admin.ts`). Vamos:
 
-- **Bloco "Identificação"** (campos atuais já existentes): Nome, Slug, Link público (read-only + copiar), Status (ativa/pausada), Unidade vinculada.
-- **Bloco "Produtos Principais"** (novo): seletor múltiplo de produtos, lista produtos de `s.cestas` filtrados por `ativo && !arquivado`. Cada item exibe foto, nome e preço com checkbox. Salva em novo campo `campanha.produtosPrincipaisIds: string[]` com reordenação por ↑/↓ (reaproveitar o componente `UpsellSeletor` extraindo-o como `ProdutosSeletor` genérico).
-- **Bloco "Upsell"** (novo nesta aba — em adição aos upsells por canal): toggle `campanha.upsellAtivo` + `ProdutosSeletor` populando `campanha.upsellProdutoIds` (campos legados que já existem no store). Os upsells específicos por canal (Delivery/Retirada) continuam separados nas suas abas.
-- **Bloco "Datas"** (novo): três date pickers (shadcn Calendar dentro de Popover, com `pointer-events-auto`):
-  - Data de início — `campanha.dataInicio?: string` (ISO)
-  - Data de encerramento — `campanha.dataFim?: string`
-  - Data limite para encomendas — `campanha.dataLimitePedidos?: string`
-- **Bloco "Textos"** (novo): 4 inputs/textareas simples:
-  - Título da campanha — `campanha.textos.titulo`
-  - Descrição/subtítulo — `campanha.textos.subtitulo`
-  - Mensagem de boas-vindas (Quiz) — `campanha.textos.boasVindas`
-  - Texto de confirmação — `campanha.textos.confirmacao`
+- Remover o `<span className="badge-mae">🌸 Dia das Mães</span>` do `Index`.
+- Substituir os defaults de `textos.heroTitulo/heroSubtitulo/badgePrazo` por textos genéricos do Casa Almeria (ex.: "Sabores artesanais com entrega em Brasília").
+- Atualizar `<head>` (root e index) tirando "Dia das Mães" do título/OG.
+- Garantir que `/` nunca renderize o componente de campanha; campanhas só vivem em `/[slug]` (`src/routes/$slug.tsx` já está correto).
+
+## 2. Nova Home pública
+
+Reescrever `src/routes/index.tsx` para ter, de cima para baixo:
+
+1. **Header** com logo + links (Instagram, WhatsApp).
+2. **Banner principal** (imagem única configurável)
+   - `home.banner = { imagemUrl, titulo, subtitulo, ctaLabel, ctaHref }`
+   - Componente: `src/components/home/HomeBanner.tsx`.
+3. **Campanhas em destaque**
+   - Lista `campanhas.filter(c => c.status === "ativa" && home.campanhasDestaque[c.id]?.ativo)` ordenado por `ordem`.
+   - Card: imagem (vinda de `campanha.imagemDestaque` — campo novo), nome e botão "Acessar" → `Link to="/$slug"`.
+   - Componente: `HomeCampanhasDestaque.tsx`.
+4. **Categorias (scroll horizontal)**
+   - `categorias` ganha campos `imagemCapa?` e `ordem`.
+   - Cada card âncora `href="#cat-{id}"` faz scroll suave até a seção.
+   - Componente: `HomeCategoriasCarousel.tsx`.
+5. **Produtos por categoria**
+   - Reaproveita lógica de `VitrineProdutos.tsx`, mas com `id="cat-{categoriaId}"` em cada seção e botão "Adicionar ao carrinho" (não mais "Quero esse").
+6. **Rodapé configurável**
+   - `home.rodape = { enderecos[], horarios[], redes: { instagram, whatsapp, facebook }, textoLivre }`.
+   - Componente: `HomeFooter.tsx`.
+
+### Carrinho + checkout MP
+
+Como o usuário escolheu **carrinho com vários produtos**:
+
+- Novo store: `src/store/carrinho.ts` (zustand + persist) com `itens: { produtoId, quantidade }[]`, ações `add/remove/setQtd/clear`, selector de total.
+- Drawer `CartDrawer.tsx` (usando `@/components/ui/sheet`) com botão flutuante e badge de contagem.
+- Página de checkout `src/routes/checkout.tsx`: form de cliente (nome, whatsapp, tipo entrega/retirada — reaproveita `Quiz` parcial ou form simples) + botão "Pagar com Mercado Pago".
+- Reaproveitar `src/routes/api/public/mp-preference.ts` adaptando o payload para receber lista de itens em vez de uma cesta única.
+- Persistência do pedido em `pedidos` via `finalizarPedido` (Supabase) com `cesta = null` e `sobremesas` populado a partir do carrinho. Marcar tipo `"home"`.
+
+## 3. Painel — "Editor da Home"
+
+Nova aba na sidebar do admin (`src/routes/admin.tsx` → array `ABAS`), entre "Site Principal" e "Produtos":
+
+- Id: `home`, label: "Editor da Home", icon: `LayoutTemplate`, componente `AbaHome`.
+
+`src/components/admin/AbaHome.tsx` com sub-abas (Tabs):
+
+1. **Banner** — `ImageUpload` + inputs (título, subtítulo, CTA label, CTA href).
+2. **Campanhas em destaque** — lista de todas campanhas com toggle "Exibir na Home" + input numérico de ordem (drag opcional via lista simples).
+3. **Categorias** — para cada categoria: `ImageUpload` (capa) + ordem. Botão "Editar categorias" abre o `CategoriasDialog` existente.
+4. **Produtos** — reaproveita `AbaCestas` em modo embed (lista por categoria com toggle ativo + edição via `ProdutoFormDialog` já existente). Para evitar duplicação, fazer `AbaCestas` aceitar prop opcional ou simplesmente linkar para a aba "Produtos".
+5. **Rodapé** — textarea endereços, horários por unidade (ler de `unidades`), inputs redes sociais, textarea texto livre.
 
 ### Mudanças no store (`src/store/admin.ts`)
 
-Estender o tipo `Campanha`:
+Novo slice `home` (versionado, migration v9):
 
 ```ts
-type CampanhaTextos = {
-  titulo: string;
-  subtitulo: string;
-  boasVindas: string;
-  confirmacao: string;
-};
-
-type Campanha = {
-  // ...campos atuais
-  produtosPrincipaisIds: string[];
-  dataInicio?: string;
-  dataFim?: string;
-  dataLimitePedidos?: string;
-  textos: CampanhaTextos;
-};
+export type HomeBanner = { imagemUrl: string; titulo: string; subtitulo: string; ctaLabel: string; ctaHref: string };
+export type HomeCampanhaDestaque = { ativo: boolean; ordem: number };
+export type HomeRodape = { enderecos: string; redes: { instagram: string; whatsapp: string; facebook: string }; textoLivre: string };
+export type Home = { banner: HomeBanner; campanhasDestaque: Record<string, HomeCampanhaDestaque>; rodape: HomeRodape };
 ```
 
-Defaults preenchidos em `initialCampanha`, `addCampanha` e no `migrate` (versão **8**), com fallback `produtosPrincipaisIds: []`, `textos: { titulo: nome, subtitulo: "", boasVindas: "", confirmacao: "" }`.
+`Categoria` ganha `imagemCapa?: string` e `ordem?: number`.
+`Campanha` ganha `imagemDestaque?: string`.
+
+Setters: `setHome`, `setHomeBanner`, `setHomeCampanhaDestaque`, `setHomeRodape`, `setCategoriaImagem`, `setCategoriaOrdem`.
+
+Bumpar `version` do persist e implementar `migrate` que injeta defaults sem perder dados existentes.
+
+## 4. Segurança — Senha no link público de pedidos
+
+### Banco
+
+Nova migração `supabase/migrations/<timestamp>_share_token_password.sql`:
+
+```sql
+ALTER TABLE share_tokens ADD COLUMN IF NOT EXISTS senha text;
+
+-- RPC pública: valida token + senha. Retorna boolean.
+CREATE OR REPLACE FUNCTION public.validar_token_pedidos(_token text, _senha text)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM share_tokens
+    WHERE token = _token AND scope = 'pedidos'
+      AND (senha IS NULL OR senha = _senha)
+  );
+$$;
+
+-- Atualizar pedidos_por_token para checar senha
+CREATE OR REPLACE FUNCTION public.pedidos_por_token(_token text, _senha text DEFAULT NULL)
+RETURNS SETOF pedidos LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.validar_token_pedidos(_token, _senha) THEN
+    RETURN;
+  END IF;
+  RETURN QUERY SELECT * FROM pedidos ORDER BY criado_em DESC LIMIT 500;
+END;
+$$;
+```
+
+Senha em **texto puro** conforme escolha do usuário.
+
+### Painel
+
+`AbaPedidos.tsx` — ao "Gerar link", abrir um pequeno dialog:
+- Toggle "Proteger com senha"
+- Se ativo: input de senha (mín. 4 chars, validado com zod)
+- Botão "Criar"
+
+Após criar, mostrar card com:
+- URL completa
+- Senha (se houver)
+- Botão "Copiar mensagem" — copia template:
+  ```
+  Acesse a lista de pedidos pelo link abaixo:
+  🔗 {url}
+  🔑 Senha: {senha}
+  ```
+  (omitir linha da senha se não houver)
+
+`src/lib/shareToken.ts` — `criarTokenPedidos(senha?: string)` insere com `senha`.
+
+### Tela pública `/pedidos/$token`
+
+`src/routes/pedidos.$token.tsx`:
+- Estado `senhaConfirmada` em sessionStorage por token.
+- Ao montar, tentar `pedidos_por_token(token, senha)` com senha vazia. Se RPC retornar 0 pedidos **e** o token tiver `senha` (não dá pra saber direto — chamar primeiro `validar_token_pedidos(token, '')` ; se falso, exibir tela de senha).
+- Tela de senha: input + botão "Entrar". Não revela se token existe ou não — sempre mostra "Senha incorreta" em caso de falha.
+- Sanitização: `senha` validada com zod (`z.string().min(1).max(64)`).
+
+### Segurança geral (varredura)
+
+- Confirmar `/admin` e sub-abas protegidas: `admin.tsx` já bloqueia via `useAuth()` + `isAdmin`. OK.
+- Confirmar RLS de `pedidos`: leitura via service role (admin) ou RPC com token. Adicionar comentário no migration confirmando policies.
+- Validação zod em todos forms públicos: checkout, senha do link.
+- Sem `dangerouslySetInnerHTML` em conteúdo do usuário.
+
+## 5. Bugs — varredura e correções
+
+Itens já mapeados durante a leitura:
+
+1. **Texto "Dia das Mães" hardcoded** em `__root.tsx` e `index.tsx` — trocar por genérico Casa Almeria.
+2. **`useEffect` após early return** em `src/routes/$slug.tsx` (linha 41 vem depois de returns condicionais nas linhas 35 e 45) — viola regras dos hooks. Mover `useEffect` para antes dos returns.
+3. **`<Navigate to="/" />` em `$slug.tsx`** quando slug reservado pode causar loop em rotas com nomes semelhantes — trocar por `throw redirect({ to: "/" })` no `beforeLoad`.
+4. **Sidebar mobile** em `admin.tsx` — `menuOpen` não fecha ao trocar viewport para desktop; adicionar `useEffect` com matchMedia.
+5. **`SaveConfigBar` mobile** — `sticky top-0` colide com header mobile. Ajustar `top-[56px]` em telas md:hidden.
+6. **`AbaPedidos`** — `confirm()` nativo não funciona em alguns iOS; trocar por `AlertDialog`.
+7. **Loading infinito** em `CloudConfigLoader` se Supabase responder erro silenciosamente — já tem timeout de 3s, manter.
+8. **Console**: rodar `code--read_console_logs` durante implementação e corrigir quaisquer warnings restantes (chaves duplicadas, refs faltando).
 
 ---
 
-## 2. Delivery — restaurar horário antigo
+## Detalhes técnicos
 
-O campo "Horário de funcionamento (Delivery)" hoje usa um `HorarioSemana` (grade Seg–Dom com Switch + `time` início/fim) que é o componente atual. O usuário pediu para reutilizar o **mesmo formato do Quiz anterior**, que é o componente `DatasHorarios` (lista de Datas + Janelas de horário com label livre).
+### Arquivos novos
 
-**Ação**: na aba **Delivery** do `CampanhaForm.tsx`, substituir o bloco "Horário de funcionamento (Delivery)" pelo mesmo editor `DatasHorarios` que aparece em "Configuração do Quiz de Delivery", lendo/gravando em `delivery.datas` e `delivery.horarios`. Remover o bloco `HorarioSemana` redundante (e o campo `delivery.horario` deixa de ser exibido — mantemos no tipo por compatibilidade até a próxima limpeza). Mesmo tratamento na aba **Retirada** se necessário (consistência) — mas o pedido foi específico para Delivery; mantemos Retirada como está, exceto deixar apenas o `DatasHorarios`.
+```
+src/components/home/HomeBanner.tsx
+src/components/home/HomeCampanhasDestaque.tsx
+src/components/home/HomeCategoriasCarousel.tsx
+src/components/home/HomeProdutosPorCategoria.tsx
+src/components/home/HomeFooter.tsx
+src/components/home/CartDrawer.tsx
+src/components/home/CartButton.tsx
+src/components/admin/AbaHome.tsx
+src/components/admin/SharedLinkDialog.tsx
+src/store/carrinho.ts
+src/routes/checkout.tsx
+supabase/migrations/<ts>_share_token_password.sql
+supabase/migrations/<ts>_home_categoria_imagem.sql  (não necessário — campos vivem no client store)
+```
 
----
+### Arquivos editados
 
-## 3. Produtos — restaurar Sobremesas
+```
+src/routes/__root.tsx          — meta tags genéricas
+src/routes/index.tsx           — nova Home (cardápio)
+src/routes/$slug.tsx           — fix hooks + redirect
+src/routes/admin.tsx           — nova aba "Editor da Home", fix mobile
+src/routes/pedidos.$token.tsx  — gate de senha
+src/store/admin.ts             — slice home, migration v9, campos novos
+src/lib/shareToken.ts          — senha + helpers de mensagem
+src/lib/pedidos.ts             — pedidos_por_token aceita senha
+src/components/admin/AbaPedidos.tsx — dialog gerar link com senha + msg copiável
+src/components/admin/AbaCestas.tsx — pequenos ajustes para reuso
+src/components/CloudConfigLoader.tsx — garantir defaults da nova `home`
+```
 
-O `migrate` v7 já copia `state.sobremesas` para `state.cestas` quando faltam — porém, se o usuário **excluiu manualmente** itens de sobremesa de `state.cestas`, o migrate não roda novamente (versão já é 7). O campo `arquivado` ou exclusão real explica por que sumiram.
+### Compatibilidade
 
-**Ação no `migrate` (bumpar para v8)**:
-- Garantir que **todos** os IDs de `SOBREMESAS` (de `src/lib/data.ts`) existam em `state.cestas`. Se faltarem, reinserir com `categoriaId: "cat-sobremesas"`, `ativo: true`, `arquivado: false`.
-- Garantir que produtos com `categoriaId: "cat-sobremesas"` que existem em `state.cestas` mas estão `arquivado: true` sejam desarquivados **apenas se** o ID original veio da seed `SOBREMESAS` (não tocar em produtos criados pelo usuário).
-- Não duplicar (checar por `id` antes de inserir).
+- Migração de store v8 → v9: `migrate` injeta `home` default, `categorias` ganha `imagemCapa/ordem` opcionais. Nada é removido.
+- Migração SQL usa `IF NOT EXISTS` para `senha`. RPC `pedidos_por_token` ganha parâmetro com `DEFAULT NULL` — clientes antigos continuam funcionando para tokens sem senha.
+- Quiz das campanhas permanece exatamente igual.
 
-Como a persistência é local (Zustand persist) e `app_config` no Supabase também guarda `cestas` (via `cloudConfig`), incluir uma normalização similar no boot do `CloudConfigLoader` ou logo após `loadCloudConfig` injetar o estado: rodar uma função `garantirSobremesas()` que aplica a mesma lógica em runtime, para corrigir bases já publicadas no Supabase sem exigir nova publicação manual.
+### Fora de escopo
 
----
-
-## 4. Painel — corrigir atualização automática indevida
-
-Causa identificada em `src/hooks/useAuth.ts`: o listener `supabase.auth.onAuthStateChange` dispara em eventos de `TOKEN_REFRESHED` e `INITIAL_SESSION` periódicos. Cada disparo chama `setSession`/`setUser`/`setIsAdmin` mesmo quando os valores são equivalentes, e re-roda `checkAdmin` (RPC), o que re-renderiza todo o `admin.tsx` e descarta o `useState` local da aba selecionada / formulários abertos.
-
-**Ações:**
-
-1. **Em `useAuth`**, ignorar eventos que não mudam estado:
-   - Filtrar por `event`: tratar somente `SIGNED_IN`, `SIGNED_OUT`, `USER_UPDATED`. Ignorar `TOKEN_REFRESHED` e `INITIAL_SESSION` (já temos `getSession()` no boot).
-   - Comparar `sess?.user?.id` com o atual antes de atualizar: se igual, não chamar setters.
-   - Não re-executar `checkAdmin` se o `userId` não mudou.
-
-2. **Em `src/routes/admin.tsx`**, mover o `useState` de `aba` e `menuOpen` para `localStorage` (ou `sessionStorage`) com hidratação no mount, para que mesmo se houver remontagem (HMR, recarregamento manual, troca de sessão), o usuário não perca a aba ativa.
-
-3. **Verificação adicional** — confirmar (via leitura) que não há `setInterval` de polling no admin. Os únicos `setInterval` do projeto estão em `src/routes/pedidos.$token.tsx` (página pública de acompanhamento, fora do painel) — não tocar.
-
-4. **`CloudConfigLoader`** já roda só uma vez no mount (`useEffect` com deps `[]`); não causa refresh.
-
----
-
-## 5. Banco de dados — verificação
-
-As mudanças deste prompt são **somente client-side**. Os novos campos da campanha (`produtosPrincipaisIds`, datas, textos) são serializados dentro do JSON `payload` da tabela existente `app_config` (coluna `jsonb`) — **nenhuma alteração de schema é necessária**.
-
-Sobre restaurar produtos perdidos no banco: `app_config.payload.cestas` é um JSON; a "restauração" acontece no migrate client-side e no patch após `loadCloudConfig`. Quando o admin clicar em **Publicar alterações**, o `cestas` corrigido será regravado em `app_config`. **Nenhum SQL é necessário** — o sistema se autocorrige no próximo publish.
-
-(Se houver desejo explícito de fazer um upsert manual via SQL no Supabase para "carimbar" o payload corrigido sem esperar o admin publicar, podemos rodar isso depois — mas exige acesso `psql` que não está habilitado nesta sessão. Ficou fora do escopo padrão.)
-
----
-
-## 6. Quiz — sem alterações estruturais
-
-Confirmado: a estrutura do Quiz (`src/components/Quiz.tsx`) e seus selectors (`useDatasAtivas`, `useHorariosAtivos`, `useUnidadesAtivas`) já leem da campanha ativa via `s.campanhas[].quiz`. Mantemos o fluxo, perguntas e layout inalterados. Novas campanhas continuam herdando o shape via `addCampanha`/migrate.
-
----
-
-## Arquivos afetados
-
-**Editados:**
-- `src/store/admin.ts` — novos campos em `Campanha`, defaults, migrate v8, função `garantirSobremesas`.
-- `src/components/admin/CampanhaForm.tsx` — `Tabs` com 3 abas; nova aba "Informações Gerais"; substituir `HorarioSemana` do Delivery por `DatasHorarios`; extrair `UpsellSeletor` para reutilização (renomeado `ProdutosSeletor` ou mantido com prop `titulo`).
-- `src/hooks/useAuth.ts` — filtro de eventos + comparação de userId.
-- `src/routes/admin.tsx` — persistir aba ativa em `localStorage`.
-- `src/lib/cloudConfig.ts` (ou `CloudConfigLoader.tsx`) — chamar `garantirSobremesas` após o `loadCloudConfig`.
-
-**Sem novos arquivos. Sem migrações SQL.**
-
-Após aprovação executo nesta ordem: store/migrate → CampanhaForm com 3 abas → useAuth filter → admin.tsx persist aba → cloudConfig sobremesas.
+- Drag-and-drop real para reordenação (usar inputs numéricos de ordem).
+- Editor visual WYSIWYG do rodapé (apenas textareas).
+- Múltiplos banners / carrossel — usuário escolheu imagem única.
