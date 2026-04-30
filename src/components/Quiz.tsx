@@ -82,14 +82,18 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const total = usePedido(selectTotal);
 
   // Admin store
-  const cestasAtivas = useCestasAtivas();
+  const cestasAtivas = useProdutosDaCampanhaAtiva();
   const sobremesasAtivas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
   const datas = useDatasAtivas();
   const horarios = useHorariosAtivos();
   const entregaConfig = useAdmin((s) => s.entrega);
   const pagamento = useAdmin((s) => s.pagamento);
-  const textos = useAdmin((s) => s.textos);
+  const textosGlobais = useAdmin((s) => s.textos);
+  const campanhaAtiva = useCampanhaAtiva();
+  const textosCampanha = campanhaAtiva?.textos;
+  // Mantém compat com `textos.badgePrazo` (texto global).
+  const textos = textosGlobais;
 
   // Local form state
   const [nome, setNome] = useState(cliente.nome);
