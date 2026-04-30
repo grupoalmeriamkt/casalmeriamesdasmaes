@@ -7,7 +7,9 @@ import {
   type Campanha,
   type CampanhaDelivery,
   type CampanhaRetirada,
+  type CampanhaUpsell,
   type CestaAdmin,
+  type UpsellItem,
 } from "@/store/admin";
 import { validarSlug, normalizarSlug } from "@/lib/slugs";
 import { Input } from "@/components/ui/input";
