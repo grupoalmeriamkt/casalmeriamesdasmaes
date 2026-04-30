@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAdminClient } from "@/integrations/supabase/client.server";
 
-// Lista pedidos via service_role (bypassa RLS).
-// IMPORTANTE: como /admin não tem login, este endpoint é PÚBLICO.
-// Quem souber a URL acessa todos os pedidos — incluindo CPF, email, endereço.
-// Se quiser proteção, adicione um secret no header e valide aqui.
+// Lista pedidos via service_role (bypassa RLS) com dados do Asaas via JOIN.
+// IMPORTANTE: /admin é público — quem souber a URL acessa pedidos com PII.
 export const Route = createFileRoute("/api/public/admin/pedidos")({
   server: {
     handlers: {
@@ -13,9 +11,27 @@ export const Route = createFileRoute("/api/public/admin/pedidos")({
         if (!admin) {
           return Response.json({ error: "db_unavailable" }, { status: 503 });
         }
+        // Junta pedidos com pagamentos. Cada pedido pode ter N pagamentos (tentativas);
+        // pegamos todos e o front escolhe o mais recente / relevante.
         const { data, error } = await admin
           .from("pedidos")
-          .select("*")
+          .select(
+            `
+            *,
+            pagamentos (
+              id,
+              asaas_payment_id,
+              metodo,
+              status,
+              valor,
+              cupom_codigo,
+              cupom_desconto,
+              cartao_brand,
+              cartao_last4,
+              criado_em
+            )
+          `,
+          )
           .order("criado_em", { ascending: false })
           .limit(500);
         if (error) {

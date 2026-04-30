@@ -1,11 +1,26 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
 
+export type PagamentoAsaasRow = {
+  id: string;
+  asaas_payment_id: string;
+  metodo: "PIX" | "CREDIT_CARD" | "BOLETO";
+  status: string; // PENDING | CONFIRMED | RECEIVED | OVERDUE | REFUNDED | ...
+  valor: number;
+  cupom_codigo: string | null;
+  cupom_desconto: number | null;
+  cartao_brand: string | null;
+  cartao_last4: string | null;
+  criado_em: string;
+};
+
 export type PedidoRow = {
   id: string;
   criado_em: string;
   cliente_nome: string;
   cliente_whatsapp: string;
+  cliente_cpf?: string | null;
+  cliente_email?: string | null;
   cesta: { nome: string; quantidade: number; preco: number } | null;
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
@@ -22,6 +37,7 @@ export type PedidoRow = {
   };
   total: number;
   status: string;
+  pagamentos?: PagamentoAsaasRow[];
 };
 
 type PedidoParcial = Partial<Omit<PedidoSalvo, "id" | "criadoEm">> & {
@@ -75,10 +91,7 @@ export async function finalizarPedido(
 }
 
 /** Mantido por compatibilidade — usa finalizarPedido. */
-export async function inserirPedido(
-  p: Omit<PedidoSalvo, "id" | "criadoEm">,
-  pedidoId?: string,
-) {
+export async function inserirPedido(p: Omit<PedidoSalvo, "id" | "criadoEm">, pedidoId?: string) {
   return finalizarPedido(p, pedidoId);
 }
 
@@ -99,10 +112,7 @@ export async function listarPedidos(): Promise<PedidoRow[]> {
 }
 
 /** Lista pedidos via token público (para a tela da cozinha). */
-export async function listarPedidosPorToken(
-  token: string,
-  senha?: string,
-): Promise<PedidoRow[]> {
+export async function listarPedidosPorToken(token: string, senha?: string): Promise<PedidoRow[]> {
   const { data, error } = await supabase.rpc("pedidos_por_token", {
     _token: token,
     _senha: senha ?? null,
