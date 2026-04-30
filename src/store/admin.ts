@@ -673,6 +673,37 @@ export const useAdmin = create<AdminState>()(
         set((s) => ({ integracoes: { ...s.integracoes, ...patch } })),
       setGeral: (patch) => set((s) => ({ geral: { ...s.geral, ...patch } })),
 
+      setHome: (patch) => set((s) => ({ home: { ...s.home, ...patch } })),
+      setHomeBanner: (patch) =>
+        set((s) => ({ home: { ...s.home, banner: { ...s.home.banner, ...patch } } })),
+      setHomeRodape: (patch) =>
+        set((s) => ({
+          home: {
+            ...s.home,
+            rodape: {
+              ...s.home.rodape,
+              ...patch,
+              redes: { ...s.home.rodape.redes, ...(patch.redes ?? {}) },
+            },
+          },
+        })),
+      setHomeCampanhaDestaque: (campanhaId, patch) =>
+        set((s) => {
+          const atual = s.home.campanhasDestaque[campanhaId] ?? {
+            ativo: false,
+            ordem: 0,
+          };
+          return {
+            home: {
+              ...s.home,
+              campanhasDestaque: {
+                ...s.home.campanhasDestaque,
+                [campanhaId]: { ...atual, ...patch },
+              },
+            },
+          };
+        }),
+
       registrarPedido: (p) =>
         set((s) => ({ pedidos: [p, ...s.pedidos].slice(0, 500) })),
       limparPedidos: () => set({ pedidos: [] }),
