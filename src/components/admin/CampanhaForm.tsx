@@ -267,27 +267,30 @@ function InfoGeralTab({
         />
       </Bloco>
 
-      <Bloco titulo="Upsell (todos os modos)">
-        <p className="text-xs text-muted-foreground">
-          Itens oferecidos como adicional no Quiz, independente de delivery ou
-          retirada. Inclua produtos do catálogo (ex: sobremesas), Cartãozinho
-          com mensagem personalizada e Foto Polaroid.
-        </p>
-        <ToggleLinha
-          label="Habilitar upsell"
-          checked={campanha.upsell.ativo}
-          onChange={(v) =>
-            onPatch({ upsell: { ...campanha.upsell, ativo: v } })
-          }
-        />
-        {campanha.upsell.ativo && (
-          <UpsellEditor
-            cestas={cestas}
-            upsell={campanha.upsell}
-            onChange={(up: CampanhaUpsell) => onPatch({ upsell: up })}
-          />
-        )}
-      </Bloco>
+      {(() => {
+        const upsell: CampanhaUpsell = campanha.upsell ?? { ativo: false, itens: [] };
+        return (
+          <Bloco titulo="Upsell (todos os modos)">
+            <p className="text-xs text-muted-foreground">
+              Itens oferecidos como adicional no Quiz, independente de delivery ou
+              retirada. Inclua produtos do catálogo (ex: sobremesas), Cartãozinho
+              com mensagem personalizada e Foto Polaroid.
+            </p>
+            <ToggleLinha
+              label="Habilitar upsell"
+              checked={upsell.ativo}
+              onChange={(v) => onPatch({ upsell: { ...upsell, ativo: v } })}
+            />
+            {upsell.ativo && (
+              <UpsellEditor
+                cestas={cestas}
+                upsell={upsell}
+                onChange={(up: CampanhaUpsell) => onPatch({ upsell: up })}
+              />
+            )}
+          </Bloco>
+        );
+      })()}
 
       <Bloco titulo="Datas">
         <div className="grid gap-4 md:grid-cols-3">
