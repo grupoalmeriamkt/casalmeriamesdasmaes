@@ -1095,21 +1095,53 @@ export const useUnidadesAtivas = () =>
     }),
   );
 
-export const useDatasAtivas = () =>
+/**
+ * Seletor de datas ATIVAS por modalidade (delivery / retirada).
+ * Faz fallback para `camp.quiz.datas` quando a modalidade ainda não tem datas próprias.
+ *
+ * Quando `tipo` é null/undefined retorna a união (datas ativas em qualquer modalidade)
+ * — isso evita lista vazia antes do usuário escolher entrega vs retirada.
+ */
+export const useDatasAtivas = (tipo?: "delivery" | "retirada" | null) =>
   useAdmin(
     useShallow((s) => {
       const camp =
         s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
-      return camp ? camp.quiz.datas.filter((d) => d.ativa) : [];
+      if (!camp) return [];
+      const fallback = camp.quiz.datas;
+      const deliv = camp.delivery?.datas?.length ? camp.delivery.datas : fallback;
+      const retir = camp.retirada?.datas?.length ? camp.retirada.datas : fallback;
+      if (tipo === "delivery") return deliv.filter((d) => d.ativa);
+      if (tipo === "retirada") return retir.filter((d) => d.ativa);
+      // Sem tipo escolhido: união (preserva ordem do fallback).
+      const ativos = new Map<string, { id: string; label: string; ativa: boolean }>();
+      for (const d of [...deliv, ...retir]) {
+        if (d.ativa && !ativos.has(d.label)) ativos.set(d.label, d);
+      }
+      return Array.from(ativos.values());
     }),
   );
 
-export const useHorariosAtivos = () =>
+export const useHorariosAtivos = (tipo?: "delivery" | "retirada" | null) =>
   useAdmin(
     useShallow((s) => {
       const camp =
         s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
-      return camp ? camp.quiz.horarios.filter((h) => h.ativo) : [];
+      if (!camp) return [];
+      const fallback = camp.quiz.horarios;
+      const deliv = camp.delivery?.horarios?.length
+        ? camp.delivery.horarios
+        : fallback;
+      const retir = camp.retirada?.horarios?.length
+        ? camp.retirada.horarios
+        : fallback;
+      if (tipo === "delivery") return deliv.filter((h) => h.ativo);
+      if (tipo === "retirada") return retir.filter((h) => h.ativo);
+      const ativos = new Map<string, { label: string; ativo: boolean }>();
+      for (const h of [...deliv, ...retir]) {
+        if (h.ativo && !ativos.has(h.label)) ativos.set(h.label, h);
+      }
+      return Array.from(ativos.values());
     }),
   );
 

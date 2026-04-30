@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let _client: SupabaseClient | null = null;
 
-function getAdminClient(): SupabaseClient | null {
+export function getAdminClient(): SupabaseClient | null {
   if (_client) return _client;
   const url =
     process.env.EXTERNAL_SUPABASE_URL ??
@@ -13,9 +13,7 @@ function getAdminClient(): SupabaseClient | null {
     process.env.VITE_SUPABASE_URL ??
     "";
   const key =
-    process.env.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    "";
+    process.env.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
   if (!url || !key) {
     console.warn(
       "[supabase admin] EXTERNAL_SUPABASE_URL/EXTERNAL_SUPABASE_SERVICE_ROLE_KEY ausentes.",
@@ -36,6 +34,9 @@ export async function getAppSecrets(): Promise<{
   mpAccessToken?: string;
   metaAccessToken?: string;
   webhookUrl?: string;
+  asaasApiKey?: string;
+  asaasWalletId?: string;
+  asaasWebhookToken?: string;
 }> {
   const client = getAdminClient();
   if (!client) return {};

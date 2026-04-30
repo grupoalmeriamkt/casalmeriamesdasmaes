@@ -15,8 +15,14 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
+import { Route as PedidoSucessoIdRouteImport } from './routes/pedido.sucesso.$id'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
+import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
+import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas/webhook'
+import { Route as ApiPublicAsaasChargeRouteImport } from './routes/api/public/asaas/charge'
+import { Route as ApiPublicAdminPedidosRouteImport } from './routes/api/public/admin/pedidos'
+import { Route as ApiPublicAsaasStatusIdRouteImport } from './routes/api/public/asaas/status.$id'
 
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
@@ -48,6 +54,11 @@ const PedidosTokenRoute = PedidosTokenRouteImport.update({
   path: '/pedidos/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PedidoSucessoIdRoute = PedidoSucessoIdRouteImport.update({
+  id: '/sucesso/$id',
+  path: '/sucesso/$id',
+  getParentRoute: () => PedidoRoute,
+} as any)
 const ApiPublicMpPreferenceRoute = ApiPublicMpPreferenceRouteImport.update({
   id: '/api/public/mp-preference',
   path: '/api/public/mp-preference',
@@ -58,26 +69,63 @@ const ApiPublicMetaCapiRoute = ApiPublicMetaCapiRouteImport.update({
   path: '/api/public/meta-capi',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCupomValidarRoute = ApiPublicCupomValidarRouteImport.update({
+  id: '/api/public/cupom/validar',
+  path: '/api/public/cupom/validar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAsaasWebhookRoute = ApiPublicAsaasWebhookRouteImport.update({
+  id: '/api/public/asaas/webhook',
+  path: '/api/public/asaas/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAsaasChargeRoute = ApiPublicAsaasChargeRouteImport.update({
+  id: '/api/public/asaas/charge',
+  path: '/api/public/asaas/charge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAdminPedidosRoute = ApiPublicAdminPedidosRouteImport.update({
+  id: '/api/public/admin/pedidos',
+  path: '/api/public/admin/pedidos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAsaasStatusIdRoute = ApiPublicAsaasStatusIdRouteImport.update({
+  id: '/api/public/asaas/status/$id',
+  path: '/api/public/asaas/status/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
-  '/pedido': typeof PedidoRoute
+  '/pedido': typeof PedidoRouteWithChildren
   '/pedidos/$token': typeof PedidosTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
+  '/pedido/sucesso/$id': typeof PedidoSucessoIdRoute
+  '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
+  '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
+  '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
-  '/pedido': typeof PedidoRoute
+  '/pedido': typeof PedidoRouteWithChildren
   '/pedidos/$token': typeof PedidosTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
+  '/pedido/sucesso/$id': typeof PedidoSucessoIdRoute
+  '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
+  '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
+  '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,10 +133,16 @@ export interface FileRoutesById {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
-  '/pedido': typeof PedidoRoute
+  '/pedido': typeof PedidoRouteWithChildren
   '/pedidos/$token': typeof PedidosTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
+  '/pedido/sucesso/$id': typeof PedidoSucessoIdRoute
+  '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
+  '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
+  '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +155,12 @@ export interface FileRouteTypes {
     | '/pedidos/$token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
+    | '/pedido/sucesso/$id'
+    | '/api/public/admin/pedidos'
+    | '/api/public/asaas/charge'
+    | '/api/public/asaas/webhook'
+    | '/api/public/cupom/validar'
+    | '/api/public/asaas/status/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +171,12 @@ export interface FileRouteTypes {
     | '/pedidos/$token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
+    | '/pedido/sucesso/$id'
+    | '/api/public/admin/pedidos'
+    | '/api/public/asaas/charge'
+    | '/api/public/asaas/webhook'
+    | '/api/public/cupom/validar'
+    | '/api/public/asaas/status/$id'
   id:
     | '__root__'
     | '/'
@@ -121,6 +187,12 @@ export interface FileRouteTypes {
     | '/pedidos/$token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
+    | '/pedido/sucesso/$id'
+    | '/api/public/admin/pedidos'
+    | '/api/public/asaas/charge'
+    | '/api/public/asaas/webhook'
+    | '/api/public/cupom/validar'
+    | '/api/public/asaas/status/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -128,10 +200,15 @@ export interface RootRouteChildren {
   SlugRoute: typeof SlugRoute
   AdminRoute: typeof AdminRoute
   CheckoutRoute: typeof CheckoutRoute
-  PedidoRoute: typeof PedidoRoute
+  PedidoRoute: typeof PedidoRouteWithChildren
   PedidosTokenRoute: typeof PedidosTokenRoute
   ApiPublicMetaCapiRoute: typeof ApiPublicMetaCapiRoute
   ApiPublicMpPreferenceRoute: typeof ApiPublicMpPreferenceRoute
+  ApiPublicAdminPedidosRoute: typeof ApiPublicAdminPedidosRoute
+  ApiPublicAsaasChargeRoute: typeof ApiPublicAsaasChargeRoute
+  ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
+  ApiPublicCupomValidarRoute: typeof ApiPublicCupomValidarRoute
+  ApiPublicAsaasStatusIdRoute: typeof ApiPublicAsaasStatusIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -178,6 +255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PedidosTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pedido/sucesso/$id': {
+      id: '/pedido/sucesso/$id'
+      path: '/sucesso/$id'
+      fullPath: '/pedido/sucesso/$id'
+      preLoaderRoute: typeof PedidoSucessoIdRouteImport
+      parentRoute: typeof PedidoRoute
+    }
     '/api/public/mp-preference': {
       id: '/api/public/mp-preference'
       path: '/api/public/mp-preference'
@@ -192,18 +276,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaCapiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cupom/validar': {
+      id: '/api/public/cupom/validar'
+      path: '/api/public/cupom/validar'
+      fullPath: '/api/public/cupom/validar'
+      preLoaderRoute: typeof ApiPublicCupomValidarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/asaas/webhook': {
+      id: '/api/public/asaas/webhook'
+      path: '/api/public/asaas/webhook'
+      fullPath: '/api/public/asaas/webhook'
+      preLoaderRoute: typeof ApiPublicAsaasWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/asaas/charge': {
+      id: '/api/public/asaas/charge'
+      path: '/api/public/asaas/charge'
+      fullPath: '/api/public/asaas/charge'
+      preLoaderRoute: typeof ApiPublicAsaasChargeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/admin/pedidos': {
+      id: '/api/public/admin/pedidos'
+      path: '/api/public/admin/pedidos'
+      fullPath: '/api/public/admin/pedidos'
+      preLoaderRoute: typeof ApiPublicAdminPedidosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/asaas/status/$id': {
+      id: '/api/public/asaas/status/$id'
+      path: '/api/public/asaas/status/$id'
+      fullPath: '/api/public/asaas/status/$id'
+      preLoaderRoute: typeof ApiPublicAsaasStatusIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface PedidoRouteChildren {
+  PedidoSucessoIdRoute: typeof PedidoSucessoIdRoute
+}
+
+const PedidoRouteChildren: PedidoRouteChildren = {
+  PedidoSucessoIdRoute: PedidoSucessoIdRoute,
+}
+
+const PedidoRouteWithChildren =
+  PedidoRoute._addFileChildren(PedidoRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
   AdminRoute: AdminRoute,
   CheckoutRoute: CheckoutRoute,
-  PedidoRoute: PedidoRoute,
+  PedidoRoute: PedidoRouteWithChildren,
   PedidosTokenRoute: PedidosTokenRoute,
   ApiPublicMetaCapiRoute: ApiPublicMetaCapiRoute,
   ApiPublicMpPreferenceRoute: ApiPublicMpPreferenceRoute,
+  ApiPublicAdminPedidosRoute: ApiPublicAdminPedidosRoute,
+  ApiPublicAsaasChargeRoute: ApiPublicAsaasChargeRoute,
+  ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
+  ApiPublicCupomValidarRoute: ApiPublicCupomValidarRoute,
+  ApiPublicAsaasStatusIdRoute: ApiPublicAsaasStatusIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

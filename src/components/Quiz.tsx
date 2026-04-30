@@ -3,12 +3,7 @@ import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
-import {
-  trackBeginCheckout,
-  trackLeadStart,
-  trackLeadComplete,
-  trackPurchase,
-} from "@/lib/gtm";
+import { trackBeginCheckout, trackLeadStart, trackLeadComplete, trackPurchase } from "@/lib/gtm";
 import {
   useAdmin,
   useProdutosDaCampanhaAtiva,
@@ -23,6 +18,7 @@ import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
 import { Logo } from "@/components/Logo";
 import { useIsPreview } from "@/components/admin/PreviewContext";
 import { Textarea } from "@/components/ui/textarea";
+import { CheckoutAsaas } from "@/components/CheckoutAsaas";
 import { uploadPolaroid } from "@/lib/uploadPolaroid";
 import { toast } from "sonner";
 import {
@@ -69,7 +65,12 @@ const maskCep = (v: string) => {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 };
 
-export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonalizacao = false }: Props) {
+export function Quiz({
+  onConcluir,
+  onVoltar,
+  initialStep = 1,
+  initialPersonalizacao = false,
+}: Props) {
   const isPreview = useIsPreview();
   const [step, setStep] = useState(initialStep);
   const [mostrarPersonalizacao, setMostrarPersonalizacao] = useState(initialPersonalizacao);
@@ -104,8 +105,8 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
   const cestasAdmin = useAdmin((s) => s.cestas);
   const sobremesasAtivas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
-  const datas = useDatasAtivas();
-  const horarios = useHorariosAtivos();
+  const datas = useDatasAtivas(entregaTipo);
+  const horarios = useHorariosAtivos(entregaTipo);
   const entregaConfig = useAdmin((s) => s.entrega);
   const pagamento = useAdmin((s) => s.pagamento);
   const textosGlobais = useAdmin((s) => s.textos);
@@ -170,9 +171,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
       // Validação por raio (se ativa no admin)
       const restr = entregaConfig.restricaoRaio;
       if (restr?.ativo) {
-        const base = entregaConfig.unidades.find(
-          (u) => u.id === restr.unidadeBaseId,
-        );
+        const base = entregaConfig.unidades.find((u) => u.id === restr.unidadeBaseId);
         if (!base || base.lat == null || base.lng == null) {
           // Sem coordenadas configuradas: avisa mas não bloqueia.
           toast.warning(
@@ -195,10 +194,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               "Não conseguimos confirmar a distância automaticamente. Vamos validar pelo WhatsApp.",
             );
           } else {
-            const dist = distanciaKm(
-              { lat: base.lat, lng: base.lng },
-              coords,
-            );
+            const dist = distanciaKm({ lat: base.lat, lng: base.lng }, coords);
             if (dist > restr.raioKm) {
               setForaDeRaio(true);
               toast.error(
@@ -248,10 +244,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
       pagamento: { metodo: "", status: "rascunho" },
       total:
         (st.cesta ? st.cesta.cesta.preco * st.cesta.quantidade : 0) +
-        Object.values(st.sobremesas).reduce(
-          (a, s) => a + s.sobremesa.preco * s.quantidade,
-          0,
-        ),
+        Object.values(st.sobremesas).reduce((a, s) => a + s.sobremesa.preco * s.quantidade, 0),
       ...extras,
     } as Parameters<typeof upsertRascunho>[0];
     const { id, error } = await upsertRascunho(payload, st.pedidoId);
@@ -313,8 +306,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
       if (!data) return toast.error("Escolha um dia.");
       if (!horario) return toast.error("Escolha um horário.");
       salvarRascunho();
-      const precisaPersonalizar =
-        extras.cartoes.length > 0 || extras.polaroids.length > 0;
+      const precisaPersonalizar = extras.cartoes.length > 0 || extras.polaroids.length > 0;
       if (precisaPersonalizar && !mostrarPersonalizacao) {
         setMostrarPersonalizacao(true);
         return;
@@ -386,14 +378,10 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 Qual <em className="italic text-terracotta">cesta</em> você escolhe?
               </h1>
-              <p className="mt-2 text-sm text-ink/65">
-                Feitas artesanalmente para o Dia das Mães
-              </p>
+              <p className="mt-2 text-sm text-ink/65">Feitas artesanalmente para o Dia das Mães</p>
             </div>
 
-            {textos.badgePrazo && (
-              <div className="tag-prazo">📦 {textos.badgePrazo}</div>
-            )}
+            {textos.badgePrazo && <div className="tag-prazo">📦 {textos.badgePrazo}</div>}
 
             {textosCampanha?.boasVindas && (
               <p className="rounded-xl bg-charcoal/5 p-3 text-sm text-charcoal">
@@ -403,8 +391,8 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
 
             {cestasAtivas.length === 0 && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                Esta campanha ainda não tem produtos configurados. Volte em breve
-                ou entre em contato com a loja.
+                Esta campanha ainda não tem produtos configurados. Volte em breve ou entre em
+                contato com a loja.
               </div>
             )}
 
@@ -474,9 +462,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                     >
                       −
                     </button>
-                    <span className="w-6 text-center font-serif text-lg">
-                      {cesta.quantidade}
-                    </span>
+                    <span className="w-6 text-center font-serif text-lg">{cesta.quantidade}</span>
                     <button
                       onClick={() => setQuantidade(cesta.quantidade + 1)}
                       className="flex h-8 w-8 items-center justify-center rounded-full border border-charcoal/40 text-charcoal hover:bg-charcoal hover:text-linen"
@@ -500,9 +486,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 Quem está <em className="italic text-terracotta">pedindo?</em>
               </h1>
-              <p className="mt-2 text-sm text-ink/65">
-                Para confirmarmos seu pedido pelo WhatsApp
-              </p>
+              <p className="mt-2 text-sm text-ink/65">Para confirmarmos seu pedido pelo WhatsApp</p>
             </div>
 
             {cesta && (
@@ -559,9 +543,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               >
                 <div
                   className={`flex h-11 w-11 flex-none items-center justify-center rounded-xl transition-colors ${
-                    entregaTipo === "delivery"
-                      ? "bg-charcoal text-white"
-                      : "bg-linen text-charcoal"
+                    entregaTipo === "delivery" ? "bg-charcoal text-white" : "bg-linen text-charcoal"
                   }`}
                 >
                   <Truck className="h-5 w-5" />
@@ -600,8 +582,8 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                 </div>
                 {foraDeRaio && (
                   <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
-                    Este endereço está fora da nossa área de entrega. Tente um
-                    CEP mais próximo ou escolha a opção de retirada.
+                    Este endereço está fora da nossa área de entrega. Tente um CEP mais próximo ou
+                    escolha a opção de retirada.
                   </p>
                 )}
                 <CampoInput
@@ -659,18 +641,14 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               >
                 <div
                   className={`flex h-11 w-11 flex-none items-center justify-center rounded-xl transition-colors ${
-                    entregaTipo === "retirada"
-                      ? "bg-charcoal text-white"
-                      : "bg-linen text-charcoal"
+                    entregaTipo === "retirada" ? "bg-charcoal text-white" : "bg-linen text-charcoal"
                   }`}
                 >
                   <Store className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="font-medium text-charcoal">Retirada na loja</p>
-                  <p className="truncate text-xs text-ink/60">
-                    Escolha a unidade mais próxima
-                  </p>
+                  <p className="truncate text-xs text-ink/60">Escolha a unidade mais próxima</p>
                 </div>
               </button>
             )}
@@ -727,9 +705,13 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               <p className="eyebrow-gold mb-2">Agendamento</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 {entregaTipo === "retirada" ? (
-                  <>Quando deseja <em className="italic text-terracotta">Retirar?</em></>
+                  <>
+                    Quando deseja <em className="italic text-terracotta">Retirar?</em>
+                  </>
                 ) : (
-                  <>Quando deseja <em className="italic text-terracotta">receber?</em></>
+                  <>
+                    Quando deseja <em className="italic text-terracotta">receber?</em>
+                  </>
                 )}
               </h1>
               <p className="mt-2 text-sm text-ink/65">
@@ -769,7 +751,9 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                       >
                         {numero}
                       </div>
-                      <div className={`mt-1 text-sm font-medium ${sel ? "text-white" : "text-ink"}`}>
+                      <div
+                        className={`mt-1 text-sm font-medium ${sel ? "text-white" : "text-ink"}`}
+                      >
                         {semana}
                       </div>
                     </button>
@@ -891,9 +875,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                     <h3 className="font-serif text-lg font-semibold text-charcoal">
                       Quer adicionar algo a mais? ✨
                     </h3>
-                    <p className="text-xs text-ink/60">
-                      Entregue junto com sua cesta
-                    </p>
+                    <p className="text-xs text-ink/60">Entregue junto com sua cesta</p>
                   </div>
                   {cards.map((s) => (
                     <button
@@ -921,17 +903,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-charcoal">
-                          {s.nome}
-                        </p>
+                        <p className="truncate text-sm font-medium text-charcoal">{s.nome}</p>
                         {s.descricao && (
-                          <p className="line-clamp-1 text-[11px] text-ink/55">
-                            {s.descricao}
-                          </p>
+                          <p className="line-clamp-1 text-[11px] text-ink/55">{s.descricao}</p>
                         )}
-                        <p className="text-xs text-ink/60">
-                          {formatBRL(s.preco)}
-                        </p>
+                        <p className="text-xs text-ink/60">{formatBRL(s.preco)}</p>
                       </div>
                       <span
                         className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
@@ -967,9 +943,16 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
           <PersonalizacaoExtras onAvancar={avancar} onVoltar={voltar} />
         )}
 
-
         {/* ============== STEP 5 — Resumo + Pagamento ============== */}
-        {step === 5 && (
+        {step === 5 && pagamento.checkoutAtivo && (
+          <CheckoutAsaas
+            onVoltar={voltar}
+            habilitarPix={pagamento.pix}
+            habilitarCartao={pagamento.cartao}
+          />
+        )}
+
+        {step === 5 && !pagamento.checkoutAtivo && (
           <section className="animate-fade-up space-y-5">
             <div>
               <p className="eyebrow-gold mb-2">Quase lá!</p>
@@ -980,23 +963,30 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
             </div>
 
             <div className="rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
-              <ResumoLinha label="Produto" valor={cesta ? `${cesta.cesta.nome} (${cesta.quantidade}x)` : "—"} />
+              <ResumoLinha
+                label="Produto"
+                valor={cesta ? `${cesta.cesta.nome} (${cesta.quantidade}x)` : "—"}
+              />
               {Object.values(sobremesas).length > 0 && (
                 <ResumoLinha
                   label="Sobremesas"
-                  valor={Object.values(sobremesas).map((s) => s.sobremesa.nome).join(", ")}
+                  valor={Object.values(sobremesas)
+                    .map((s) => s.sobremesa.nome)
+                    .join(", ")}
                 />
               )}
               <ResumoLinha
                 label="Entrega"
-                valor={entregaTipo === "delivery" ? "Delivery" : `Retirada — ${unidade?.nome ?? ""}`}
+                valor={
+                  entregaTipo === "delivery" ? "Delivery" : `Retirada — ${unidade?.nome ?? ""}`
+                }
               />
               <ResumoLinha
                 label={entregaTipo === "delivery" ? "Endereço" : "Unidade"}
                 valor={
                   entregaTipo === "delivery" && endereco
                     ? `${endereco.rua}, ${endereco.numero}${endereco.complemento ? ", " + endereco.complemento : ""} — ${endereco.bairro}, ${endereco.cidade}-${endereco.estado}`
-                    : unidade?.endereco ?? "—"
+                    : (unidade?.endereco ?? "—")
                 }
               />
               <ResumoLinha label="Data e horário" valor={`${data ?? ""} · ${horario ?? ""}`} />
@@ -1013,17 +1003,16 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
               <div className="rounded-2xl bg-charcoal/5 p-4 text-sm text-charcoal ring-1 ring-charcoal/15">
                 <p className="font-medium">💳 Pagamento online via Mercado Pago</p>
                 <p className="mt-1 text-xs text-ink/70">
-                  Ao confirmar, você será redirecionado ao Checkout seguro do
-                  Mercado Pago para pagar com PIX, cartão ou boleto.
+                  Ao confirmar, você será redirecionado ao Checkout seguro do Mercado Pago para
+                  pagar com PIX, cartão ou boleto.
                 </p>
               </div>
             ) : (
               <div className="rounded-2xl bg-olive/10 p-4 text-sm text-charcoal ring-1 ring-olive/30">
                 <p className="font-medium">📲 Envio do pedido pelo WhatsApp</p>
                 <p className="mt-1 text-xs text-ink/70">
-                  Ao confirmar, abriremos o WhatsApp com a mensagem do seu pedido pronta
-                  para enviar à nossa equipe. O pagamento será combinado diretamente na
-                  conversa.
+                  Ao confirmar, abriremos o WhatsApp com a mensagem do seu pedido pronta para enviar
+                  à nossa equipe. O pagamento será combinado diretamente na conversa.
                 </p>
               </div>
             )}
@@ -1077,11 +1066,13 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                   payment_type: usandoMp ? "mercadopago" : "whatsapp",
                   items: [
                     ...(cesta
-                      ? [{
-                          item_name: cesta.cesta.nome,
-                          quantity: cesta.quantidade,
-                          price: cesta.cesta.preco,
-                        }]
+                      ? [
+                          {
+                            item_name: cesta.cesta.nome,
+                            quantity: cesta.quantidade,
+                            price: cesta.cesta.preco,
+                          },
+                        ]
                       : []),
                     ...Object.values(sobremesas).map((s) => ({
                       item_name: s.sobremesa.nome,
@@ -1094,11 +1085,13 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                 if (usandoMp) {
                   const items = [
                     ...(cesta
-                      ? [{
-                          title: cesta.cesta.nome,
-                          quantity: cesta.quantidade,
-                          unit_price: cesta.cesta.preco,
-                        }]
+                      ? [
+                          {
+                            title: cesta.cesta.nome,
+                            quantity: cesta.quantidade,
+                            unit_price: cesta.cesta.preco,
+                          },
+                        ]
                       : []),
                     ...Object.values(sobremesas).map((s) => ({
                       title: s.sobremesa.nome,
@@ -1123,9 +1116,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                     });
                     const body = await res.json();
                     if (res.status === 503) {
-                      toast.error(
-                        "Mercado Pago não configurado. Avise o administrador.",
-                      );
+                      toast.error("Mercado Pago não configurado. Avise o administrador.");
                       setEnviando(false);
                       return;
                     }
@@ -1164,9 +1155,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                 onConcluir();
               }}
               className={`flex w-full items-center justify-center gap-2 rounded-xl py-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
-                pagamento.checkoutAtivo
-                  ? "bg-charcoal"
-                  : "bg-[#25D366]"
+                pagamento.checkoutAtivo ? "bg-charcoal" : "bg-[#25D366]"
               }`}
             >
               {pagamento.checkoutAtivo ? (
@@ -1305,10 +1294,7 @@ function BotoesNav({
       >
         {avancarLabel}
       </button>
-      <button
-        onClick={onVoltar}
-        className="mx-auto block text-xs text-ink/60 hover:text-charcoal"
-      >
+      <button onClick={onVoltar} className="mx-auto block text-xs text-ink/60 hover:text-charcoal">
         ← Voltar
       </button>
     </div>
@@ -1377,13 +1363,9 @@ function PersonalizacaoExtras({
           >
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-terracotta" />
-              <h3 className="font-serif text-base font-semibold text-charcoal">
-                {c.nome}
-              </h3>
+              <h3 className="font-serif text-base font-semibold text-charcoal">{c.nome}</h3>
             </div>
-            <p className="text-xs text-ink/60">
-              Escreva a mensagem que vai no cartãozinho
-            </p>
+            <p className="text-xs text-ink/60">Escreva a mensagem que vai no cartãozinho</p>
             <Textarea
               value={c.mensagem}
               maxLength={max}
@@ -1415,9 +1397,7 @@ function PersonalizacaoExtras({
           >
             <div className="flex items-center gap-2">
               <Camera className="h-4 w-4 text-terracotta" />
-              <h3 className="font-serif text-base font-semibold text-charcoal">
-                {p.nome}
-              </h3>
+              <h3 className="font-serif text-base font-semibold text-charcoal">{p.nome}</h3>
             </div>
             <p className="text-xs text-ink/60">
               Envie a foto que será impressa (JPG ou PNG, até 10 MB)
@@ -1465,12 +1445,7 @@ function PersonalizacaoExtras({
         );
       })}
 
-      <BotoesNav
-        onAvancar={onAvancar}
-        onVoltar={onVoltar}
-        avancarLabel="Ver resumo do pedido →"
-      />
+      <BotoesNav onAvancar={onAvancar} onVoltar={onVoltar} avancarLabel="Ver resumo do pedido →" />
     </section>
   );
 }
-

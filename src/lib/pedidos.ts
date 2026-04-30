@@ -82,19 +82,20 @@ export async function inserirPedido(
   return finalizarPedido(p, pedidoId);
 }
 
-/** Lista pedidos do banco (apenas admin pelo RLS). */
+/** Lista pedidos via endpoint server-side (que usa service_role e bypassa RLS). */
 export async function listarPedidos(): Promise<PedidoRow[]> {
-  const { data, error } = await supabase
-    .from("pedidos")
-    .select("*")
-    .order("criado_em", { ascending: false })
-    .limit(500);
-
-  if (error) {
-    console.error("Erro ao listar pedidos:", error);
+  try {
+    const res = await fetch("/api/public/admin/pedidos");
+    if (!res.ok) {
+      console.error("Erro ao listar pedidos:", res.status);
+      return [];
+    }
+    const json = (await res.json()) as { pedidos?: PedidoRow[] };
+    return json.pedidos ?? [];
+  } catch (e) {
+    console.error("Erro ao listar pedidos:", e);
     return [];
   }
-  return (data ?? []) as PedidoRow[];
 }
 
 /** Lista pedidos via token público (para a tela da cozinha). */
