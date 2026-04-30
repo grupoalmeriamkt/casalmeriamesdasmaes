@@ -161,18 +161,27 @@ export async function saveCloudConfig(): Promise<{
         .eq("id", CONFIG_ID)
         .maybeSingle();
 
-      // Tabela inexistente → ignora silenciosamente.
-      const isMissingTable = (e: any) =>
-        e &&
-        (e.code === "42P01" ||
-          /schema cache|does not exist|app_secrets/i.test(e.message ?? ""));
+      // Tabela inexistente / não exposta no PostgREST → ignora silenciosamente.
+      const isMissingTable = (e: any) => {
+        if (!e) return false;
+        const code = String(e.code ?? "");
+        const msg = String(e.message ?? "");
+        return (
+          code === "42P01" || // postgres: undefined_table
+          code === "PGRST205" || // postgrest: table not found in schema cache
+          code === "PGRST204" ||
+          /schema cache/i.test(msg) ||
+          /does not exist/i.test(msg) ||
+          /app_secrets/i.test(msg)
+        );
+      };
 
       if (readErr && isMissingTable(readErr)) {
         console.warn("[cloudConfig] app_secrets ausente — pulando segredos.");
         return { ok: true };
       }
 
-      // Sem nada novo pra gravar e sem erro de leitura → não escreve.
+      // Sem nada novo pra gravar → não escreve.
       if (!hasAnyIncoming) return { ok: true };
 
       const current = (existing?.payload as AppSecrets) ?? {};
