@@ -58,7 +58,23 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
           : (unidade?.nome ?? ""),
       data,
       horario,
-      pagamento: { metodo: tab, status: "aprovado" },
+      pagamento: {
+        metodo: tab,
+        status: "aprovado",
+        extras: {
+          cartoes: extras.cartoes.map((c) => ({
+            nome: c.nome,
+            preco: c.preco,
+            mensagem: c.mensagem,
+          })),
+          polaroids: extras.polaroids.map((p) => ({
+            nome: p.nome,
+            preco: p.preco,
+            arquivoUrl: p.arquivoUrl,
+            arquivoNome: p.arquivoNome,
+          })),
+        },
+      },
       total,
     };
 
