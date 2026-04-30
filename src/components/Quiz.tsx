@@ -1063,6 +1063,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                   pagamento: {
                     metodo: usandoMp ? "mercadopago" : "whatsapp",
                     status: "pendente",
+                    extras: st.extras,
                   },
                   total,
                 };
