@@ -47,22 +47,86 @@ function CozinhaPage() {
   const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
   const [imprimindo, setImprimindo] = useState<PedidoSalvo[] | null>(null);
 
+  // Gate de senha
+  const sessionKey = `pedidos-token-senha:${token}`;
+  const [requerSenha, setRequerSenha] = useState<boolean | null>(null);
+  const [senha, setSenha] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return window.sessionStorage.getItem(sessionKey) ?? "";
+  });
+  const [senhaInput, setSenhaInput] = useState("");
+  const [senhaErro, setSenhaErro] = useState("");
+
   const carregar = useCallback(async () => {
     setCarregando(true);
-    const rows: PedidoRow[] = await listarPedidosPorToken(token);
-    if (!rows || rows.length === 0) {
-      // Não distinguimos token inválido vs lista vazia — mostramos lista vazia.
+    const { tokenRequerSenha, validarSenhaToken } = await import("@/lib/shareToken");
+    const precisa = await tokenRequerSenha(token);
+    setRequerSenha(precisa);
+    if (precisa) {
+      const ok = senha ? await validarSenhaToken(token, senha) : false;
+      if (!ok) {
+        setCarregando(false);
+        return;
+      }
     }
+    const rows: PedidoRow[] = await listarPedidosPorToken(token, senha || undefined);
     setPedidos(rows.map(rowToPedidoSalvo));
     setErro(false);
     setCarregando(false);
-  }, [token]);
+  }, [token, senha]);
 
   useEffect(() => {
     carregar();
     const id = setInterval(carregar, 30_000);
     return () => clearInterval(id);
   }, [carregar]);
+
+  if (requerSenha && !senha) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linen p-6">
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const { validarSenhaToken } = await import("@/lib/shareToken");
+            const ok = await validarSenhaToken(token, senhaInput);
+            if (!ok) {
+              setSenhaErro("Senha incorreta.");
+              return;
+            }
+            window.sessionStorage.setItem(sessionKey, senhaInput);
+            setSenha(senhaInput);
+            setSenhaErro("");
+          }}
+          className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 ring-1 ring-border"
+        >
+          <h1 className="font-serif text-xl font-bold text-charcoal">
+            Acesso restrito
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Informe a senha fornecida para visualizar os pedidos.
+          </p>
+          <input
+            type="password"
+            value={senhaInput}
+            onChange={(e) => setSenhaInput(e.target.value)}
+            maxLength={64}
+            autoFocus
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            placeholder="Senha"
+          />
+          {senhaErro && <p className="text-xs text-terracotta">{senhaErro}</p>}
+          <Button
+            type="submit"
+            className="w-full bg-charcoal text-white hover:bg-charcoal/90"
+          >
+            Entrar
+          </Button>
+        </form>
+        <Toaster position="bottom-right" />
+      </div>
+    );
+  }
+
 
   const aprovados = useMemo(
     () => pedidos.filter((p) => (p.pagamento?.status || "").toLowerCase() === "aprovado"),
