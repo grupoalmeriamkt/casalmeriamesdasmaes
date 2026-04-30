@@ -18,6 +18,7 @@ import { Route as SucessoIdRouteImport } from './routes/sucesso.$id'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
+import { Route as ApiPublicPagamentoIdRouteImport } from './routes/api/public/pagamento.$id'
 import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas/webhook'
 import { Route as ApiPublicAsaasChargeRouteImport } from './routes/api/public/asaas/charge'
@@ -69,6 +70,11 @@ const ApiPublicMetaCapiRoute = ApiPublicMetaCapiRouteImport.update({
   path: '/api/public/meta-capi',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPagamentoIdRoute = ApiPublicPagamentoIdRouteImport.update({
+  id: '/api/public/pagamento/$id',
+  path: '/api/public/pagamento/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCupomValidarRoute = ApiPublicCupomValidarRouteImport.update({
   id: '/api/public/cupom/validar',
   path: '/api/public/cupom/validar',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/api/public/asaas/charge': typeof ApiPublicAsaasChargeRoute
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/api/public/asaas/charge'
     | '/api/public/asaas/webhook'
     | '/api/public/cupom/validar'
+    | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/api/public/asaas/charge'
     | '/api/public/asaas/webhook'
     | '/api/public/cupom/validar'
+    | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/api/public/asaas/charge'
     | '/api/public/asaas/webhook'
     | '/api/public/cupom/validar'
+    | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   ApiPublicAsaasChargeRoute: typeof ApiPublicAsaasChargeRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
   ApiPublicCupomValidarRoute: typeof ApiPublicCupomValidarRoute
+  ApiPublicPagamentoIdRoute: typeof ApiPublicPagamentoIdRoute
   ApiPublicAsaasStatusIdRoute: typeof ApiPublicAsaasStatusIdRoute
 }
 
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaCapiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/pagamento/$id': {
+      id: '/api/public/pagamento/$id'
+      path: '/api/public/pagamento/$id'
+      fullPath: '/api/public/pagamento/$id'
+      preLoaderRoute: typeof ApiPublicPagamentoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cupom/validar': {
       id: '/api/public/cupom/validar'
       path: '/api/public/cupom/validar'
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAsaasChargeRoute: ApiPublicAsaasChargeRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
   ApiPublicCupomValidarRoute: ApiPublicCupomValidarRoute,
+  ApiPublicPagamentoIdRoute: ApiPublicPagamentoIdRoute,
   ApiPublicAsaasStatusIdRoute: ApiPublicAsaasStatusIdRoute,
 }
 export const routeTree = rootRouteImport

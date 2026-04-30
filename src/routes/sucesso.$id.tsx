@@ -6,7 +6,6 @@ import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useAdmin } from "@/store/admin";
-import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Copy, Loader2, MessageCircle, Clock, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/sucesso/$id")({
@@ -30,6 +29,7 @@ type Pagamento = {
   cartao_last4: string | null;
   cartao_brand: string | null;
   pedido_id: string;
+  atualizado_em?: string;
 };
 
 const PAGO_STATUSES = new Set(["CONFIRMED", "RECEIVED"]);
@@ -46,28 +46,23 @@ function SucessoPage() {
   useEffect(() => {
     let cancelled = false;
     async function fetchPagamento() {
-      const { data, error } = await supabase
-        .from("pagamentos")
-        .select(
-          "id, metodo, status, valor, pix_qrcode_payload, pix_qrcode_image, pix_expira_em, cartao_last4, cartao_brand, pedido_id",
-        )
-        .eq("id", id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (error || !data) {
-        // Fallback via RPC pública (caso RLS bloqueie SELECT direto)
-        const { data: statusData } = await supabase.rpc("pagamento_status", {
-          _pagamento_id: id,
-        });
-        const row = (statusData ?? [])[0];
-        if (row) {
-          setStatusLive(row.status);
+      try {
+        const res = await fetch(`/api/public/pagamento/${id}`);
+        if (cancelled) return;
+        if (!res.ok) {
+          setCarregando(false);
+          return;
         }
-      } else {
-        setPagamento(data as Pagamento);
-        setStatusLive(data.status);
+        const json = (await res.json()) as { pagamento?: Pagamento };
+        if (json.pagamento) {
+          setPagamento(json.pagamento);
+          setStatusLive(json.pagamento.status);
+        }
+      } catch (e) {
+        console.error("[sucesso] erro ao buscar pagamento", e);
+      } finally {
+        if (!cancelled) setCarregando(false);
       }
-      setCarregando(false);
     }
     void fetchPagamento();
     return () => {
