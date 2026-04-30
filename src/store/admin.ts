@@ -912,16 +912,9 @@ export const useUnidadesAtivas = () =>
         s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return [];
       const ids = new Set(camp.quiz.unidadeIds);
-      return s.unidades
-        .filter((u) => u.status === "ativa" && ids.has(u.id))
-        .map((u) => ({
-          id: u.id,
-          nome: u.nome,
-          endereco: u.endereco,
-          lat: u.lat,
-          lng: u.lng,
-          ativa: true,
-        }));
+      // Retorna referências originais do store para preservar identidade
+      // entre renders (necessário para useShallow funcionar).
+      return s.unidades.filter((u) => u.status === "ativa" && ids.has(u.id));
     }),
   );
 
