@@ -128,6 +128,22 @@ export type CampanhaTextos = {
   confirmacao: string;
 };
 
+export type UpsellItem =
+  | { tipo: "produto"; itemId: string; produtoId: string }
+  | {
+      tipo: "cartao";
+      itemId: string;
+      nome: string;
+      preco: number;
+      maxCaracteres: number;
+    }
+  | { tipo: "polaroid"; itemId: string; nome: string; preco: number };
+
+export type CampanhaUpsell = {
+  ativo: boolean;
+  itens: UpsellItem[];
+};
+
 export type Campanha = {
   id: string;
   slug: string;
@@ -139,6 +155,7 @@ export type Campanha = {
   retirada: CampanhaRetirada;
   // novos
   produtosPrincipaisIds: string[];
+  upsell: CampanhaUpsell;
   dataInicio?: string;
   dataFim?: string;
   dataLimitePedidos?: string;
@@ -185,7 +202,19 @@ export type PedidoSalvo = {
   enderecoOuUnidade: string;
   data?: string;
   horario?: string;
-  pagamento: { metodo: string; status: string };
+  pagamento: {
+    metodo: string;
+    status: string;
+    extras?: {
+      cartoes?: { nome: string; preco: number; mensagem: string }[];
+      polaroids?: {
+        nome: string;
+        preco: number;
+        arquivoUrl: string;
+        arquivoNome: string;
+      }[];
+    };
+  };
   total: number;
 };
 
@@ -317,6 +346,7 @@ const initialCampanha: Campanha = {
   retirada: retiradaDefault(initialUnidades[0]?.endereco ?? ""),
   upsellAtivo: true,
   upsellProdutoIds: [],
+  upsell: { ativo: true, itens: [] },
   produtosPrincipaisIds: [],
   textos: textosDefault("Campanha principal"),
   quiz: {
@@ -647,6 +677,7 @@ export const useAdmin = create<AdminState>()(
             retirada: retiradaDefault(s.unidades[0]?.endereco ?? ""),
             upsellAtivo: false,
             upsellProdutoIds: [],
+            upsell: { ativo: false, itens: [] },
             produtosPrincipaisIds: [],
             textos: textosDefault("Nova campanha"),
             quiz: { ...baseQuiz },
@@ -720,7 +751,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 9,
+      version: 10,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -870,6 +901,7 @@ export const useAdmin = create<AdminState>()(
               retirada: retiradaDefault(state.unidades[0]?.endereco ?? ""),
               upsellAtivo: true,
               upsellProdutoIds: [],
+              upsell: { ativo: true, itens: [] },
               produtosPrincipaisIds: [],
               textos: textosDefault("Campanha principal"),
               quiz: baseQuiz,
@@ -916,6 +948,34 @@ export const useAdmin = create<AdminState>()(
               datas: quiz.datas,
               horarios: quiz.horarios,
             };
+            // Constrói upsell unificado a partir do legado (delivery + retirada)
+            const upsellLegado = (() => {
+              const ids: string[] = [];
+              const delIds = Array.isArray(c?.delivery?.upsellProdutoIds)
+                ? c.delivery.upsellProdutoIds
+                : [];
+              const retIds = Array.isArray(c?.retirada?.upsellProdutoIds)
+                ? c.retirada.upsellProdutoIds
+                : [];
+              for (const id of [...delIds, ...retIds, ...upsellProdutoIds]) {
+                if (id && !ids.includes(id)) ids.push(id);
+              }
+              const ativo =
+                !!c?.delivery?.upsellAtivo ||
+                !!c?.retirada?.upsellAtivo ||
+                !!c?.upsellAtivo;
+              return {
+                ativo,
+                itens: ids.map((produtoId) => ({
+                  tipo: "produto" as const,
+                  itemId: `up-${produtoId}`,
+                  produtoId,
+                })),
+              };
+            })();
+            const upsell = c?.upsell && Array.isArray(c.upsell.itens)
+              ? c.upsell
+              : upsellLegado;
             return {
               id: c.id,
               slug: c.slug,
@@ -926,6 +986,7 @@ export const useAdmin = create<AdminState>()(
               retirada,
               upsellAtivo: !!c.upsellAtivo,
               upsellProdutoIds,
+              upsell,
               produtosPrincipaisIds: Array.isArray(c.produtosPrincipaisIds)
                 ? c.produtosPrincipaisIds
                 : [],

@@ -12,6 +12,10 @@ type Args = {
   horario?: string;
   total: number;
   pedidoId?: string;
+  extras?: {
+    cartoes?: { nome: string; preco: number; mensagem: string }[];
+    polaroids?: { nome: string; preco: number; arquivoUrl: string; arquivoNome: string }[];
+  };
 };
 
 /** Monta a mensagem do pedido para envio pelo WhatsApp. */
@@ -34,6 +38,14 @@ export function montarMensagemWhats(p: Args): string {
     linhas.push(
       `• ${s.sobremesa.nome} — ${s.quantidade}x — ${formatBRL(s.sobremesa.preco * s.quantidade)}`,
     );
+  });
+  (p.extras?.cartoes ?? []).forEach((c) => {
+    linhas.push(`• ${c.nome} — ${formatBRL(c.preco)}`);
+    linhas.push(`   _Mensagem:_ "${c.mensagem}"`);
+  });
+  (p.extras?.polaroids ?? []).forEach((pl) => {
+    linhas.push(`• ${pl.nome} — ${formatBRL(pl.preco)}`);
+    linhas.push(`   _Foto:_ ${pl.arquivoUrl}`);
   });
 
   linhas.push("");

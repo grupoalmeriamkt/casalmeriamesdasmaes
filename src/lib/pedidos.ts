@@ -12,7 +12,14 @@ export type PedidoRow = {
   endereco_ou_unidade: string;
   data_entrega: string | null;
   horario: string | null;
-  pagamento: { metodo: string; status: string };
+  pagamento: {
+    metodo: string;
+    status: string;
+    extras?: {
+      cartoes?: { nome: string; preco: number; mensagem: string }[];
+      polaroids?: { nome: string; preco: number; arquivoUrl: string; arquivoNome: string }[];
+    };
+  };
   total: number;
   status: string;
 };

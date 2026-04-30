@@ -85,6 +85,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
 
   // Admin store
   const cestasAtivas = useProdutosDaCampanhaAtiva();
+  const cestasAdmin = useAdmin((s) => s.cestas);
   const sobremesasAtivas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
   const datas = useDatasAtivas();
@@ -677,10 +678,16 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
             <div>
               <p className="eyebrow-gold mb-2">Agendamento</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
-                Quando deseja <em className="italic text-terracotta">receber?</em>
+                {entregaTipo === "retirada" ? (
+                  <>Quando deseja <em className="italic text-terracotta">Retirar?</em></>
+                ) : (
+                  <>Quando deseja <em className="italic text-terracotta">receber?</em></>
+                )}
               </h1>
               <p className="mt-2 text-sm text-ink/65">
-                Escolha o melhor dia e horário para você
+                {entregaTipo === "retirada"
+                  ? "Escolha o melhor dia e horário para retirar"
+                  : "Escolha o melhor dia e horário para você"}
               </p>
             </div>
 
@@ -751,45 +758,80 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
               </div>
             )}
 
-            {horario && sobremesasAtivas.length > 0 && (
-              <div className="animate-fade-up space-y-3 border-t border-sand/60 pt-5">
-                <div>
-                  <h3 className="font-serif text-lg font-semibold text-charcoal">
-                    Quer adicionar uma sobremesa? 🍓
-                  </h3>
-                  <p className="text-xs text-ink/60">Entregue junto com sua cesta</p>
-                </div>
-                {sobremesasAtivas.map((s) => {
-                  const added = !!sobremesas[s.id];
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => toggleSobremesa(s)}
-                      className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
-                        added ? "border-olive bg-olive/[0.04]" : "border-sand/70 hover:border-terracotta/60"
-                      }`}
-                    >
-                      <img
-                        src={s.imagem}
-                        alt=""
-                        className="h-12 w-12 flex-none rounded-lg object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-charcoal">{s.nome}</p>
-                        <p className="text-xs text-ink/60">{formatBRL(s.preco)}</p>
-                      </div>
-                      <span
-                        className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
-                          added ? "bg-olive" : "bg-charcoal"
+            {(() => {
+              if (!horario || !campanhaAtiva?.upsell?.ativo) return null;
+              const itensProduto = (campanhaAtiva.upsell.itens ?? []).filter(
+                (i) => i.tipo === "produto",
+              );
+              const produtosUpsell = itensProduto
+                .map((i) =>
+                  i.tipo === "produto"
+                    ? cestasAdmin.find(
+                        (c) => c.id === i.produtoId && c.ativo && !c.arquivado,
+                      )
+                    : null,
+                )
+                .filter((c): c is NonNullable<typeof c> => !!c);
+              if (produtosUpsell.length === 0) return null;
+              return (
+                <div className="animate-fade-up space-y-3 border-t border-sand/60 pt-5">
+                  <div>
+                    <h3 className="font-serif text-lg font-semibold text-charcoal">
+                      Quer adicionar algo a mais? ✨
+                    </h3>
+                    <p className="text-xs text-ink/60">
+                      Entregue junto com sua cesta
+                    </p>
+                  </div>
+                  {produtosUpsell.map((s) => {
+                    const added = !!sobremesas[s.id];
+                    const item = {
+                      id: s.id,
+                      nome: s.nome,
+                      descricao: s.descricao,
+                      preco: s.preco,
+                      imagem: s.imagem,
+                    };
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => toggleSobremesa(item)}
+                        className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
+                          added
+                            ? "border-olive bg-olive/[0.04]"
+                            : "border-sand/70 hover:border-terracotta/60"
                         }`}
                       >
-                        {added ? <Check className="h-4 w-4" strokeWidth={3} /> : <Plus className="h-4 w-4" />}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                        <img
+                          src={s.imagem}
+                          alt=""
+                          className="h-12 w-12 flex-none rounded-lg object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-charcoal">
+                            {s.nome}
+                          </p>
+                          <p className="text-xs text-ink/60">
+                            {formatBRL(s.preco)}
+                          </p>
+                        </div>
+                        <span
+                          className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-white transition-colors ${
+                            added ? "bg-olive" : "bg-charcoal"
+                          }`}
+                        >
+                          {added ? (
+                            <Check className="h-4 w-4" strokeWidth={3} />
+                          ) : (
+                            <Plus className="h-4 w-4" />
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <BotoesNav onAvancar={avancar} onVoltar={voltar} avancarLabel="Ver resumo do pedido →" />
           </section>
