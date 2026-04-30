@@ -202,6 +202,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   };
 
   const salvarRascunho = async (extras: Record<string, unknown> = {}) => {
+    if (isPreview) return;
     const st = usePedido.getState();
     const nomeAtual = (extras.nome as string) ?? st.cliente.nome;
     const whatsAtual = (extras.whatsapp as string) ?? st.cliente.whatsapp;
