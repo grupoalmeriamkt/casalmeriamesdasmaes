@@ -39,14 +39,15 @@ export function Upsell({ onFinalizar, onPular }: Props) {
       }));
   }, [campanha, tipo, cestas]);
 
-  // Sem itens? Pula direto para o pagamento ao montar.
+  // Sem itens? Pula direto para o pagamento ao montar (exceto na prévia).
   useEffect(() => {
+    if (isPreview) return;
     if (lista.length === 0) onPular();
     // intencional: roda só na montagem
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (lista.length === 0) return null;
+  if (lista.length === 0 && !isPreview) return null;
 
   const totalAdicionadas = Object.values(sobremesas).reduce(
     (acc, it) => acc + it.sobremesa.preco * it.quantidade,
