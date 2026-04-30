@@ -167,7 +167,7 @@ function AdminPage() {
 
       {/* Conteúdo */}
       <main className="flex-1 p-5 md:p-10">
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-6xl">
           <SaveConfigBar />
           <Atual />
         </div>
