@@ -69,9 +69,10 @@ const maskCep = (v: string) => {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 };
 
-export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
+export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonalizacao = false }: Props) {
   const isPreview = useIsPreview();
   const [step, setStep] = useState(initialStep);
+  const [mostrarPersonalizacao, setMostrarPersonalizacao] = useState(initialPersonalizacao);
 
   // Pedido store
   const cesta = usePedido((s) => s.cesta);
@@ -91,6 +92,11 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const setData = usePedido((s) => s.setData);
   const horario = usePedido((s) => s.horario);
   const setHorario = usePedido((s) => s.setHorario);
+  const extras = usePedido((s) => s.extras);
+  const setCartao = usePedido((s) => s.setCartao);
+  const removeCartao = usePedido((s) => s.removeCartao);
+  const setPolaroid = usePedido((s) => s.setPolaroid);
+  const removePolaroid = usePedido((s) => s.removePolaroid);
   const total = usePedido(selectTotal);
 
   // Admin store
