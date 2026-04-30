@@ -342,6 +342,140 @@ export function AbaPedidos() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={!!detalhe} onOpenChange={(o) => !o && setDetalhe(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Pedido #{detalhe?.id.slice(0, 8)}
+            </DialogTitle>
+          </DialogHeader>
+          {detalhe && <DetalhesPedidoAdmin p={detalhe} />}
+        </DialogContent>
+      </Dialog>
     </AdminSection>
+  );
+}
+
+function DetalhesPedidoAdmin({ p }: { p: PedidoSalvo }) {
+  const tel = p.cliente.whatsapp.replace(/\D/g, "");
+  const cartoes = p.pagamento?.extras?.cartoes ?? [];
+  const polaroids = p.pagamento?.extras?.polaroids ?? [];
+  const status = p.pagamento?.status ?? "—";
+  const statusCls =
+    status === "aprovado"
+      ? "bg-olive/15 text-olive"
+      : status === "pendente"
+        ? "bg-terracotta/20 text-charcoal"
+        : "bg-terracotta/15 text-terracotta";
+
+  return (
+    <div className="space-y-5 text-sm">
+      <section>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          Cliente
+        </p>
+        <p className="font-semibold text-charcoal">{p.cliente.nome || "—"}</p>
+        {tel && (
+          <a
+            href={`https://wa.me/55${tel}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-olive hover:underline"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            {p.cliente.whatsapp}
+          </a>
+        )}
+      </section>
+
+      <section className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Tipo
+          </p>
+          <p className="capitalize text-charcoal">{p.tipo || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Status
+          </p>
+          <span
+            className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${statusCls}`}
+          >
+            {status}
+          </span>
+        </div>
+        <div className="col-span-2">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Endereço / Unidade
+          </p>
+          <p className="text-charcoal">{p.enderecoOuUnidade || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Data
+          </p>
+          <p className="text-charcoal">{p.data || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Horário
+          </p>
+          <p className="text-charcoal">{p.horario || "—"}</p>
+        </div>
+      </section>
+
+      <section>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          Itens
+        </p>
+        <div className="mt-1 space-y-1 text-charcoal">
+          {p.cesta && (
+            <div className="flex justify-between">
+              <span>
+                {p.cesta.nome} × {p.cesta.quantidade}
+              </span>
+              <span className="font-semibold">
+                {formatBRL(p.cesta.preco * p.cesta.quantidade)}
+              </span>
+            </div>
+          )}
+          {p.sobremesas.map((s, i) => (
+            <div key={i} className="flex justify-between">
+              <span>
+                {s.nome} × {s.quantidade}
+              </span>
+              <span className="font-semibold">
+                {formatBRL(s.preco * s.quantidade)}
+              </span>
+            </div>
+          ))}
+          {!p.cesta && p.sobremesas.length === 0 && (
+            <p className="text-muted-foreground">— sem itens —</p>
+          )}
+        </div>
+      </section>
+
+      {(cartoes.length > 0 || polaroids.length > 0) && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+            Personalizações
+          </p>
+          <PedidoExtrasView
+            cartoes={cartoes}
+            polaroids={polaroids}
+            variant="admin"
+          />
+        </section>
+      )}
+
+      <section className="flex items-center justify-between border-t border-border pt-3">
+        <span className="text-muted-foreground">Total</span>
+        <span className="font-serif text-2xl font-bold text-terracotta">
+          {formatBRL(p.total)}
+        </span>
+      </section>
+    </div>
   );
 }
