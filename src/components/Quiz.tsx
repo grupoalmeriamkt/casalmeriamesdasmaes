@@ -1156,6 +1156,7 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1, initialPersonaliza
                   horario,
                   total,
                   pedidoId: id || st.pedidoId,
+                  extras: st.extras,
                 });
                 const link = montarLinkWhats(textos.whatsapp, mensagem);
                 window.open(link, "_blank", "noopener");
