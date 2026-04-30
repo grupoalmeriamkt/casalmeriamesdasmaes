@@ -13,6 +13,11 @@ const SYNCED_KEYS = [
   "pagamento",
   "integracoes",
   "geral",
+  "campanhas",
+  "campanhaAtivaId",
+  "home",
+  "unidades",
+  "categorias",
 ] as const;
 
 type SyncedKey = (typeof SYNCED_KEYS)[number];
