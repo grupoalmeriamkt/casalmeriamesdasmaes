@@ -677,6 +677,7 @@ export const useAdmin = create<AdminState>()(
             retirada: retiradaDefault(s.unidades[0]?.endereco ?? ""),
             upsellAtivo: false,
             upsellProdutoIds: [],
+            upsell: { ativo: false, itens: [] },
             produtosPrincipaisIds: [],
             textos: textosDefault("Nova campanha"),
             quiz: { ...baseQuiz },
