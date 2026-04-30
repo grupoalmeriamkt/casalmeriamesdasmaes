@@ -677,10 +677,16 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
             <div>
               <p className="eyebrow-gold mb-2">Agendamento</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
-                Quando deseja <em className="italic text-terracotta">receber?</em>
+                {entregaTipo === "retirada" ? (
+                  <>Quando deseja <em className="italic text-terracotta">Retirar?</em></>
+                ) : (
+                  <>Quando deseja <em className="italic text-terracotta">receber?</em></>
+                )}
               </h1>
               <p className="mt-2 text-sm text-ink/65">
-                Escolha o melhor dia e horário para você
+                {entregaTipo === "retirada"
+                  ? "Escolha o melhor dia e horário para retirar"
+                  : "Escolha o melhor dia e horário para você"}
               </p>
             </div>
 
