@@ -22,6 +22,8 @@ import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
 import { Logo } from "@/components/Logo";
 import { useIsPreview } from "@/components/admin/PreviewContext";
+import { Textarea } from "@/components/ui/textarea";
+import { uploadPolaroid } from "@/lib/uploadPolaroid";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -33,9 +35,17 @@ import {
   Plus,
   MessageCircle,
   CreditCard,
+  Mail,
+  Camera,
+  Upload,
 } from "lucide-react";
 
-type Props = { onConcluir: () => void; onVoltar: () => void; initialStep?: number };
+type Props = {
+  onConcluir: () => void;
+  onVoltar: () => void;
+  initialStep?: number;
+  initialPersonalizacao?: boolean;
+};
 
 const TITULOS = [
   "ESCOLHA SUA CESTA",
