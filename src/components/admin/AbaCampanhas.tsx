@@ -15,6 +15,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CampanhaForm } from "./CampanhaForm";
+import { QuizPreviewMobile } from "./QuizPreviewMobile";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Smartphone } from "lucide-react";
 
 export function AbaCampanhas() {
   const campanhas = useAdmin((s) => s.campanhas);
