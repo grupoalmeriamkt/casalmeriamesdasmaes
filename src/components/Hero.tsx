@@ -1,9 +1,8 @@
-import { useAdmin, isEncerrado } from "@/store/admin";
+import { useAdmin } from "@/store/admin";
 
 export function Hero() {
   const t = useAdmin((s) => s.textos);
-  const encerramento = useAdmin((s) => s.geral.encerramento);
-  const encerrado = isEncerrado(encerramento);
+  const encerrado = false;
 
   return (
     <section className="relative isolate w-full overflow-hidden bg-charcoal">
