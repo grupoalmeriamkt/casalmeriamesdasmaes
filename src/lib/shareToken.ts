@@ -76,7 +76,7 @@ export function mensagemCompartilhar(token: string, senha?: string | null): stri
 export async function tokenRequerSenha(token: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("token_requer_senha", { _token: token });
   if (error) {
-    // Se a RPC não existe ainda, assume que não requer senha.
+    console.warn("token_requer_senha RPC indisponível:", error.message);
     return false;
   }
   return !!data;
@@ -87,10 +87,14 @@ export async function validarSenhaToken(
   token: string,
   senha: string,
 ): Promise<boolean> {
+  if (!senha || senha.length < 1) return false;
   const { data, error } = await supabase.rpc("validar_token_pedidos", {
     _token: token,
     _senha: senha,
   });
-  if (error) return false;
+  if (error) {
+    console.warn("validar_token_pedidos RPC erro:", error.message);
+    return false;
+  }
   return !!data;
 }

@@ -65,6 +65,11 @@ function CozinhaPage() {
     if (precisa) {
       const ok = senha ? await validarSenhaToken(token, senha) : false;
       if (!ok) {
+        // Senha em sessionStorage ficou inválida (foi trocada/revogada)
+        if (senha && typeof window !== "undefined") {
+          window.sessionStorage.removeItem(sessionKey);
+        }
+        setPedidos([]);
         setCarregando(false);
         return;
       }
@@ -73,7 +78,7 @@ function CozinhaPage() {
     setPedidos(rows.map(rowToPedidoSalvo));
     setErro(false);
     setCarregando(false);
-  }, [token, senha]);
+  }, [token, senha, sessionKey]);
 
   useEffect(() => {
     carregar();
@@ -81,20 +86,34 @@ function CozinhaPage() {
     return () => clearInterval(id);
   }, [carregar]);
 
+  const sair = () => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(sessionKey);
+    }
+    setSenha("");
+    setSenhaInput("");
+    setPedidos([]);
+  };
+
   if (requerSenha && !senha) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-linen p-6">
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            const valor = senhaInput.trim();
+            if (!valor) {
+              setSenhaErro("Informe a senha.");
+              return;
+            }
             const { validarSenhaToken } = await import("@/lib/shareToken");
-            const ok = await validarSenhaToken(token, senhaInput);
+            const ok = await validarSenhaToken(token, valor);
             if (!ok) {
               setSenhaErro("Senha incorreta.");
               return;
             }
-            window.sessionStorage.setItem(sessionKey, senhaInput);
-            setSenha(senhaInput);
+            window.sessionStorage.setItem(sessionKey, valor);
+            setSenha(valor);
             setSenhaErro("");
           }}
           className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 ring-1 ring-border"
@@ -108,9 +127,13 @@ function CozinhaPage() {
           <input
             type="password"
             value={senhaInput}
-            onChange={(e) => setSenhaInput(e.target.value)}
+            onChange={(e) => {
+              setSenhaInput(e.target.value);
+              if (senhaErro) setSenhaErro("");
+            }}
             maxLength={64}
             autoFocus
+            autoComplete="current-password"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             placeholder="Senha"
           />
@@ -123,6 +146,15 @@ function CozinhaPage() {
           </Button>
         </form>
         <Toaster position="bottom-right" />
+      </div>
+    );
+  }
+
+  // Loading inicial enquanto descobre se requer senha
+  if (requerSenha === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linen">
+        <p className="text-sm text-muted-foreground">Carregando…</p>
       </div>
     );
   }
@@ -194,6 +226,15 @@ function CozinhaPage() {
                 <Printer className="mr-2 h-4 w-4" />
                 Imprimir aprovados de hoje
               </Button>
+              {requerSenha && (
+                <Button
+                  variant="outline"
+                  onClick={sair}
+                  className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                >
+                  Sair
+                </Button>
+              )}
             </div>
           </div>
         </header>
