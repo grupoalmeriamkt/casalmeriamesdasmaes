@@ -976,3 +976,55 @@ export const selectHorariosAtivos = (s: AdminState) =>
 export const isEncerrado = (_encerramentoIso: string) => {
   return false;
 };
+
+/**
+ * Garante que todos os produtos seed de SOBREMESAS existam em state.cestas
+ * (cria se ausentes; desarquiva/ativa se foram arquivados). Usado em runtime
+ * após carregar config remota, sem depender da migração de versão.
+ */
+export function garantirSobremesas() {
+  const state = useAdmin.getState();
+  const seedIds = new Set(SOBREMESAS.map((s) => s.id));
+  const cestas = [...state.cestas];
+  const index = new Map(cestas.map((c) => [c.id, c] as const));
+  let mudou = false;
+
+  // garante categoria
+  let categorias = state.categorias;
+  if (!categorias.some((c) => c.id === "cat-sobremesas")) {
+    categorias = [...categorias, { id: "cat-sobremesas", nome: "Sobremesas" }];
+    mudou = true;
+  }
+
+  for (const sb of SOBREMESAS) {
+    const existente = index.get(sb.id);
+    if (!existente) {
+      cestas.push({
+        id: sb.id,
+        nome: sb.nome,
+        badge: "Sobremesa",
+        preco: sb.preco,
+        descricao: sb.descricao,
+        itens: [],
+        imagem: sb.imagem,
+        ativo: true,
+        arquivado: false,
+        categoriaId: "cat-sobremesas",
+      });
+      mudou = true;
+    } else if (seedIds.has(existente.id)) {
+      if (existente.arquivado || existente.ativo === false || !existente.categoriaId) {
+        const idx = cestas.findIndex((c) => c.id === existente.id);
+        cestas[idx] = {
+          ...existente,
+          arquivado: false,
+          ativo: true,
+          categoriaId: existente.categoriaId ?? "cat-sobremesas",
+        };
+        mudou = true;
+      }
+    }
+  }
+
+  if (mudou) useAdmin.setState({ cestas, categorias });
+}
