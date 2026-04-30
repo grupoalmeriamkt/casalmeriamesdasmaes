@@ -37,7 +37,7 @@ const ABAS = [
 
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
-  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>("aparencia");
+  const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>("textos");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const logout = async () => {
