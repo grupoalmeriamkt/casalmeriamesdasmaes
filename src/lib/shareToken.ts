@@ -4,10 +4,10 @@ export type ShareToken = {
   token: string;
   scope: string;
   criado_em: string;
+  senha?: string | null;
 };
 
 function gerarToken(): string {
-  // 32 chars hex
   const arr = new Uint8Array(16);
   crypto.getRandomValues(arr);
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -26,11 +26,16 @@ export async function listarTokensPedidos(): Promise<ShareToken[]> {
   return (data ?? []) as ShareToken[];
 }
 
-export async function criarTokenPedidos(): Promise<ShareToken | null> {
+export async function criarTokenPedidos(
+  senha?: string,
+): Promise<ShareToken | null> {
   const token = gerarToken();
+  const payload: Record<string, unknown> = { token, scope: "pedidos" };
+  if (senha && senha.length >= 4) payload.senha = senha;
+
   const { data, error } = await supabase
     .from("share_tokens")
-    .insert({ token, scope: "pedidos" })
+    .insert(payload)
     .select("*")
     .maybeSingle();
   if (error) {
@@ -55,4 +60,37 @@ export async function revogarToken(token: string): Promise<boolean> {
 export function urlPublicaPedidos(token: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}/pedidos/${token}`;
+}
+
+export function mensagemCompartilhar(token: string, senha?: string | null): string {
+  const url = urlPublicaPedidos(token);
+  const linhas = [
+    "Acesse a lista de pedidos pelo link abaixo:",
+    `🔗 ${url}`,
+  ];
+  if (senha) linhas.push(`🔑 Senha: ${senha}`);
+  return linhas.join("\n");
+}
+
+/** Verifica se o token requer senha (chamando a RPC do banco). */
+export async function tokenRequerSenha(token: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("token_requer_senha", { _token: token });
+  if (error) {
+    // Se a RPC não existe ainda, assume que não requer senha.
+    return false;
+  }
+  return !!data;
+}
+
+/** Valida senha contra um token. */
+export async function validarSenhaToken(
+  token: string,
+  senha: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("validar_token_pedidos", {
+    _token: token,
+    _senha: senha,
+  });
+  if (error) return false;
+  return !!data;
 }
