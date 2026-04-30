@@ -918,6 +918,7 @@ function ProdutosSeletor({
   onChange: (ids: string[]) => void;
 }) {
   const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
+  const categorias = useCategorias();
   const fmt = (n: number) =>
     n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -937,53 +938,77 @@ function ProdutosSeletor({
     onChange(next);
   };
 
+  // Agrupa produtos por categoria para facilitar localizar (ex: Sobremesas).
+  const grupos = (() => {
+    const buckets = new Map<string, { nome: string; itens: CestaAdmin[] }>();
+    for (const c of ativos) {
+      const cat = categorias.find((k) => k.id === c.categoriaId);
+      const id = cat?.id ?? "_outros";
+      const nome = cat?.nome ?? "Sem categoria";
+      if (!buckets.has(id)) buckets.set(id, { nome, itens: [] });
+      buckets.get(id)!.itens.push(c);
+    }
+    return Array.from(buckets.values()).sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt-BR"),
+    );
+  })();
+
+  const renderCard = (c: CestaAdmin) => {
+    const sel = selecionadosIds.includes(c.id);
+    return (
+      <button
+        key={c.id}
+        type="button"
+        onClick={() => toggle(c.id)}
+        className={`flex items-center gap-3 rounded-lg border-2 bg-card p-2 text-left transition-all ${
+          sel ? "border-terracotta" : "border-border hover:border-charcoal/40"
+        }`}
+      >
+        <img
+          src={c.imagem}
+          alt={c.nome}
+          className="h-12 w-12 flex-none rounded-md object-cover"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-charcoal">
+            {c.nome}
+          </p>
+          <p className="text-xs text-muted-foreground">{fmt(c.preco)}</p>
+        </div>
+        <span
+          className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border ${
+            sel
+              ? "border-terracotta bg-terracotta text-white"
+              : "border-border"
+          }`}
+        >
+          {sel ? "✓" : ""}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      <div>
-        <p className="mb-2 text-xs font-semibold text-charcoal">
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-charcoal">
           Selecione os produtos
         </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {ativos.map((c) => {
-            const sel = selecionadosIds.includes(c.id);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => toggle(c.id)}
-                className={`flex items-center gap-3 rounded-lg border-2 bg-card p-2 text-left transition-all ${
-                  sel ? "border-terracotta" : "border-border hover:border-charcoal/40"
-                }`}
-              >
-                <img
-                  src={c.imagem}
-                  alt={c.nome}
-                  className="h-12 w-12 flex-none rounded-md object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-charcoal">
-                    {c.nome}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{fmt(c.preco)}</p>
-                </div>
-                <span
-                  className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border ${
-                    sel
-                      ? "border-terracotta bg-terracotta text-white"
-                      : "border-border"
-                  }`}
-                >
-                  {sel ? "✓" : ""}
-                </span>
-              </button>
-            );
-          })}
-          {ativos.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Nenhum produto ativo cadastrado.
+        {ativos.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Nenhum produto ativo cadastrado.
+          </p>
+        )}
+        {grupos.map((g) => (
+          <div key={g.nome} className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {g.nome}
             </p>
-          )}
-        </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {g.itens.map(renderCard)}
+            </div>
+          </div>
+        ))}
       </div>
 
       {selecionadosIds.length > 0 && (
