@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import {
   useAdmin,
   type Campanha,
   type CampanhaDelivery,
   type CampanhaRetirada,
-  type HorarioFuncionamento,
-  type DiaSemana,
   type CestaAdmin,
 } from "@/store/admin";
 import { Input } from "@/components/ui/input";
@@ -28,6 +27,13 @@ import {
   TabsContent,
 } from "@/components/ui/tabs";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import {
   Truck,
   Store,
   Copy,
@@ -36,17 +42,9 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  Settings,
+  CalendarIcon,
 } from "lucide-react";
-
-const DIAS: { id: DiaSemana; label: string }[] = [
-  { id: "seg", label: "Seg" },
-  { id: "ter", label: "Ter" },
-  { id: "qua", label: "Qua" },
-  { id: "qui", label: "Qui" },
-  { id: "sex", label: "Sex" },
-  { id: "sab", label: "Sáb" },
-  { id: "dom", label: "Dom" },
-];
 
 type Props = { campanha: Campanha };
 
@@ -54,102 +52,15 @@ export function CampanhaForm({ campanha }: Props) {
   const setCampanha = useAdmin((s) => s.setCampanha);
   const setDelivery = useAdmin((s) => s.setCampanhaDelivery);
   const setRetirada = useAdmin((s) => s.setCampanhaRetirada);
-  const unidades = useAdmin((s) => s.unidades);
   const cestas = useAdmin((s) => s.cestas);
-
-  const linkPublico = `${typeof window !== "undefined" ? window.location.origin : ""}/${campanha.slug}`;
-  const copiarLink = async () => {
-    try {
-      await navigator.clipboard.writeText(linkPublico);
-      toast.success("Link copiado!");
-    } catch {
-      toast.error("Não foi possível copiar.");
-    }
-  };
 
   return (
     <div className="space-y-6">
-      {/* ========= Cabeçalho — informações gerais ========= */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h3 className="text-sm font-bold uppercase tracking-widest text-charcoal">
-          Informações gerais
-        </h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Nome da campanha</Label>
-            <Input
-              value={campanha.nome}
-              onChange={(e) =>
-                setCampanha(campanha.id, { nome: e.target.value })
-              }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Slug do link (/...)</Label>
-            <Input
-              value={campanha.slug}
-              onChange={(e) =>
-                setCampanha(campanha.id, {
-                  slug: e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9-]/g, "-")
-                    .replace(/-+/g, "-"),
-                })
-              }
-            />
-          </div>
-          <div className="space-y-1.5 md:col-span-2">
-            <Label>Link público gerado</Label>
-            <div className="flex gap-2">
-              <Input value={linkPublico} readOnly className="font-mono text-xs" />
-              <Button type="button" variant="outline" onClick={copiarLink}>
-                <Copy className="mr-2 h-4 w-4" /> Copiar
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Status</Label>
-            <Select
-              value={campanha.status}
-              onValueChange={(v) =>
-                setCampanha(campanha.id, { status: v as "ativa" | "pausada" })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ativa">Ativa</SelectItem>
-                <SelectItem value="pausada">Pausada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Unidade vinculada</Label>
-            <Select
-              value={campanha.unidadeId ?? ""}
-              onValueChange={(v) => setCampanha(campanha.id, { unidadeId: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma unidade" />
-              </SelectTrigger>
-              <SelectContent>
-                {unidades
-                  .filter((u) => u.status === "ativa")
-                  .map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.nome}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      {/* ========= Abas Delivery / Retirada ========= */}
-      <Tabs defaultValue="delivery">
+      <Tabs defaultValue="info">
         <TabsList className="bg-charcoal/5">
+          <TabsTrigger value="info" className="gap-2">
+            <Settings className="h-4 w-4" /> Informações Gerais
+          </TabsTrigger>
           <TabsTrigger value="delivery" className="gap-2">
             <Truck className="h-4 w-4" /> Delivery
           </TabsTrigger>
@@ -157,6 +68,14 @@ export function CampanhaForm({ campanha }: Props) {
             <Store className="h-4 w-4" /> Retirada
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="info" className="mt-4">
+          <InfoGeralTab
+            campanha={campanha}
+            cestas={cestas}
+            onPatch={(p) => setCampanha(campanha.id, p)}
+          />
+        </TabsContent>
 
         <TabsContent value="delivery" className="mt-4">
           <DeliveryTab
@@ -173,6 +92,245 @@ export function CampanhaForm({ campanha }: Props) {
           />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ============================================================ */
+/*                  INFORMAÇÕES GERAIS                          */
+/* ============================================================ */
+
+function InfoGeralTab({
+  campanha,
+  cestas,
+  onPatch,
+}: {
+  campanha: Campanha;
+  cestas: CestaAdmin[];
+  onPatch: (p: Partial<Campanha>) => void;
+}) {
+  const unidades = useAdmin((s) => s.unidades);
+  const linkPublico = `${typeof window !== "undefined" ? window.location.origin : ""}/${campanha.slug}`;
+  const copiarLink = async () => {
+    try {
+      await navigator.clipboard.writeText(linkPublico);
+      toast.success("Link copiado!");
+    } catch {
+      toast.error("Não foi possível copiar.");
+    }
+  };
+
+  const textos = campanha.textos;
+
+  return (
+    <div className="space-y-5">
+      <Bloco titulo="Identificação">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Nome da campanha">
+            <Input
+              value={campanha.nome}
+              onChange={(e) => onPatch({ nome: e.target.value })}
+            />
+          </Field>
+          <Field label="Slug do link (/...)">
+            <Input
+              value={campanha.slug}
+              onChange={(e) =>
+                onPatch({
+                  slug: e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]/g, "-")
+                    .replace(/-+/g, "-"),
+                })
+              }
+            />
+          </Field>
+          <div className="md:col-span-2">
+            <Field label="Link público gerado">
+              <div className="flex gap-2">
+                <Input
+                  value={linkPublico}
+                  readOnly
+                  className="font-mono text-xs"
+                />
+                <Button type="button" variant="outline" onClick={copiarLink}>
+                  <Copy className="mr-2 h-4 w-4" /> Copiar
+                </Button>
+              </div>
+            </Field>
+          </div>
+          <Field label="Status">
+            <Select
+              value={campanha.status}
+              onValueChange={(v) =>
+                onPatch({ status: v as "ativa" | "pausada" })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ativa">Ativa</SelectItem>
+                <SelectItem value="pausada">Pausada</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Unidade vinculada">
+            <Select
+              value={campanha.unidadeId ?? ""}
+              onValueChange={(v) => onPatch({ unidadeId: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma unidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {unidades
+                  .filter((u) => u.status === "ativa")
+                  .map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nome}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </Bloco>
+
+      <Bloco titulo="Produtos Principais">
+        <p className="text-xs text-muted-foreground">
+          Produtos em destaque exibidos na página pública desta campanha.
+        </p>
+        <ProdutosSeletor
+          cestas={cestas}
+          selecionadosIds={campanha.produtosPrincipaisIds}
+          onChange={(ids) => onPatch({ produtosPrincipaisIds: ids })}
+        />
+      </Bloco>
+
+      <Bloco titulo="Upsell">
+        <ToggleLinha
+          label="Habilitar upsell"
+          checked={campanha.upsellAtivo}
+          onChange={(v) => onPatch({ upsellAtivo: v })}
+        />
+        {campanha.upsellAtivo && (
+          <ProdutosSeletor
+            cestas={cestas}
+            selecionadosIds={campanha.upsellProdutoIds}
+            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
+          />
+        )}
+      </Bloco>
+
+      <Bloco titulo="Datas">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="Data de início">
+            <DatePickerCampo
+              value={campanha.dataInicio}
+              onChange={(v) => onPatch({ dataInicio: v })}
+            />
+          </Field>
+          <Field label="Data de encerramento">
+            <DatePickerCampo
+              value={campanha.dataFim}
+              onChange={(v) => onPatch({ dataFim: v })}
+            />
+          </Field>
+          <Field label="Data limite para encomendas">
+            <DatePickerCampo
+              value={campanha.dataLimitePedidos}
+              onChange={(v) => onPatch({ dataLimitePedidos: v })}
+            />
+          </Field>
+        </div>
+      </Bloco>
+
+      <Bloco titulo="Textos">
+        <div className="grid gap-4">
+          <Field label="Título da campanha (página pública)">
+            <Input
+              value={textos.titulo}
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, titulo: e.target.value } })
+              }
+            />
+          </Field>
+          <Field label="Descrição ou subtítulo">
+            <Input
+              value={textos.subtitulo}
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, subtitulo: e.target.value } })
+              }
+            />
+          </Field>
+          <Field label="Mensagem de boas-vindas (início do Quiz)">
+            <Textarea
+              rows={2}
+              value={textos.boasVindas}
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, boasVindas: e.target.value } })
+              }
+            />
+          </Field>
+          <Field label="Texto de confirmação (após finalizar)">
+            <Textarea
+              rows={2}
+              value={textos.confirmacao}
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, confirmacao: e.target.value } })
+              }
+            />
+          </Field>
+        </div>
+      </Bloco>
+    </div>
+  );
+}
+
+function DatePickerCampo({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (v: string | undefined) => void;
+}) {
+  const date = value ? new Date(value) : undefined;
+  return (
+    <div className="flex gap-2">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-full justify-start text-left font-normal",
+              !date && "text-muted-foreground",
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {date ? format(date, "dd/MM/yyyy") : "Selecione…"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={(d) => onChange(d ? d.toISOString() : undefined)}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+      {date && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onChange(undefined)}
+          title="Limpar"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }
@@ -404,16 +562,8 @@ function DeliveryTab({
       </Bloco>
 
       <Bloco titulo="Horário de funcionamento (Delivery)">
-        <HorarioSemana
-          horario={d.horario}
-          onChange={(h) => onPatch({ horario: h })}
-        />
-      </Bloco>
-
-      <Bloco titulo="Configuração do Quiz de Delivery">
         <p className="text-xs text-muted-foreground">
-          Datas e janelas de horário oferecidas no Quiz desta forma de
-          entrega.
+          Datas e janelas de horário oferecidas no Quiz desta forma de entrega.
         </p>
         <DatasHorarios
           datas={d.datas}
@@ -430,7 +580,7 @@ function DeliveryTab({
           onChange={(v) => onPatch({ upsellAtivo: v })}
         />
         {d.upsellAtivo && (
-          <UpsellSeletor
+          <ProdutosSeletor
             cestas={cestas}
             selecionadosIds={d.upsellProdutoIds}
             onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
@@ -515,13 +665,6 @@ function RetiradaTab({
       </Bloco>
 
       <Bloco titulo="Horário de funcionamento (Retirada)">
-        <HorarioSemana
-          horario={r.horario}
-          onChange={(h) => onPatch({ horario: h })}
-        />
-      </Bloco>
-
-      <Bloco titulo="Configuração do Quiz de Retirada">
         <p className="text-xs text-muted-foreground">
           Datas e janelas de horário oferecidas no Quiz para retirada.
         </p>
@@ -540,7 +683,7 @@ function RetiradaTab({
           onChange={(v) => onPatch({ upsellAtivo: v })}
         />
         {r.upsellAtivo && (
-          <UpsellSeletor
+          <ProdutosSeletor
             cestas={cestas}
             selecionadosIds={r.upsellProdutoIds}
             onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
@@ -602,57 +745,6 @@ function ToggleLinha({
     <div className="flex items-center justify-between">
       <span className="text-sm font-medium text-charcoal">{label}</span>
       <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}
-
-function HorarioSemana({
-  horario,
-  onChange,
-}: {
-  horario: HorarioFuncionamento;
-  onChange: (h: HorarioFuncionamento) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      {DIAS.map(({ id, label }) => {
-        const dia = horario[id];
-        return (
-          <div
-            key={id}
-            className="grid grid-cols-[60px_auto_1fr_1fr] items-center gap-3 rounded-md border border-border bg-background/40 p-2"
-          >
-            <span className="text-xs font-medium uppercase text-charcoal">
-              {label}
-            </span>
-            <Switch
-              checked={dia.ativo}
-              onCheckedChange={(v) =>
-                onChange({ ...horario, [id]: { ...dia, ativo: v } })
-              }
-            />
-            <Input
-              type="time"
-              value={dia.inicio}
-              disabled={!dia.ativo}
-              onChange={(e) =>
-                onChange({
-                  ...horario,
-                  [id]: { ...dia, inicio: e.target.value },
-                })
-              }
-            />
-            <Input
-              type="time"
-              value={dia.fim}
-              disabled={!dia.ativo}
-              onChange={(e) =>
-                onChange({ ...horario, [id]: { ...dia, fim: e.target.value } })
-              }
-            />
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -774,7 +866,7 @@ function DatasHorarios({
   );
 }
 
-function UpsellSeletor({
+function ProdutosSeletor({
   cestas,
   selecionadosIds,
   onChange,
@@ -807,7 +899,7 @@ function UpsellSeletor({
     <div className="space-y-4">
       <div>
         <p className="mb-2 text-xs font-semibold text-charcoal">
-          Selecione os produtos do upsell
+          Selecione os produtos
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {ativos.map((c) => {
@@ -877,6 +969,9 @@ function UpsellSeletor({
                   <p className="min-w-0 flex-1 truncate text-sm text-charcoal">
                     {p.nome}
                   </p>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
+                    {fmt(p.preco)}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon"
