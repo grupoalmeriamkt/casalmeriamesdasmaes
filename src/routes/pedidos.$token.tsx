@@ -430,6 +430,23 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           </p>
         ))}
       </div>
+      {(() => {
+        const cartoes = p.pagamento?.extras?.cartoes ?? [];
+        const polaroids = p.pagamento?.extras?.polaroids ?? [];
+        if (cartoes.length === 0 && polaroids.length === 0) return null;
+        return (
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+              Personalizações
+            </p>
+            <PedidoExtrasView
+              cartoes={cartoes}
+              polaroids={polaroids}
+              variant="cliente"
+            />
+          </div>
+        );
+      })()}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</p>
