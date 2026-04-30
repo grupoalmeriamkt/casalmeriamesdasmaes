@@ -267,6 +267,13 @@ const retiradaDefault = (endereco = ""): CampanhaRetirada => ({
   horarios: horariosDefault(),
 });
 
+const textosDefault = (nome = "Campanha"): CampanhaTextos => ({
+  titulo: nome,
+  subtitulo: "",
+  boasVindas: "",
+  confirmacao: "",
+});
+
 const initialCampanha: Campanha = {
   id: "campanha-principal",
   slug: "principal",
@@ -277,6 +284,8 @@ const initialCampanha: Campanha = {
   retirada: retiradaDefault(initialUnidades[0]?.endereco ?? ""),
   upsellAtivo: true,
   upsellProdutoIds: [],
+  produtosPrincipaisIds: [],
+  textos: textosDefault("Campanha principal"),
   quiz: {
     delivery: true,
     retirada: true,
