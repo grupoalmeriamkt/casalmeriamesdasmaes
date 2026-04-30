@@ -532,6 +532,38 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
         <strong>Data:</strong> {p.data || "—"} · <strong>Horário:</strong>{" "}
         {p.horario || "—"}
       </p>
+      {((p.pagamento?.extras?.cartoes?.length ?? 0) > 0 ||
+        (p.pagamento?.extras?.polaroids?.length ?? 0) > 0) && (
+        <>
+          <hr style={{ margin: "10pt 0" }} />
+          <p style={{ fontWeight: "bold", marginBottom: "4pt" }}>
+            Personalizações
+          </p>
+          {(p.pagamento?.extras?.cartoes ?? []).map((c, i) => (
+            <div key={`c${i}`} style={{ marginBottom: "6pt" }}>
+              <p>
+                • {c.nome} — {formatBRL(c.preco)}
+              </p>
+              {c.mensagem && (
+                <p
+                  style={{
+                    margin: "2pt 0 0 12pt",
+                    fontStyle: "italic",
+                  }}
+                >
+                  "{c.mensagem}"
+                </p>
+              )}
+            </div>
+          ))}
+          {(p.pagamento?.extras?.polaroids ?? []).map((pl, i) => (
+            <p key={`p${i}`}>
+              • {pl.nome} — {formatBRL(pl.preco)} — Foto enviada
+              {pl.arquivoNome ? ` (${pl.arquivoNome})` : ""}
+            </p>
+          ))}
+        </>
+      )}
       <hr style={{ margin: "10pt 0" }} />
       <p style={{ fontSize: "16pt", fontWeight: "bold", textAlign: "right" }}>
         Total: {formatBRL(p.total)}
