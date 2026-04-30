@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { usePedido } from "@/store/pedido";
 import { useAdmin } from "@/store/admin";
 import { Logo } from "@/components/Logo";
+import { loadCloudConfig } from "@/lib/cloudConfig";
 
 const RESERVED_SLUGS = new Set([
   "admin",
@@ -32,6 +33,7 @@ function CampanhaPage() {
   const reset = usePedido((s) => s.reset);
   const cestaSelecionada = usePedido((s) => s.cesta);
   const [concluido, setConcluido] = useState(false);
+  const [slugResolvido, setSlugResolvido] = useState(false);
 
   const reservado = RESERVED_SLUGS.has(slug);
   const campanha = reservado ? undefined : campanhas.find((c) => c.slug === slug);
@@ -40,6 +42,36 @@ function CampanhaPage() {
   useEffect(() => {
     if (campanha) setCampanhaAtivaId(campanha.id);
   }, [campanha, setCampanhaAtivaId]);
+
+  useEffect(() => {
+    if (reservado || campanha) {
+      setSlugResolvido(true);
+      return;
+    }
+
+    let cancelled = false;
+    setSlugResolvido(false);
+
+    loadCloudConfig()
+      .catch((error) => {
+        console.warn("[campanha] falha ao recarregar configuração publicada", error);
+      })
+      .finally(() => {
+        if (!cancelled) setSlugResolvido(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campanha, reservado, slug]);
+
+  if (!reservado && !campanha && !slugResolvido) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-charcoal/20 border-t-charcoal" />
+      </div>
+    );
+  }
 
   if (reservado || !campanha) {
     return <Navigate to="/" />;
