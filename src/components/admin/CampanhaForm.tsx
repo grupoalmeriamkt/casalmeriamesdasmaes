@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   useAdmin,
+  useCategorias,
   type Campanha,
   type CampanhaDelivery,
   type CampanhaRetirada,
   type CestaAdmin,
 } from "@/store/admin";
+import { validarSlug, normalizarSlug } from "@/lib/slugs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -110,6 +112,7 @@ function InfoGeralTab({
   onPatch: (p: Partial<Campanha>) => void;
 }) {
   const unidades = useAdmin((s) => s.unidades);
+  const todasCampanhas = useAdmin((s) => s.campanhas);
   const linkPublico = `${typeof window !== "undefined" ? window.location.origin : ""}/${campanha.slug}`;
   const copiarLink = async () => {
     try {
@@ -120,7 +123,37 @@ function InfoGeralTab({
     }
   };
 
+  // Slug: edição local com validação no blur
+  const [slugInput, setSlugInput] = useState(campanha.slug);
+  const [slugErro, setSlugErro] = useState<string | null>(null);
+  useEffect(() => {
+    setSlugInput(campanha.slug);
+    setSlugErro(null);
+  }, [campanha.id, campanha.slug]);
+
+  const aplicarSlug = () => {
+    const usadosPorOutras = todasCampanhas
+      .filter((c) => c.id !== campanha.id)
+      .map((c) => c.slug);
+    const res = validarSlug(slugInput, usadosPorOutras);
+    if (!res.ok) {
+      setSlugErro(res.mensagem);
+      toast.error(res.mensagem);
+      return;
+    }
+    setSlugErro(null);
+    if (res.slug !== campanha.slug) {
+      onPatch({ slug: res.slug });
+      setSlugInput(res.slug);
+      toast.success("Slug atualizado.");
+    } else {
+      // normalizou para o mesmo valor — só atualiza input
+      setSlugInput(res.slug);
+    }
+  };
+
   const textos = campanha.textos;
+  const semProdutos = (campanha.produtosPrincipaisIds ?? []).length === 0;
 
   return (
     <div className="space-y-5">
@@ -134,16 +167,33 @@ function InfoGeralTab({
           </Field>
           <Field label="Slug do link (/...)">
             <Input
-              value={campanha.slug}
-              onChange={(e) =>
-                onPatch({
-                  slug: e.target.value
+              value={slugInput}
+              onChange={(e) => {
+                setSlugInput(
+                  e.target.value
                     .toLowerCase()
                     .replace(/[^a-z0-9-]/g, "-")
                     .replace(/-+/g, "-"),
-                })
-              }
+                );
+                if (slugErro) setSlugErro(null);
+              }}
+              onBlur={aplicarSlug}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className={slugErro ? "border-terracotta focus-visible:ring-terracotta" : ""}
             />
+            {slugErro && (
+              <p className="mt-1 text-xs text-terracotta">{slugErro}</p>
+            )}
+            {!slugErro && normalizarSlug(slugInput) !== campanha.slug && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pressione Enter ou clique fora para aplicar.
+              </p>
+            )}
           </Field>
           <div className="md:col-span-2">
             <Field label="Link público gerado">
@@ -199,28 +249,20 @@ function InfoGeralTab({
 
       <Bloco titulo="Produtos Principais">
         <p className="text-xs text-muted-foreground">
-          Produtos em destaque exibidos na página pública desta campanha.
+          Selecione os produtos que serão exibidos no Quiz desta campanha. Apenas
+          os produtos marcados aqui aparecerão para o cliente.
         </p>
+        {semProdutos && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            ⚠️ Nenhum produto selecionado — o Quiz desta campanha ficará sem
+            opções para o cliente. Selecione ao menos um produto abaixo.
+          </div>
+        )}
         <ProdutosSeletor
           cestas={cestas}
           selecionadosIds={campanha.produtosPrincipaisIds}
           onChange={(ids) => onPatch({ produtosPrincipaisIds: ids })}
         />
-      </Bloco>
-
-      <Bloco titulo="Upsell">
-        <ToggleLinha
-          label="Habilitar upsell"
-          checked={campanha.upsellAtivo}
-          onChange={(v) => onPatch({ upsellAtivo: v })}
-        />
-        {campanha.upsellAtivo && (
-          <ProdutosSeletor
-            cestas={cestas}
-            selecionadosIds={campanha.upsellProdutoIds}
-            onChange={(ids) => onPatch({ upsellProdutoIds: ids })}
-          />
-        )}
       </Bloco>
 
       <Bloco titulo="Datas">
@@ -876,6 +918,7 @@ function ProdutosSeletor({
   onChange: (ids: string[]) => void;
 }) {
   const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
+  const categorias = useCategorias();
   const fmt = (n: number) =>
     n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -895,53 +938,77 @@ function ProdutosSeletor({
     onChange(next);
   };
 
+  // Agrupa produtos por categoria para facilitar localizar (ex: Sobremesas).
+  const grupos = (() => {
+    const buckets = new Map<string, { nome: string; itens: CestaAdmin[] }>();
+    for (const c of ativos) {
+      const cat = categorias.find((k) => k.id === c.categoriaId);
+      const id = cat?.id ?? "_outros";
+      const nome = cat?.nome ?? "Sem categoria";
+      if (!buckets.has(id)) buckets.set(id, { nome, itens: [] });
+      buckets.get(id)!.itens.push(c);
+    }
+    return Array.from(buckets.values()).sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt-BR"),
+    );
+  })();
+
+  const renderCard = (c: CestaAdmin) => {
+    const sel = selecionadosIds.includes(c.id);
+    return (
+      <button
+        key={c.id}
+        type="button"
+        onClick={() => toggle(c.id)}
+        className={`flex items-center gap-3 rounded-lg border-2 bg-card p-2 text-left transition-all ${
+          sel ? "border-terracotta" : "border-border hover:border-charcoal/40"
+        }`}
+      >
+        <img
+          src={c.imagem}
+          alt={c.nome}
+          className="h-12 w-12 flex-none rounded-md object-cover"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-charcoal">
+            {c.nome}
+          </p>
+          <p className="text-xs text-muted-foreground">{fmt(c.preco)}</p>
+        </div>
+        <span
+          className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border ${
+            sel
+              ? "border-terracotta bg-terracotta text-white"
+              : "border-border"
+          }`}
+        >
+          {sel ? "✓" : ""}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      <div>
-        <p className="mb-2 text-xs font-semibold text-charcoal">
+      <div className="space-y-3">
+        <p className="text-xs font-semibold text-charcoal">
           Selecione os produtos
         </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {ativos.map((c) => {
-            const sel = selecionadosIds.includes(c.id);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => toggle(c.id)}
-                className={`flex items-center gap-3 rounded-lg border-2 bg-card p-2 text-left transition-all ${
-                  sel ? "border-terracotta" : "border-border hover:border-charcoal/40"
-                }`}
-              >
-                <img
-                  src={c.imagem}
-                  alt={c.nome}
-                  className="h-12 w-12 flex-none rounded-md object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-charcoal">
-                    {c.nome}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{fmt(c.preco)}</p>
-                </div>
-                <span
-                  className={`flex h-5 w-5 flex-none items-center justify-center rounded-md border ${
-                    sel
-                      ? "border-terracotta bg-terracotta text-white"
-                      : "border-border"
-                  }`}
-                >
-                  {sel ? "✓" : ""}
-                </span>
-              </button>
-            );
-          })}
-          {ativos.length === 0 && (
-            <p className="text-xs text-muted-foreground">
-              Nenhum produto ativo cadastrado.
+        {ativos.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Nenhum produto ativo cadastrado.
+          </p>
+        )}
+        {grupos.map((g) => (
+          <div key={g.nome} className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {g.nome}
             </p>
-          )}
-        </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {g.itens.map(renderCard)}
+            </div>
+          </div>
+        ))}
       </div>
 
       {selecionadosIds.length > 0 && (

@@ -629,9 +629,17 @@ export const useAdmin = create<AdminState>()(
         set((s) => {
           const id = `camp-${Date.now()}`;
           const baseQuiz = s.campanhas[0]?.quiz ?? initialCampanha.quiz;
+          // slug único
+          const usados = s.campanhas.map((c) => c.slug);
+          let slugBase = `campanha-${Date.now().toString(36)}`;
+          let slug = slugBase;
+          let i = 2;
+          while (usados.includes(slug)) {
+            slug = `${slugBase}-${i++}`;
+          }
           const nova: Campanha = {
             id,
-            slug: `campanha-${Date.now().toString(36)}`,
+            slug,
             nome: "Nova campanha",
             status: "ativa",
             unidadeId: s.unidades[0]?.id,
@@ -1053,6 +1061,27 @@ export const useCampanhaAtiva = () =>
     ),
   );
 export const useCategorias = () => useAdmin(useShallow((s) => s.categorias));
+
+/**
+ * Produtos selecionados na campanha ativa (em "Produtos Principais"),
+ * preservando a ordem definida no admin. Filtra apenas ativos e não arquivados.
+ */
+export const useProdutosDaCampanhaAtiva = () =>
+  useAdmin(
+    useShallow((s) => {
+      const camp =
+        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      if (!camp) return [] as CestaAdmin[];
+      const ids = camp.produtosPrincipaisIds ?? [];
+      const index = new Map(s.cestas.map((c) => [c.id, c] as const));
+      return ids
+        .map((id) => index.get(id))
+        .filter(
+          (c): c is CestaAdmin =>
+            !!c && c.ativo !== false && c.arquivado !== true,
+        );
+    }),
+  );
 
 // Backwards-compat
 export const selectCestasAtivas = (s: AdminState) => {

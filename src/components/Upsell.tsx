@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useSobremesasAtivas, useCampanhaAtiva, useAdmin } from "@/store/admin";
+import { useMemo, useEffect } from "react";
+import { useCampanhaAtiva, useAdmin } from "@/store/admin";
 import { usePedido, formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
 
@@ -10,36 +10,41 @@ export function Upsell({ onFinalizar, onPular }: Props) {
   const toggle = usePedido((s) => s.toggleSobremesa);
   const setQtd = usePedido((s) => s.setSobremesaQtd);
   const tipo = usePedido((s) => s.entregaTipo);
-  const sobremesasFallback = useSobremesasAtivas();
   const campanha = useCampanhaAtiva();
   const cestas = useAdmin((s) => s.cestas);
 
-  // Itens vindos da campanha ativa (upsell por modo: delivery / retirada).
+  // Itens da campanha ativa (upsell por modo: delivery / retirada).
+  // SEM fallback global — só o que o admin selecionou aparece.
   const lista = useMemo(() => {
-    if (!campanha) return sobremesasFallback;
-    const ids =
-      tipo === "retirada"
-        ? campanha.retirada.upsellAtivo
-          ? campanha.retirada.upsellProdutoIds
-          : []
-        : campanha.delivery.upsellAtivo
-          ? campanha.delivery.upsellProdutoIds
-          : [];
-    if (ids.length > 0) {
-      const mapeados = ids
-        .map((id) => cestas.find((c) => c.id === id && c.ativo && !c.arquivado))
-        .filter(Boolean)
-        .map((c) => ({
-          id: c!.id,
-          nome: c!.nome,
-          descricao: c!.descricao,
-          preco: c!.preco,
-          imagem: c!.imagem,
-        }));
-      if (mapeados.length > 0) return mapeados;
-    }
-    return sobremesasFallback;
-  }, [campanha, tipo, cestas, sobremesasFallback]);
+    if (!campanha) return [] as Array<{
+      id: string;
+      nome: string;
+      descricao: string;
+      preco: number;
+      imagem: string;
+    }>;
+    const cfg = tipo === "retirada" ? campanha.retirada : campanha.delivery;
+    if (!cfg.upsellAtivo) return [];
+    return cfg.upsellProdutoIds
+      .map((id) => cestas.find((c) => c.id === id && c.ativo && !c.arquivado))
+      .filter((c): c is NonNullable<typeof c> => !!c)
+      .map((c) => ({
+        id: c.id,
+        nome: c.nome,
+        descricao: c.descricao,
+        preco: c.preco,
+        imagem: c.imagem,
+      }));
+  }, [campanha, tipo, cestas]);
+
+  // Sem itens? Pula direto para o pagamento ao montar.
+  useEffect(() => {
+    if (lista.length === 0) onPular();
+    // intencional: roda só na montagem
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (lista.length === 0) return null;
 
   const totalAdicionadas = Object.values(sobremesas).reduce(
     (acc, it) => acc + it.sobremesa.preco * it.quantidade,

@@ -11,11 +11,12 @@ import {
 } from "@/lib/gtm";
 import {
   useAdmin,
-  useCestasAtivas,
+  useProdutosDaCampanhaAtiva,
   useSobremesasAtivas,
   useUnidadesAtivas,
   useDatasAtivas,
   useHorariosAtivos,
+  useCampanhaAtiva,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
@@ -81,14 +82,18 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
   const total = usePedido(selectTotal);
 
   // Admin store
-  const cestasAtivas = useCestasAtivas();
+  const cestasAtivas = useProdutosDaCampanhaAtiva();
   const sobremesasAtivas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
   const datas = useDatasAtivas();
   const horarios = useHorariosAtivos();
   const entregaConfig = useAdmin((s) => s.entrega);
   const pagamento = useAdmin((s) => s.pagamento);
-  const textos = useAdmin((s) => s.textos);
+  const textosGlobais = useAdmin((s) => s.textos);
+  const campanhaAtiva = useCampanhaAtiva();
+  const textosCampanha = campanhaAtiva?.textos;
+  // Mantém compat com `textos.badgePrazo` (texto global).
+  const textos = textosGlobais;
 
   // Local form state
   const [nome, setNome] = useState(cliente.nome);
@@ -321,7 +326,22 @@ export function Quiz({ onConcluir, onVoltar, initialStep = 1 }: Props) {
               </p>
             </div>
 
-            <div className="tag-prazo">📦 {textos.badgePrazo}</div>
+            {textos.badgePrazo && (
+              <div className="tag-prazo">📦 {textos.badgePrazo}</div>
+            )}
+
+            {textosCampanha?.boasVindas && (
+              <p className="rounded-xl bg-charcoal/5 p-3 text-sm text-charcoal">
+                {textosCampanha.boasVindas}
+              </p>
+            )}
+
+            {cestasAtivas.length === 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                Esta campanha ainda não tem produtos configurados. Volte em breve
+                ou entre em contato com a loja.
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               {cestasAtivas.map((c) => {
