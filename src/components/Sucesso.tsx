@@ -37,9 +37,8 @@ export function Sucesso({ onVoltar }: { onVoltar: () => void }) {
           Pedido <em className="italic text-terracotta">enviado!</em>
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-white/70">
-          Obrigado, <strong className="text-white">{cliente.nome.split(" ")[0]}</strong>!
-          Seu pedido foi enviado pelo WhatsApp. Vamos confirmar todos os detalhes
-          e o pagamento por lá.
+          Obrigado, <strong className="text-white">{cliente.nome.split(" ")[0]}</strong>!{" "}
+          {msgConfirmacao}
         </p>
 
         <div className="mt-6 w-full rounded-2xl bg-white/10 p-4 text-left text-sm text-white/80 backdrop-blur-sm">
