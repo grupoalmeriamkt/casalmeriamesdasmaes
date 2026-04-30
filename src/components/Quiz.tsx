@@ -11,11 +11,12 @@ import {
 } from "@/lib/gtm";
 import {
   useAdmin,
-  useCestasAtivas,
+  useProdutosDaCampanhaAtiva,
   useSobremesasAtivas,
   useUnidadesAtivas,
   useDatasAtivas,
   useHorariosAtivos,
+  useCampanhaAtiva,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
