@@ -189,6 +189,19 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
                   </span>
                 </div>
               ))}
+
+              {(extras.cartoes.length > 0 || extras.polaroids.length > 0) && (
+                <div className="pt-2">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Personalizações
+                  </p>
+                  <PedidoExtrasView
+                    cartoes={extras.cartoes}
+                    polaroids={extras.polaroids}
+                    variant="cliente"
+                  />
+                </div>
+              )}
             </div>
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">
