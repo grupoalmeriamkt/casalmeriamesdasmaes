@@ -19,23 +19,19 @@ export function HomeCategoriasCarousel() {
   if (comProdutos.length === 0) return null;
 
   return (
-    <section className="py-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-4 flex items-baseline justify-between px-5 md:px-6 lg:px-8">
+    <section className="py-6 md:pb-12 md:pt-0">
+      {/* ── Mobile: horizontal scroll ── */}
+      <div className="md:hidden">
+        <div className="mb-4 flex items-baseline justify-between px-5">
           <h2 className="font-serif text-[22px] font-semibold text-charcoal">
             Categorias
           </h2>
-          <a
-            href="#cardapio"
-            className="text-[11px] font-semibold uppercase tracking-[0.08em] text-terracotta hover:text-terracotta/80"
-          >
+          <a href="#cardapio" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-terracotta">
             Ver tudo
           </a>
         </div>
-
-        {/* Horizontal scroll (mobile) */}
         <div
-          className="scrollbar-hide overflow-x-auto pb-1 md:hidden"
+          className="scrollbar-hide overflow-x-auto pb-1"
           style={{ padding: "0 20px 4px" }}
         >
           <div className="flex gap-2.5">
@@ -43,33 +39,11 @@ export function HomeCategoriasCarousel() {
               <a
                 key={cat.id}
                 href={`#cat-${cat.id}`}
-                className="flex shrink-0 flex-col items-center gap-2 rounded-2xl border border-charcoal/8 bg-white transition-all duration-200 hover:border-charcoal/20 hover:shadow-soft"
+                className="flex shrink-0 flex-col items-center gap-2 rounded-2xl border border-charcoal/8 bg-white transition-all duration-200 hover:border-charcoal/20"
                 style={{ width: 96, padding: "14px 10px" }}
               >
-                {/* Glyph */}
-                <div
-                  className="flex shrink-0 items-center justify-center overflow-hidden"
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 11,
-                    background: "#e8c89a",
-                    color: "#8a5a1f",
-                  }}
-                >
-                  {cat.imagemCapa ? (
-                    <img
-                      src={cat.imagemCapa}
-                      alt={cat.nome}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="font-serif text-sm font-semibold">
-                      {cat.nome.charAt(0)}
-                    </span>
-                  )}
-                </div>
-                <p className="text-center text-[12.5px] font-semibold text-charcoal leading-tight">
+                <Glifo cat={cat} size={32} />
+                <p className="text-center text-[12.5px] font-semibold leading-tight text-charcoal">
                   {cat.nome}
                 </p>
                 <p className="text-[10.5px] text-charcoal/50">{cat.count}</p>
@@ -77,40 +51,36 @@ export function HomeCategoriasCarousel() {
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Grid desktop */}
-        <div className="hidden gap-3 px-6 md:grid md:grid-cols-4 lg:grid-cols-6 lg:px-8">
+      {/* ── Desktop: grid 6 colunas ── */}
+      <div className="mx-auto hidden max-w-6xl px-6 md:block lg:px-8">
+        <div className="mb-[22px] flex items-baseline justify-between">
+          <h2
+            className="font-serif font-semibold text-charcoal"
+            style={{ fontSize: 30, letterSpacing: "-0.01em" }}
+          >
+            Categorias
+          </h2>
+          <a
+            href="#cardapio"
+            className="text-[13px] font-semibold uppercase tracking-[0.08em] text-terracotta hover:text-terracotta/80"
+          >
+            Ver tudo
+          </a>
+        </div>
+        <div className="grid grid-cols-6 gap-3">
           {comProdutos.map((cat) => (
             <a
               key={cat.id}
               href={`#cat-${cat.id}`}
-              className="group flex flex-col items-center gap-3 rounded-2xl border border-charcoal/8 bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft"
+              className="group flex flex-col items-center gap-3 rounded-2xl border border-charcoal/8 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-charcoal/16 hover:shadow-soft"
+              style={{ padding: "24px 12px" }}
             >
-              <div
-                className="flex shrink-0 items-center justify-center overflow-hidden transition-colors group-hover:opacity-90"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 14,
-                  background: "#e8c89a",
-                  color: "#8a5a1f",
-                }}
-              >
-                {cat.imagemCapa ? (
-                  <img
-                    src={cat.imagemCapa}
-                    alt={cat.nome}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                ) : (
-                  <span className="font-serif text-base font-semibold">
-                    {cat.nome.charAt(0)}
-                  </span>
-                )}
-              </div>
+              <Glifo cat={cat} size={48} />
               <div className="text-center">
-                <p className="text-[13px] font-semibold text-charcoal">{cat.nome}</p>
-                <p className="mt-0.5 text-[11px] text-charcoal/50">
+                <p className="text-[14px] font-semibold text-charcoal">{cat.nome}</p>
+                <p className="mt-0.5 text-[11.5px] text-charcoal/50">
                   {cat.count} produto{cat.count !== 1 ? "s" : ""}
                 </p>
               </div>
@@ -119,5 +89,23 @@ export function HomeCategoriasCarousel() {
         </div>
       </div>
     </section>
+  );
+}
+
+function Glifo({ cat, size }: { cat: { nome: string; imagemCapa?: string }; size: number }) {
+  const radius = Math.round(size * 0.35);
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center overflow-hidden"
+      style={{ width: size, height: size, borderRadius: radius, background: "#e8c89a", color: "#8a5a1f" }}
+    >
+      {cat.imagemCapa ? (
+        <img src={cat.imagemCapa} alt={cat.nome} className="h-full w-full object-cover" />
+      ) : (
+        <span className="font-serif font-semibold" style={{ fontSize: size * 0.42 }}>
+          {cat.nome.charAt(0)}
+        </span>
+      )}
+    </div>
   );
 }

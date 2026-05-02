@@ -21,121 +21,135 @@ export function HomeBanner({ search, onSearch }: Props) {
   }, [campanhas, destaques]);
 
   const titulo = textos.heroTitulo || "Sabores que contam histórias";
-  const subtitulo = textos.heroSubtitulo || "Pães artesanais, doces e cestas com ingredientes selecionados.";
+  const subtitulo = textos.heroSubtitulo || "Fermentação lenta, ingredientes selecionados e a tradição mediterrânea no coração de Brasília.";
   const ctaLabel = textos.ctaPrincipal || "Explorar cardápio";
+  const eyebrow = primeiraCampanha?.textos?.eyebrow || "Cardápio digital";
 
   return (
     <>
-      <section className="w-full bg-charcoal text-white">
-        {/* ── Mobile ── */}
-        <div className="relative overflow-hidden md:hidden">
-          {banner.imagemUrl && (
-            <img
-              src={banner.imagemUrl}
-              alt={titulo}
-              className="absolute inset-0 h-full w-full object-cover opacity-30"
-              loading="eager"
-            />
-          )}
-          <div className="relative px-5 pb-10 pt-10">
-            <p className="eyebrow-gold mb-3">Cardápio digital</p>
-            <h1
-              className="font-serif text-[2.2rem] font-semibold leading-[1.05] tracking-tight"
-              style={{ letterSpacing: "-0.02em" }}
+      {/* ── Mobile hero ── */}
+      <section className="relative overflow-hidden bg-charcoal text-white md:hidden">
+        {banner.imagemUrl && (
+          <img
+            src={banner.imagemUrl}
+            alt={titulo}
+            className="absolute inset-0 h-full w-full object-cover opacity-30"
+            loading="eager"
+          />
+        )}
+        <div className="relative px-5 pb-10 pt-10">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">
+            {eyebrow}
+          </p>
+          <h1
+            className="font-serif text-[2.2rem] font-semibold leading-[1.05] text-white"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {titulo}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-white/75">{subtitulo}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href="#cardapio"
+              className="inline-flex items-center gap-2 rounded-xl bg-terracotta px-5 py-2.5 text-sm font-semibold text-charcoal transition-all hover:bg-terracotta/90 active:scale-95"
             >
-              {titulo}
-            </h1>
-            <p className="mt-3 text-sm leading-relaxed text-white/75">{subtitulo}</p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <a
-                href="#cardapio"
-                className="inline-flex items-center gap-2 rounded-full bg-terracotta px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-terracotta/90 active:scale-95"
+              {ctaLabel} <ArrowRight className="h-4 w-4" />
+            </a>
+            {primeiraCampanha && (
+              <Link
+                to="/$slug"
+                params={{ slug: primeiraCampanha.slug }}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-5 py-2.5 text-sm font-medium text-white/90 transition-all hover:border-white/50 hover:text-white active:scale-95"
               >
-                {ctaLabel}
-              </a>
-              {primeiraCampanha && (
-                <Link
-                  to="/$slug"
-                  params={{ slug: primeiraCampanha.slug }}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/30 px-5 py-2.5 text-sm font-semibold text-white/90 transition-all hover:border-white/60 hover:text-white active:scale-95"
-                >
-                  {primeiraCampanha.textos?.titulo || primeiraCampanha.nome}
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Desktop ── */}
-        <div className="hidden md:block">
-          <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-16 lg:grid-cols-[1.2fr_1fr] lg:px-8 lg:py-20">
-            <div>
-              <p className="eyebrow-gold mb-4">Cardápio digital</p>
-              <h1
-                className="font-serif text-5xl font-semibold leading-[1.05] lg:text-[3.5rem]"
-                style={{ letterSpacing: "-0.02em" }}
-              >
-                {titulo}
-              </h1>
-              <p className="mt-5 max-w-lg text-base leading-relaxed text-white/75">
-                {subtitulo}
-              </p>
-              <div className="mt-8 flex flex-wrap gap-4">
-                <a
-                  href="#cardapio"
-                  className="inline-flex items-center gap-2 rounded-full bg-terracotta px-6 py-3 text-sm font-semibold text-white shadow transition-all hover:bg-terracotta/90 active:scale-95"
-                >
-                  {ctaLabel}
-                </a>
-                {primeiraCampanha && (
-                  <Link
-                    to="/$slug"
-                    params={{ slug: primeiraCampanha.slug }}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white/85 transition-all hover:border-white/50 hover:text-white active:scale-95"
-                  >
-                    {primeiraCampanha.textos?.titulo || primeiraCampanha.nome}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            {banner.imagemUrl && (
-              <div className="relative overflow-hidden rounded-[22px]">
-                <img
-                  src={banner.imagemUrl}
-                  alt={titulo}
-                  className="h-64 w-full object-cover lg:h-80"
-                  loading="eager"
-                />
-              </div>
+                {primeiraCampanha.textos?.titulo || primeiraCampanha.nome}
+              </Link>
             )}
           </div>
         </div>
       </section>
 
-      {/* ── Search Bar ── */}
+      {/* ── Desktop hero — card arredondado ── */}
+      <div className="hidden md:block">
+        <div className="mx-auto max-w-6xl px-6 pt-8 lg:px-8">
+          <section
+            className="relative mb-10 grid min-h-[360px] overflow-hidden rounded-[28px] bg-charcoal text-white"
+            style={{ gridTemplateColumns: "1.2fr 1fr", gap: 40, padding: "64px 56px" }}
+          >
+            {/* Texto */}
+            <div className="flex flex-col justify-center">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">
+                {eyebrow}
+              </p>
+              <h1
+                className="font-serif font-semibold leading-[1.05] text-white"
+                style={{ fontSize: 56, letterSpacing: "-0.02em", marginBottom: 20, textWrap: "balance" } as React.CSSProperties}
+              >
+                {titulo}
+              </h1>
+              <p
+                className="text-base leading-[1.55] text-white/80"
+                style={{ maxWidth: 460, marginBottom: 32 }}
+              >
+                {subtitulo}
+              </p>
+              <div className="flex gap-3">
+                <a
+                  href="#cardapio"
+                  className="inline-flex items-center gap-2 rounded-xl bg-terracotta px-[26px] py-3.5 text-[14px] font-semibold text-charcoal transition-all hover:bg-terracotta/90 active:scale-95"
+                >
+                  {ctaLabel} <ArrowRight className="h-4 w-4" />
+                </a>
+                <Link
+                  to={primeiraCampanha ? "/$slug" : "/"}
+                  params={primeiraCampanha ? { slug: primeiraCampanha.slug } : {}}
+                  className="inline-flex items-center rounded-xl border border-white/25 px-[22px] py-3.5 text-[14px] font-medium text-white transition-all hover:border-white/50 active:scale-95"
+                >
+                  {primeiraCampanha?.textos?.titulo || primeiraCampanha?.nome || "Combos & cestas"}
+                </Link>
+              </div>
+            </div>
+
+            {/* Imagem */}
+            <div
+              className="relative overflow-hidden rounded-[22px]"
+              style={{ minHeight: 280 }}
+            >
+              {banner.imagemUrl ? (
+                <img
+                  src={banner.imagemUrl}
+                  alt={titulo}
+                  className="h-full w-full object-cover"
+                  loading="eager"
+                />
+              ) : (
+                <div className="h-full w-full bg-charcoal/40" />
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {/* ── Search bar (ambos) ── */}
       <div className="bg-background px-5 py-4 md:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div
-            className="flex items-center gap-2.5 border border-charcoal/8 bg-white"
-            style={{ height: 48, borderRadius: 14, padding: "0 16px" }}
+            className="flex items-center gap-3 border border-charcoal/8 bg-white"
+            style={{ height: 56, maxWidth: 560, borderRadius: 16, padding: "0 20px" }}
           >
-            <Search className="h-[18px] w-[18px] shrink-0 text-charcoal/40" />
+            <Search className="h-5 w-5 shrink-0 text-charcoal/40" />
             <input
               type="text"
               value={search}
               onChange={(e) => onSearch(e.target.value)}
-              placeholder="Buscar produtos…"
-              className="flex-1 bg-transparent text-[14px] text-charcoal outline-none placeholder:text-charcoal/35"
+              placeholder="Buscar pães, doces, salgados, cafés…"
+              className="flex-1 bg-transparent text-[15px] text-charcoal outline-none placeholder:text-charcoal/35"
             />
             {search && (
               <button
                 onClick={() => onSearch("")}
                 className="flex items-center justify-center p-1 text-charcoal/40 transition-colors hover:text-charcoal"
               >
-                <X className="h-4 w-4" />
+                <X className="h-[18px] w-[18px]" />
               </button>
             )}
           </div>
