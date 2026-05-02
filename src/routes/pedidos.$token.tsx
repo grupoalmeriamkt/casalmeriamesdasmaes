@@ -17,6 +17,8 @@ import {
 import { RefreshCw, Printer, Eye, MessageCircle } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -41,126 +43,21 @@ function statusLabel(p: PedidoSalvo): { label: string; cls: string } {
 
 function CozinhaPage() {
   const { token } = Route.useParams();
+  const { user, loading: authLoading } = useAuth();
+
   const [pedidos, setPedidos] = useState<PedidoSalvo[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState(false);
+  const [carregando, setCarregando] = useState(false);
   const [aba, setAba] = useState<Aba>("aprovados");
   const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
   const [imprimindo, setImprimindo] = useState<PedidoSalvo[] | null>(null);
 
-  // Gate de senha
-  const sessionKey = `pedidos-token-senha:${token}`;
-  const [requerSenha, setRequerSenha] = useState<boolean | null>(null);
-  const [senha, setSenha] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return window.sessionStorage.getItem(sessionKey) ?? "";
-  });
-  const [senhaInput, setSenhaInput] = useState("");
-  const [senhaErro, setSenhaErro] = useState("");
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginSenha, setLoginSenha] = useState("");
+  const [loginErro, setLoginErro] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  const carregar = useCallback(async () => {
-    setCarregando(true);
-    const { tokenRequerSenha, validarSenhaToken } = await import("@/lib/shareToken");
-    const precisa = await tokenRequerSenha(token);
-    setRequerSenha(precisa);
-    if (precisa) {
-      const ok = senha ? await validarSenhaToken(token, senha) : false;
-      if (!ok) {
-        // Senha em sessionStorage ficou inválida (foi trocada/revogada)
-        if (senha && typeof window !== "undefined") {
-          window.sessionStorage.removeItem(sessionKey);
-        }
-        setPedidos([]);
-        setCarregando(false);
-        return;
-      }
-    }
-    const rows: PedidoRow[] = await listarPedidosPorToken(token, senha || undefined);
-    setPedidos(rows.map(rowToPedidoSalvo));
-    setErro(false);
-    setCarregando(false);
-  }, [token, senha, sessionKey]);
-
-  useEffect(() => {
-    carregar();
-    const id = setInterval(carregar, 30_000);
-    return () => clearInterval(id);
-  }, [carregar]);
-
-  const sair = () => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(sessionKey);
-    }
-    setSenha("");
-    setSenhaInput("");
-    setPedidos([]);
-  };
-
-  if (requerSenha && !senha) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-linen p-6">
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const valor = senhaInput.trim();
-            if (!valor) {
-              setSenhaErro("Informe a senha.");
-              return;
-            }
-            const { validarSenhaToken } = await import("@/lib/shareToken");
-            const ok = await validarSenhaToken(token, valor);
-            if (!ok) {
-              setSenhaErro("Senha incorreta.");
-              return;
-            }
-            window.sessionStorage.setItem(sessionKey, valor);
-            setSenha(valor);
-            setSenhaErro("");
-          }}
-          className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 ring-1 ring-border"
-        >
-          <h1 className="font-serif text-xl font-bold text-charcoal">
-            Acesso restrito
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Informe a senha fornecida para visualizar os pedidos.
-          </p>
-          <input
-            type="password"
-            value={senhaInput}
-            onChange={(e) => {
-              setSenhaInput(e.target.value);
-              if (senhaErro) setSenhaErro("");
-            }}
-            maxLength={64}
-            autoFocus
-            autoComplete="current-password"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            placeholder="Senha"
-          />
-          {senhaErro && <p className="text-xs text-terracotta">{senhaErro}</p>}
-          <Button
-            type="submit"
-            className="w-full bg-charcoal text-white hover:bg-charcoal/90"
-          >
-            Entrar
-          </Button>
-        </form>
-        <Toaster position="bottom-right" />
-      </div>
-    );
-  }
-
-  // Loading inicial enquanto descobre se requer senha
-  if (requerSenha === null) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-linen">
-        <p className="text-sm text-muted-foreground">Carregando…</p>
-      </div>
-    );
-  }
-
-
+  // useMemo ANTES de qualquer return condicional (regras dos hooks)
   const aprovados = useMemo(
     () => pedidos.filter((p) => (p.pagamento?.status || "").toLowerCase() === "aprovado"),
     [pedidos],
@@ -173,8 +70,98 @@ function CozinhaPage() {
       }),
     [pedidos],
   );
-
   const lista = aba === "aprovados" ? aprovados : aguardando;
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    try {
+      const rows: PedidoRow[] = await listarPedidosPorToken(token);
+      setPedidos(rows.map(rowToPedidoSalvo));
+    } catch {
+      // token inválido ou sem permissão — deixa lista vazia
+    }
+    setCarregando(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (!user) return;
+    carregar();
+    const id = setInterval(carregar, 30_000);
+    return () => clearInterval(id);
+  }, [user, carregar]);
+
+  // ── Gates (depois de todos os hooks) ──────────────────────────────────────
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linen">
+        <p className="text-sm text-muted-foreground">Carregando…</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linen p-6">
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setLoginErro("");
+            const email = loginEmail.trim();
+            const senha = loginSenha;
+            if (!email || !senha) {
+              setLoginErro("Preencha email e senha.");
+              return;
+            }
+            setLoginLoading(true);
+            const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+            setLoginLoading(false);
+            if (error) {
+              setLoginErro("Email ou senha incorretos.");
+            }
+          }}
+          className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 ring-1 ring-border"
+        >
+          <h1 className="font-serif text-xl font-bold text-charcoal">
+            Acesso restrito
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Faça login para visualizar os pedidos.
+          </p>
+          <input
+            type="email"
+            value={loginEmail}
+            onChange={(e) => { setLoginEmail(e.target.value); setLoginErro(""); }}
+            autoComplete="email"
+            autoFocus
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            placeholder="Email"
+            required
+          />
+          <input
+            type="password"
+            value={loginSenha}
+            onChange={(e) => { setLoginSenha(e.target.value); setLoginErro(""); }}
+            autoComplete="current-password"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            placeholder="Senha"
+            required
+          />
+          {loginErro && <p className="text-xs text-terracotta">{loginErro}</p>}
+          <Button
+            type="submit"
+            disabled={loginLoading}
+            className="w-full bg-charcoal text-white hover:bg-charcoal/90"
+          >
+            {loginLoading ? "Entrando…" : "Entrar"}
+          </Button>
+        </form>
+        <Toaster position="bottom-right" />
+      </div>
+    );
+  }
+
+  // ── View principal (autenticado) ──────────────────────────────────────────
 
   const imprimirUm = (p: PedidoSalvo) => {
     setImprimindo([p]);
@@ -199,7 +186,6 @@ function CozinhaPage() {
 
   return (
     <div className="min-h-screen bg-linen">
-      {/* Tela (não imprime) */}
       <div className="print:hidden">
         <header className="bg-charcoal text-white">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
@@ -227,15 +213,13 @@ function CozinhaPage() {
                 <Printer className="mr-2 h-4 w-4" />
                 Imprimir aprovados de hoje
               </Button>
-              {requerSenha && (
-                <Button
-                  variant="outline"
-                  onClick={sair}
-                  className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
-                >
-                  Sair
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                onClick={() => supabase.auth.signOut()}
+                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              >
+                Sair
+              </Button>
             </div>
           </div>
         </header>
@@ -267,10 +251,6 @@ function CozinhaPage() {
           {carregando && pedidos.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
               Carregando pedidos…
-            </p>
-          ) : erro ? (
-            <p className="py-12 text-center text-sm text-terracotta">
-              Link inválido ou expirado.
             </p>
           ) : lista.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
@@ -362,7 +342,6 @@ function CozinhaPage() {
         </main>
       </div>
 
-      {/* Folha de impressão */}
       {imprimindo && (
         <div className="hidden print:block">
           {imprimindo.map((p) => (
@@ -371,7 +350,6 @@ function CozinhaPage() {
         </div>
       )}
 
-      {/* Modal detalhes */}
       <Dialog open={!!detalhe} onOpenChange={(o) => !o && setDetalhe(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -545,12 +523,7 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
                 • {c.nome} — {formatBRL(c.preco)}
               </p>
               {c.mensagem && (
-                <p
-                  style={{
-                    margin: "2pt 0 0 12pt",
-                    fontStyle: "italic",
-                  }}
-                >
+                <p style={{ margin: "2pt 0 0 12pt", fontStyle: "italic" }}>
                   "{c.mensagem}"
                 </p>
               )}
