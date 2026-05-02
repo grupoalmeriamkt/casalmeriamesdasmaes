@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { usePedido, formatBRL, selectTotal, selectTaxaEntrega } from "@/store/pedido";
+import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
@@ -12,6 +12,7 @@ import {
   useDatasAtivas,
   useHorariosAtivos,
   useCampanhaAtiva,
+  calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
@@ -98,8 +99,7 @@ export function Quiz({
   const removeCartao = usePedido((s) => s.removeCartao);
   const setPolaroid = usePedido((s) => s.setPolaroid);
   const removePolaroid = usePedido((s) => s.removePolaroid);
-  const total = usePedido(selectTotal);
-  const taxaEntrega = usePedido(selectTaxaEntrega);
+  const subtotal = usePedido(selectTotal);
 
   // Admin store
   const cestasAtivas = useProdutosDaCampanhaAtiva();
@@ -112,6 +112,11 @@ export function Quiz({
   const pagamento = useAdmin((s) => s.pagamento);
   const textosGlobais = useAdmin((s) => s.textos);
   const campanhaAtiva = useCampanhaAtiva();
+
+  const taxaEntrega = entregaTipo === "delivery"
+    ? calcTaxaEntrega(campanhaAtiva?.delivery?.taxa)
+    : 0;
+  const total = subtotal + taxaEntrega;
   const textosCampanha = campanhaAtiva?.textos;
   // Mantém compat com `textos.badgePrazo` (texto global).
   const textos = textosGlobais;

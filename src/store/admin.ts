@@ -93,6 +93,16 @@ export type TaxaEntrega =
   | { tipo: "fixa"; valor: number }
   | { tipo: "faixa"; faixas: { ateKm: number; valor: number }[] };
 
+/** Resolve o valor numérico da taxa com base no tipo e distância (km). */
+export function calcTaxaEntrega(taxa: TaxaEntrega | undefined, distKm = 0): number {
+  if (!taxa) return 0;
+  if (taxa.tipo === "fixa") return taxa.valor ?? 0;
+  // faixa: pega o valor da primeira faixa que cobre a distância
+  const sorted = [...taxa.faixas].sort((a, b) => a.ateKm - b.ateKm);
+  const faixa = sorted.find((f) => distKm <= f.ateKm);
+  return faixa?.valor ?? sorted[sorted.length - 1]?.valor ?? 0;
+}
+
 export type CampanhaDelivery = {
   ativo: boolean;
   valorMinimo: number;
