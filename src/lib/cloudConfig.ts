@@ -115,8 +115,8 @@ export async function loadCloudConfig(): Promise<{
 }
 
 /**
- * Salva config pública em `app_config` (sem segredos) e segredos em `app_secrets`.
- * Requer admin (RLS).
+ * Salva config pública em `app_config` e segredos em `app_secrets` via API server-side.
+ * O servidor usa service role (bypassa RLS), validando o JWT do usuário logado.
  */
 export async function saveCloudConfig(): Promise<{
   ok: boolean;
@@ -131,94 +131,37 @@ export async function saveCloudConfig(): Promise<{
 
     const publicPayload = stripSecrets(fullPayload);
 
-    const { error } = await supabase.from("app_config").upsert(
-      {
-        id: CONFIG_ID,
-        payload: publicPayload,
-        atualizado_em: new Date().toISOString(),
-      },
-      { onConflict: "id" },
-    );
-
-    if (error) {
-      console.error("[cloudConfig] save error", error);
-      return { ok: false, error: error.message };
-    }
-
-    // Segredos: só atualiza campos que o usuário preencheu agora.
-    // Se a tabela app_secrets ainda não existir (migração pendente), apenas
-    // avisamos e seguimos — a configuração pública já foi salva.
     const incomingSecrets: AppSecrets = {
       mpAccessToken: state.pagamento.mpAccessToken || undefined,
       metaAccessToken: state.integracoes.metaAccessToken || undefined,
       webhookUrl: state.integracoes.webhookUrl || undefined,
     };
+    const hasAnySecrets = Object.values(incomingSecrets).some(Boolean);
 
-    const hasAnyIncoming =
-      !!incomingSecrets.mpAccessToken ||
-      !!incomingSecrets.metaAccessToken ||
-      !!incomingSecrets.webhookUrl;
+    // Obtém JWT do usuário logado para autorizar a chamada server-side
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      return { ok: false, error: "Sessão expirada. Faça login novamente." };
+    }
 
-    try {
-      const { data: existing, error: readErr } = await supabase
-        .from("app_secrets")
-        .select("payload")
-        .eq("id", CONFIG_ID)
-        .maybeSingle();
+    const res = await fetch("/api/admin/save-config", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        publicPayload,
+        secrets: hasAnySecrets ? incomingSecrets : undefined,
+      }),
+    });
 
-      // Tabela inexistente / não exposta no PostgREST → ignora silenciosamente.
-      const isMissingTable = (e: any) => {
-        if (!e) return false;
-        const code = String(e.code ?? "");
-        const msg = String(e.message ?? "");
-        return (
-          code === "42P01" || // postgres: undefined_table
-          code === "PGRST205" || // postgrest: table not found in schema cache
-          code === "PGRST204" ||
-          /schema cache/i.test(msg) ||
-          /does not exist/i.test(msg) ||
-          /app_secrets/i.test(msg)
-        );
-      };
-
-      if (readErr && isMissingTable(readErr)) {
-        console.warn("[cloudConfig] app_secrets ausente — pulando segredos.");
-        return { ok: true };
-      }
-
-      // Sem nada novo pra gravar → não escreve.
-      if (!hasAnyIncoming) return { ok: true };
-
-      const current = (existing?.payload as AppSecrets) ?? {};
-      const merged: AppSecrets = {
-        mpAccessToken: incomingSecrets.mpAccessToken ?? current.mpAccessToken,
-        metaAccessToken:
-          incomingSecrets.metaAccessToken ?? current.metaAccessToken,
-        webhookUrl: incomingSecrets.webhookUrl ?? current.webhookUrl,
-      };
-
-      const { error: secErr } = await supabase.from("app_secrets").upsert(
-        {
-          id: CONFIG_ID,
-          payload: merged,
-          atualizado_em: new Date().toISOString(),
-        },
-        { onConflict: "id" },
-      );
-
-      if (secErr) {
-        if (isMissingTable(secErr)) {
-          console.warn("[cloudConfig] app_secrets ausente — pulando segredos.");
-          return { ok: true };
-        }
-        console.error("[cloudConfig] save secrets error", secErr);
-        return {
-          ok: false,
-          error: `Configuração pública salva, mas segredos falharam: ${secErr.message}`,
-        };
-      }
-    } catch (e: any) {
-      console.warn("[cloudConfig] segredos: exceção ignorada", e);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = (body as any)?.error ?? res.statusText;
+      console.error("[cloudConfig] save-config API error", res.status, msg);
+      return { ok: false, error: msg };
     }
 
     return { ok: true };

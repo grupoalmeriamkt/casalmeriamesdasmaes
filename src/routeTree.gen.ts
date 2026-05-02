@@ -24,6 +24,7 @@ import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/a
 import { Route as ApiPublicAsaasChargeRouteImport } from './routes/api/public/asaas/charge'
 import { Route as ApiPublicAdminPedidosRouteImport } from './routes/api/public/admin/pedidos'
 import { Route as ApiPublicAsaasStatusIdRouteImport } from './routes/api/public/asaas/status.$id'
+import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
 
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
@@ -100,6 +101,11 @@ const ApiPublicAsaasStatusIdRoute = ApiPublicAsaasStatusIdRouteImport.update({
   path: '/api/public/asaas/status/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminSaveConfigRoute = ApiAdminSaveConfigRouteImport.update({
+  id: '/api/admin/save-config',
+  path: '/api/admin/save-config',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
+  '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
+  '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
+  '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
+    | '/api/admin/save-config'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
+    | '/api/admin/save-config'
   id:
     | '__root__'
     | '/'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
+    | '/api/admin/save-config'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +235,7 @@ export interface RootRouteChildren {
   ApiPublicCupomValidarRoute: typeof ApiPublicCupomValidarRoute
   ApiPublicPagamentoIdRoute: typeof ApiPublicPagamentoIdRoute
   ApiPublicAsaasStatusIdRoute: typeof ApiPublicAsaasStatusIdRoute
+  ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -332,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAsaasStatusIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/save-config': {
+      id: '/api/admin/save-config'
+      path: '/api/admin/save-config'
+      fullPath: '/api/admin/save-config'
+      preLoaderRoute: typeof ApiAdminSaveConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -351,6 +371,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCupomValidarRoute: ApiPublicCupomValidarRoute,
   ApiPublicPagamentoIdRoute: ApiPublicPagamentoIdRoute,
   ApiPublicAsaasStatusIdRoute: ApiPublicAsaasStatusIdRoute,
+  ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
