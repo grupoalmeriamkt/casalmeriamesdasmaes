@@ -65,11 +65,13 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
-  --font-sans: "DM Sans", "Inter", system-ui, sans-serif;
+  --font-serif: "Playfair Display", "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Inter", "DM Sans", system-ui, sans-serif;
   --font-script: "Dancing Script", "Cormorant Garamond", cursive;
   --color-rosa: var(--rosa);
   --color-creme: var(--linen);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-ink: var(--gold-ink);
 
   --shadow-soft: 0 8px 30px -12px oklch(0.2 0.06 260 / 0.14);
   --shadow-elevated: 0 22px 60px -22px oklch(0.2 0.06 260 / 0.28);
@@ -82,6 +84,8 @@
 
 :root {
   --radius: 0.5rem;
+  --gold-soft: #e8c89a;
+  --gold-ink:  #8a5a1f;
 
   /* Casa Almeria — paleta Dia das Mães (HTML reference) */
   --linen: oklch(0.972 0.012 85);          /* #FAF6EF creme */

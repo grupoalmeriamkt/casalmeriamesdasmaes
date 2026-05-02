@@ -136,6 +136,7 @@ export type CampanhaTextos = {
   subtitulo: string;
   boasVindas: string;
   confirmacao: string;
+  eyebrow?: string;
 };
 
 export type UpsellItem =
@@ -159,6 +160,7 @@ export type Campanha = {
   slug: string;
   nome: string;
   status: "ativa" | "pausada";
+  tone?: "navy" | "gold" | "cream";
   imagemDestaque?: string;
   unidadeId?: string;
   delivery: CampanhaDelivery;

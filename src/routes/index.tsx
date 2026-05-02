@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,6 +37,7 @@ function Manutencao({ msg }: { msg: string }) {
 
 function Index() {
   const geral = useAdmin((s) => s.geral);
+  const [search, setSearch] = useState("");
 
   if (!geral.ativa) {
     return (
@@ -51,10 +53,14 @@ function Index() {
       <ThemeApplier />
       <HomeHeader />
       <main>
-        <HomeBanner />
-        <HomeCampanhasDestaque />
-        <HomeCategoriasCarousel />
-        <HomeProdutosPorCategoria />
+        <HomeBanner search={search} onSearch={setSearch} />
+        {!search.trim() && (
+          <>
+            <HomeCampanhasDestaque />
+            <HomeCategoriasCarousel />
+          </>
+        )}
+        <HomeProdutosPorCategoria search={search} />
       </main>
       <HomeFooter />
       <CartDrawer />
