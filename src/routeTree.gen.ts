@@ -25,6 +25,7 @@ import { Route as ApiPublicAsaasChargeRouteImport } from './routes/api/public/as
 import { Route as ApiPublicAdminPedidosRouteImport } from './routes/api/public/admin/pedidos'
 import { Route as ApiPublicAsaasStatusIdRouteImport } from './routes/api/public/asaas/status.$id'
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
+import { Route as ApiAdminCuponsRouteImport } from './routes/api/admin/cupons'
 
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
@@ -106,6 +107,11 @@ const ApiAdminSaveConfigRoute = ApiAdminSaveConfigRouteImport.update({
   path: '/api/admin/save-config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminCuponsRoute = ApiAdminCuponsRouteImport.update({
+  id: '/api/admin/cupons',
+  path: '/api/admin/cupons',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/admin/cupons': typeof ApiAdminCuponsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/admin/cupons': typeof ApiAdminCuponsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/admin/cupons': typeof ApiAdminCuponsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
     | '/api/admin/save-config'
+    | '/api/admin/cupons'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
     | '/api/admin/save-config'
+    | '/api/admin/cupons'
   id:
     | '__root__'
     | '/'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
     | '/api/admin/save-config'
+    | '/api/admin/cupons'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   ApiPublicPagamentoIdRoute: typeof ApiPublicPagamentoIdRoute
   ApiPublicAsaasStatusIdRoute: typeof ApiPublicAsaasStatusIdRoute
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
+  ApiAdminCuponsRoute: typeof ApiAdminCuponsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -352,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminSaveConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/cupons': {
+      id: '/api/admin/cupons'
+      path: '/api/admin/cupons'
+      fullPath: '/api/admin/cupons'
+      preLoaderRoute: typeof ApiAdminCuponsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicPagamentoIdRoute: ApiPublicPagamentoIdRoute,
   ApiPublicAsaasStatusIdRoute: ApiPublicAsaasStatusIdRoute,
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
+  ApiAdminCuponsRoute: ApiAdminCuponsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

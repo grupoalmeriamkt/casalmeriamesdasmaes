@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
+import { usePedido, formatBRL, selectTotal, selectTaxaEntrega } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
@@ -99,6 +99,7 @@ export function Quiz({
   const setPolaroid = usePedido((s) => s.setPolaroid);
   const removePolaroid = usePedido((s) => s.removePolaroid);
   const total = usePedido(selectTotal);
+  const taxaEntrega = usePedido(selectTaxaEntrega);
 
   // Admin store
   const cestasAtivas = useProdutosDaCampanhaAtiva();
@@ -991,6 +992,10 @@ export function Quiz({
               />
               <ResumoLinha label="Data e horário" valor={`${data ?? ""} · ${horario ?? ""}`} />
               <ResumoLinha label="Cliente" valor={`${cliente.nome} · ${cliente.whatsapp}`} />
+              <ResumoLinha
+                label="Taxa de entrega"
+                valor={entregaTipo === "delivery" ? formatBRL(taxaEntrega) : "Grátis"}
+              />
               <div className="mt-3 flex items-center justify-between border-t border-sand/60 pt-4">
                 <span className="text-sm font-medium text-charcoal">Total</span>
                 <span className="font-serif text-2xl font-bold text-terracotta">

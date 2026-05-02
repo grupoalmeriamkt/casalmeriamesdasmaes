@@ -4,6 +4,7 @@ import { AbaTextos } from "@/components/admin/AbaTextos";
 import { AbaCestas } from "@/components/admin/AbaCestas";
 import { AbaCampanhas } from "@/components/admin/AbaCampanhas";
 import { AbaPedidos } from "@/components/admin/AbaPedidos";
+import { AbaCupons } from "@/components/admin/AbaCupons";
 import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -18,6 +19,7 @@ import {
   Megaphone,
   ListOrdered,
   Settings,
+  Tag,
 } from "lucide-react";
 import { UserProfileWidget } from "@/components/admin/UserProfileWidget";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +33,7 @@ const ABAS = [
   { id: "cestas", label: "Produtos", Icon: Package, Comp: AbaCestas },
   { id: "campanhas", label: "Campanhas", Icon: Megaphone, Comp: AbaCampanhas },
   { id: "pedidos", label: "Pedidos", Icon: ListOrdered, Comp: AbaPedidos },
+  { id: "cupons", label: "Cupons", Icon: Tag, Comp: AbaCupons },
   { id: "configuracoes", label: "Configurações", Icon: Settings, Comp: AbaConfiguracoes },
 ] as const;
 

@@ -6,7 +6,7 @@ import { Loader2, Tag, Lock, CheckCircle2, Zap, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
+import { usePedido, formatBRL, selectTotal, selectTaxaEntrega } from "@/store/pedido";
 import { finalizarPedido } from "@/lib/pedidos";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
@@ -61,6 +61,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
   const navigate = useNavigate();
   const pedidoState = usePedido((s) => s);
   const total = usePedido(selectTotal);
+  const taxaEntrega = usePedido(selectTaxaEntrega);
 
   const metodosDisponiveis: Metodo[] = [
     ...(habilitarPix ? (["PIX"] as const) : []),
@@ -328,7 +329,11 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         <div className="mt-3 space-y-1 border-t border-sand/60 pt-3 text-sm">
           <div className="flex justify-between text-ink/70">
             <span>Subtotal</span>
-            <span>{formatBRL(total)}</span>
+            <span>{formatBRL(total - taxaEntrega)}</span>
+          </div>
+          <div className="flex justify-between text-ink/70">
+            <span>Taxa de entrega</span>
+            <span>{pedidoState.entregaTipo === "delivery" ? formatBRL(taxaEntrega) : "Grátis"}</span>
           </div>
           {cupomAplicado && (
             <div className="flex justify-between text-emerald-700">

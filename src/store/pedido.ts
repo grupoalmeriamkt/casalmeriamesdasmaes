@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Cesta, Sobremesa, EnderecoEntrega, Unidade } from "@/lib/types";
+import { useAdmin } from "@/store/admin";
 
 export type CartaoExtra = {
   itemId: string;
@@ -143,6 +144,13 @@ export const usePedido = create<State & Actions>()(
   ),
 );
 
+export const selectTaxaEntrega = (s: State): number => {
+  if (s.entregaTipo !== "delivery") return 0;
+  const adminState = useAdmin.getState();
+  const campanha = adminState.campanhas.find((c) => c.id === adminState.campanhaAtivaId);
+  return campanha?.delivery?.taxa ?? 0;
+};
+
 export const selectTotal = (s: State) => {
   const cestaTotal = s.cesta ? s.cesta.cesta.preco * s.cesta.quantidade : 0;
   const sobremesasTotal = Object.values(s.sobremesas).reduce(
@@ -151,7 +159,8 @@ export const selectTotal = (s: State) => {
   );
   const cartoesTotal = s.extras.cartoes.reduce((a, c) => a + c.preco, 0);
   const polaroidsTotal = s.extras.polaroids.reduce((a, p) => a + p.preco, 0);
-  return cestaTotal + sobremesasTotal + cartoesTotal + polaroidsTotal;
+  const taxa = selectTaxaEntrega(s);
+  return cestaTotal + sobremesasTotal + cartoesTotal + polaroidsTotal + taxa;
 };
 
 export const formatBRL = (v: number) =>
