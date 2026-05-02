@@ -250,7 +250,9 @@ export function Quiz({
       pagamento: { metodo: "", status: "rascunho" },
       total:
         (st.cesta ? st.cesta.cesta.preco * st.cesta.quantidade : 0) +
-        Object.values(st.sobremesas).reduce((a, s) => a + s.sobremesa.preco * s.quantidade, 0),
+        Object.values(st.sobremesas).reduce((a, s) => a + s.sobremesa.preco * s.quantidade, 0) +
+        st.extras.cartoes.reduce((a, c) => a + c.preco, 0) +
+        st.extras.polaroids.reduce((a, p) => a + p.preco, 0),
       ...extras,
     } as Parameters<typeof upsertRascunho>[0];
     const { id, error } = await upsertRascunho(payload, st.pedidoId);
@@ -997,6 +999,12 @@ export function Quiz({
               />
               <ResumoLinha label="Data e horário" valor={`${data ?? ""} · ${horario ?? ""}`} />
               <ResumoLinha label="Cliente" valor={`${cliente.nome} · ${cliente.whatsapp}`} />
+              {extras.cartoes.map((c) => (
+                <ResumoLinha key={`c-${c.itemId}`} label={`💌 ${c.nome}`} valor={formatBRL(c.preco)} />
+              ))}
+              {extras.polaroids.map((p) => (
+                <ResumoLinha key={`p-${p.itemId}`} label={`📸 ${p.nome}`} valor={formatBRL(p.preco)} />
+              ))}
               <ResumoLinha
                 label="Taxa de entrega"
                 valor={entregaTipo === "delivery" ? formatBRL(taxaEntrega) : "Grátis"}

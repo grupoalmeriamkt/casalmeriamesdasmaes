@@ -221,6 +221,16 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           quantidade: s.quantidade,
           preco: s.sobremesa.preco,
         })),
+        ...pedidoState.extras.cartoes.map((c) => ({
+          nome: c.nome,
+          quantidade: 1,
+          preco: c.preco,
+        })),
+        ...pedidoState.extras.polaroids.map((p) => ({
+          nome: p.nome,
+          quantidade: 1,
+          preco: p.preco,
+        })),
       ];
 
       const enderecoOuUnidade =
@@ -328,6 +338,18 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
               <span className="font-semibold text-charcoal">
                 {formatBRL(s.sobremesa.preco * s.quantidade)}
               </span>
+            </li>
+          ))}
+          {pedidoState.extras.cartoes.map((c) => (
+            <li key={`cartao-${c.itemId}`} className="flex justify-between">
+              <span className="text-charcoal">💌 {c.nome}</span>
+              <span className="font-semibold text-charcoal">{formatBRL(c.preco)}</span>
+            </li>
+          ))}
+          {pedidoState.extras.polaroids.map((p) => (
+            <li key={`polaroid-${p.itemId}`} className="flex justify-between">
+              <span className="text-charcoal">📸 {p.nome}</span>
+              <span className="font-semibold text-charcoal">{formatBRL(p.preco)}</span>
             </li>
           ))}
         </ul>
