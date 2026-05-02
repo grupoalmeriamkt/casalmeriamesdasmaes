@@ -126,6 +126,9 @@ export async function listarPedidosPorToken(token: string, senha?: string): Prom
 
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
+  const ultimoPag = r.pagamentos
+    ?.slice()
+    .sort((a, b) => b.criado_em.localeCompare(a.criado_em))[0];
   return {
     id: r.id,
     criadoEm: r.criado_em,
@@ -136,7 +139,10 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     enderecoOuUnidade: r.endereco_ou_unidade,
     data: r.data_entrega ?? undefined,
     horario: r.horario ?? undefined,
-    pagamento: r.pagamento,
+    pagamento: {
+      ...r.pagamento,
+      status: ultimoPag?.status ?? r.pagamento?.status ?? "",
+    },
     total: Number(r.total),
   };
 }

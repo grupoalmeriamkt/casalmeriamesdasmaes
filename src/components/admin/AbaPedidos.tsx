@@ -73,6 +73,9 @@ export function AbaPedidos() {
   const [carregando, setCarregando] = useState(true);
   const [filtro, setFiltro] = useState("");
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("todos");
+  const [filtroTipo, setFiltroTipo] = useState<"" | "delivery" | "retirada">("");
+  const [filtroData, setFiltroData] = useState("");
+  const [filtroPolaroid, setFiltroPolaroid] = useState(false);
   const [tokens, setTokens] = useState<ShareToken[]>([]);
   const [tokensLoading, setTokensLoading] = useState(false);
   const [detalhe, setDetalhe] = useState<{ pedido: PedidoSalvo; row: PedidoRow } | null>(null);
@@ -126,16 +129,16 @@ export function AbaPedidos() {
       const pag = ultimoPagamento(r);
       const cat = categoria(pag?.status, r.status);
       if (status !== "todos" && cat !== status) return false;
-      if (
-        filtro &&
-        !`${r.cliente_nome} ${r.id} ${pag?.asaas_payment_id ?? ""}`
-          .toLowerCase()
-          .includes(filtro.toLowerCase())
-      )
-        return false;
+      if (filtro && !`${r.cliente_nome} ${r.id} ${pag?.asaas_payment_id ?? ""}`.toLowerCase().includes(filtro.toLowerCase())) return false;
+      if (filtroTipo && r.tipo?.toLowerCase() !== filtroTipo) return false;
+      if (filtroData && r.data_entrega !== filtroData) return false;
+      if (filtroPolaroid) {
+        const p = rowToPedidoSalvo(r);
+        if (!((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
+      }
       return true;
     });
-  }, [rows, filtro, status]);
+  }, [rows, filtro, status, filtroTipo, filtroData, filtroPolaroid]);
 
   const hojeCount = rows.filter((r) => {
     const d = new Date(r.criado_em);
@@ -305,6 +308,37 @@ export function AbaPedidos() {
               </option>
             ))}
           </select>
+          <select
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value as "" | "delivery" | "retirada")}
+            className="rounded-md border border-border bg-background px-3 text-sm"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="delivery">Delivery</option>
+            <option value="retirada">Retirada</option>
+          </select>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted-foreground">Entrega:</label>
+            <input
+              type="date"
+              value={filtroData}
+              onChange={(e) => setFiltroData(e.target.value)}
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+            />
+            {filtroData && (
+              <button onClick={() => setFiltroData("")} className="text-muted-foreground hover:text-charcoal">
+                <span className="text-sm">×</span>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setFiltroPolaroid((v) => !v)}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              filtroPolaroid ? "bg-charcoal text-white" : "border border-border bg-background text-charcoal hover:bg-muted"
+            }`}
+          >
+            📸 Com polaroid
+          </button>
           <Button
             variant="outline"
             onClick={carregar}

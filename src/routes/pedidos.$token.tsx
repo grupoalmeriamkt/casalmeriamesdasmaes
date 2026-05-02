@@ -50,11 +50,22 @@ const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; header: stri
 };
 
 const STATUS_ALIASES: Record<string, StatusKey> = {
+  // Asaas (maiúsculo)
+  CONFIRMED: "aprovado",
+  RECEIVED: "aprovado",
+  PENDING: "pendente",
+  OVERDUE: "pendente",
+  REFUNDED: "abandonado",
+  PAYMENT_DELETED: "abandonado",
+  CHARGEBACK_REQUESTED: "abandonado",
+  CHARGEBACK_DISPUTE: "abandonado",
+  // Internos (minúsculo)
   aprovado: "aprovado",
   pago: "aprovado",
   recebido: "aprovado",
   pendente: "pendente",
   aguardando: "pendente",
+  aguardando_pagamento: "pendente",
   rascunho: "rascunho",
   abandonado: "abandonado",
   cancelado: "abandonado",
@@ -91,6 +102,7 @@ function CozinhaPage() {
   const [filtroStatus, setFiltroStatus] = useState<StatusKey[]>([]);
   const [filtroTipo, setFiltroTipo] = useState<"" | "delivery" | "retirada">("");
   const [filtroData, setFiltroData] = useState("");
+  const [filtroPolaroid, setFiltroPolaroid] = useState(false);
 
   // login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -99,7 +111,7 @@ function CozinhaPage() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   // ── Refresh estável: não recria o interval ao mudar carregar ──────────────
-  const carregarRef = useRef<() => Promise<void>>();
+  const carregarRef = useRef<(() => Promise<void>) | undefined>(undefined);
   carregarRef.current = async () => {
     setCarregando(true);
     try {
@@ -125,9 +137,10 @@ function CozinhaPage() {
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroData && p.data !== filtroData) return false;
+      if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       return true;
     });
-  }, [pedidos, filtroStatus, filtroTipo, filtroData]);
+  }, [pedidos, filtroStatus, filtroTipo, filtroData, filtroPolaroid]);
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
@@ -211,7 +224,7 @@ function CozinhaPage() {
     );
   };
 
-  const temFiltro = filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "";
+  const temFiltro = filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid;
 
   // ── View ──────────────────────────────────────────────────────────────────
   return (
@@ -328,6 +341,18 @@ function CozinhaPage() {
               )}
             </div>
 
+            <div className="h-4 w-px bg-border" />
+
+            {/* Polaroid */}
+            <button
+              onClick={() => setFiltroPolaroid((v) => !v)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+              }`}
+            >
+              📸 Com polaroid
+            </button>
+
             {/* Contador + limpar */}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
@@ -335,7 +360,7 @@ function CozinhaPage() {
               </span>
               {temFiltro && (
                 <button
-                  onClick={() => { setFiltroStatus([]); setFiltroTipo(""); setFiltroData(""); }}
+                  onClick={() => { setFiltroStatus([]); setFiltroTipo(""); setFiltroData(""); setFiltroPolaroid(false); }}
                   className="text-xs font-semibold text-terracotta hover:text-terracotta/80"
                 >
                   Limpar filtros
@@ -648,7 +673,7 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
         return (
           <div>
             <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Personalizações</p>
-            <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="cliente" />
+            <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
           </div>
         );
       })()}
