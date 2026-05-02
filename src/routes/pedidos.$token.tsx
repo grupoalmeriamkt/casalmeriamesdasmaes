@@ -49,9 +49,20 @@ const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; header: stri
   abandonado: { label: "Abandonado",           bg: "bg-terracotta/15 text-terracotta",     header: "bg-muted text-charcoal" },
 };
 
+const STATUS_ALIASES: Record<string, StatusKey> = {
+  aprovado: "aprovado",
+  pago: "aprovado",
+  recebido: "aprovado",
+  pendente: "pendente",
+  aguardando: "pendente",
+  rascunho: "rascunho",
+  abandonado: "abandonado",
+  cancelado: "abandonado",
+};
+
 function getStatus(p: PedidoSalvo): StatusKey {
-  const s = (p.pagamento?.status || "").toLowerCase() as StatusKey;
-  return STATUS_CONFIG[s] ? s : "rascunho";
+  const s = (p.pagamento?.status || "").toLowerCase();
+  return STATUS_ALIASES[s] ?? "rascunho";
 }
 
 function horaNow() {
@@ -472,7 +483,7 @@ function KanbanView({
             </div>
 
             {/* Cards */}
-            <div className="flex flex-col gap-2 overflow-y-auto p-3" style={{ maxHeight: "calc(100vh - 280px)" }}>
+            <div className="flex flex-col gap-2 p-3">
               {lista.length === 0 ? (
                 <p className="py-8 text-center text-xs text-muted-foreground">Vazio</p>
               ) : (
