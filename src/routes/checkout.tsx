@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { upsertRascunho } from "@/lib/pedidos";
 import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock } from "lucide-react";
+import { useAdmin } from "@/store/admin";
+import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
+import { trackBeginCheckout, trackAddPaymentInfo } from "@/lib/gtm";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -75,6 +78,9 @@ function CheckoutPage() {
   const clear = useCarrinho((s) => s.clear);
   const { total } = useCarrinhoTotal();
   const navigate = useNavigate();
+  const pixelId = useAdmin((s) => s.integracoes.metaPixelId);
+  const testEventCode = useAdmin((s) => s.integracoes.metaTestEventCode);
+  const firedInitiate = useRef(false);
 
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
@@ -115,6 +121,48 @@ function CheckoutPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
+
+  // InitiateCheckout — dispara uma única vez ao entrar na página de checkout
+  useEffect(() => {
+    if (firedInitiate.current) return;
+    firedInitiate.current = true;
+    const eventId = newEventId("ic");
+    fbqTrack("InitiateCheckout", { value: total, currency: "BRL", num_items: itens.length }, eventId);
+    trackBeginCheckout({ value: total, currency: "BRL", num_items: itens.length });
+    if (pixelId) {
+      void sendCapiEvent({
+        pixelId,
+        testEventCode,
+        eventName: "InitiateCheckout",
+        eventId,
+        customData: { value: total, currency: "BRL", num_items: itens.length },
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // AddPaymentInfo — dispara ao mudar o método de pagamento
+  const prevMetodo = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevMetodo.current === null) {
+      prevMetodo.current = metodo;
+      return;
+    }
+    if (prevMetodo.current === metodo) return;
+    prevMetodo.current = metodo;
+    const eventId = newEventId("api");
+    fbqTrack("AddPaymentInfo", { value: totalComDesconto, currency: "BRL", payment_type: metodo }, eventId);
+    trackAddPaymentInfo({ value: totalComDesconto, currency: "BRL", payment_type: metodo });
+    if (pixelId) {
+      void sendCapiEvent({
+        pixelId,
+        testEventCode,
+        eventName: "AddPaymentInfo",
+        eventId,
+        customData: { value: totalComDesconto, currency: "BRL", payment_type: metodo },
+      });
+    }
+  }, [metodo, totalComDesconto, pixelId, testEventCode]);
 
   async function aplicarCupom(codigo: string, silent = false) {
     if (!codigo.trim()) return;

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
 import type { AsaasWebhookEvent } from "@/integrations/asaas/types";
+import { sendCapiEventServer } from "@/lib/metaCapiServer";
 
 const FINAL_PAID = new Set(["CONFIRMED", "RECEIVED"]);
 const FINAL_FAILED = new Set([
@@ -10,6 +11,76 @@ const FINAL_FAILED = new Set([
   "CHARGEBACK_DISPUTE",
   "PAYMENT_DELETED",
 ]);
+
+async function dispatchPurchaseCapi(
+  admin: ReturnType<typeof getAdminClient>,
+  pedidoId: string,
+  asaasPaymentId: string,
+) {
+  if (!admin) return;
+  try {
+    const [pedidoRes, configRes, secrets] = await Promise.all([
+      admin
+        .from("pedidos")
+        .select("total, cliente")
+        .eq("id", pedidoId)
+        .maybeSingle(),
+      admin
+        .from("app_config")
+        .select("payload")
+        .eq("id", "default")
+        .maybeSingle(),
+      getAppSecrets(),
+    ]);
+
+    const accessToken = secrets.metaAccessToken;
+    if (!accessToken) return;
+
+    const pixelId: string =
+      (configRes.data?.payload as Record<string, unknown> | null)?.integracoes &&
+      typeof (configRes.data?.payload as Record<string, unknown>).integracoes === "object"
+        ? (
+            (configRes.data!.payload as Record<string, unknown>).integracoes as Record<
+              string,
+              unknown
+            >
+          ).metaPixelId as string
+        : "";
+    if (!pixelId || !/^\d{6,20}$/.test(pixelId)) return;
+
+    const testEventCode: string | undefined =
+      (
+        (configRes.data?.payload as Record<string, unknown> | null)
+          ?.integracoes as Record<string, unknown> | undefined
+      )?.metaTestEventCode as string | undefined;
+
+    const pedido = pedidoRes.data;
+    const cliente = pedido?.cliente as { nome?: string; whatsapp?: string; email?: string } | null;
+    const [firstName, ...rest] = (cliente?.nome ?? "").split(" ");
+
+    await sendCapiEventServer({
+      pixelId,
+      accessToken,
+      testEventCode: testEventCode || undefined,
+      eventName: "Purchase",
+      eventId: `purchase_${asaasPaymentId}`,
+      userData: {
+        phone: cliente?.whatsapp ? `55${cliente.whatsapp.replace(/\D/g, "")}` : undefined,
+        email: cliente?.email,
+        firstName: firstName || undefined,
+        lastName: rest.length ? rest.join(" ") : undefined,
+        externalId: pedidoId,
+      },
+      customData: {
+        value: pedido?.total ?? 0,
+        currency: "BRL",
+        order_id: pedidoId,
+      },
+    });
+  } catch (err) {
+    console.error("[webhook] dispatchPurchaseCapi falhou", err);
+  }
+}
 
 function pedidoStatusFromAsaas(status: string): string {
   if (FINAL_PAID.has(status)) return "pago";
@@ -103,6 +174,11 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
               await admin.rpc("incrementar_uso_cupom", {
                 _codigo: pagamento.cupom_codigo,
               });
+            }
+
+            // Dispara Purchase via CAPI na primeira confirmação de pagamento
+            if (FINAL_PAID.has(newStatus) && !FINAL_PAID.has(pagamento.status ?? "")) {
+              void dispatchPurchaseCapi(admin, pagamento.pedido_id, event.payment.id);
             }
           }
 

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { ThemeApplier } from "@/components/ThemeApplier";
@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useAdmin } from "@/store/admin";
 import { CheckCircle2, Copy, Loader2, MessageCircle, Clock, ArrowLeft } from "lucide-react";
+import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
+import { trackPurchase } from "@/lib/gtm";
 
 export const Route = createFileRoute("/sucesso/$id")({
   head: () => ({
@@ -42,6 +44,9 @@ function SucessoPage() {
   const [statusLive, setStatusLive] = useState<string | null>(null);
 
   const whatsappUrl = useAdmin((s) => s.home.rodape.redes.whatsapp);
+  const pixelId = useAdmin((s) => s.integracoes.metaPixelId);
+  const testEventCode = useAdmin((s) => s.integracoes.metaTestEventCode);
+  const firedPurchase = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +97,32 @@ function SucessoPage() {
 
   const pago = PAGO_STATUSES.has(statusLive ?? "");
   const falhou = FALHOU_STATUSES.has(statusLive ?? "");
+
+  // Purchase — dispara uma única vez quando pagamento é confirmado
+  useEffect(() => {
+    if (!pago || !pagamento || firedPurchase.current) return;
+    firedPurchase.current = true;
+
+    const eventId = newEventId("pur");
+    const value = pagamento.valor;
+
+    // GTM → Google Ads / GA4
+    trackPurchase({ transaction_id: pagamento.id, value, currency: "BRL" });
+
+    // Meta Pixel (browser)
+    fbqTrack("Purchase", { value, currency: "BRL" }, eventId);
+
+    // Meta CAPI (server-side, deduplicado pelo mesmo eventId)
+    if (pixelId) {
+      void sendCapiEvent({
+        pixelId,
+        testEventCode,
+        eventName: "Purchase",
+        eventId,
+        customData: { value, currency: "BRL", order_id: pagamento.id },
+      });
+    }
+  }, [pago, pagamento, pixelId, testEventCode]);
 
   const wppHref = useMemo(() => {
     const base = whatsappUrl?.startsWith("http")

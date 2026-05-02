@@ -6,7 +6,7 @@ import { getAppSecrets } from "@/integrations/supabase/client.server";
 const BodySchema = z.object({
   pixelId: z.string().regex(/^\d{6,20}$/),
   testEventCode: z.string().max(64).optional().or(z.literal("")),
-  eventName: z.enum(["PageView", "Lead", "ViewContent", "InitiateCheckout", "Purchase"]),
+  eventName: z.enum(["PageView", "Lead", "ViewContent", "InitiateCheckout", "AddPaymentInfo", "Purchase"]),
   eventId: z.string().min(4).max(128),
   eventSourceUrl: z.string().url().max(2000).optional(),
   userData: z

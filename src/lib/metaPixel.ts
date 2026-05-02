@@ -28,7 +28,7 @@ export function newEventId(prefix = "evt"): string {
   return `${prefix}_${rand}`;
 }
 
-type PixelEventName = "PageView" | "Lead" | "ViewContent" | "InitiateCheckout" | "Purchase";
+type PixelEventName = "PageView" | "Lead" | "ViewContent" | "InitiateCheckout" | "AddPaymentInfo" | "Purchase";
 
 export function fbqTrack(
   event: PixelEventName,
