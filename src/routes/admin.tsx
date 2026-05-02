@@ -6,6 +6,7 @@ import { AbaCampanhas } from "@/components/admin/AbaCampanhas";
 import { AbaPedidos } from "@/components/admin/AbaPedidos";
 import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
+import { AdminLogin } from "@/components/admin/AdminLogin";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import {
   Settings,
 } from "lucide-react";
 import { UserProfileWidget } from "@/components/admin/UserProfileWidget";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -33,6 +35,24 @@ const ABAS = [
 ] as const;
 
 function AdminPage() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linen">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-charcoal border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AdminLogin />;
+  }
+
+  return <AdminPanel />;
+}
+
+function AdminPanel() {
   const [aba, setAba] = useState<(typeof ABAS)[number]["id"]>(() => {
     if (typeof window === "undefined") return "textos";
     const saved = window.localStorage.getItem("admin:aba");
