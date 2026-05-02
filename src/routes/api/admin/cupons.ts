@@ -25,6 +25,18 @@ const BodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delete"), id: z.string().uuid() }),
 ]);
 
+async function checkFilterColumns(admin: NonNullable<ReturnType<typeof getAdminClient>>): Promise<boolean> {
+  try {
+    const { error } = await admin
+      .from("cupons")
+      .select("campanha_ids")
+      .limit(0);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 async function authenticate(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -68,17 +80,25 @@ export const Route = createFileRoute("/api/admin/cupons")({
         }
 
         if (body.action === "create") {
+          const hasFilterCols = await checkFilterColumns(admin);
+
+          const insertData: Record<string, unknown> = {
+            codigo: body.data.codigo.toUpperCase(),
+            tipo: body.data.tipo,
+            valor: body.data.valor,
+            ativo: body.data.ativo ?? true,
+            validade: body.data.validade || null,
+            uso_max: body.data.uso_max ?? null,
+            valor_minimo: body.data.valor_minimo ?? null,
+          };
+          if (hasFilterCols) {
+            insertData.campanha_ids = body.data.campanha_ids ?? null;
+            insertData.produto_ids = body.data.produto_ids ?? null;
+          }
+
           const { data, error } = await admin
             .from("cupons")
-            .insert({
-              ...body.data,
-              codigo: body.data.codigo.toUpperCase(),
-              validade: body.data.validade || null,
-              uso_max: body.data.uso_max ?? null,
-              valor_minimo: body.data.valor_minimo ?? null,
-              campanha_ids: body.data.campanha_ids ?? null,
-              produto_ids: body.data.produto_ids ?? null,
-            })
+            .insert(insertData)
             .select()
             .single();
           if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -86,9 +106,19 @@ export const Route = createFileRoute("/api/admin/cupons")({
         }
 
         if (body.action === "update") {
-          const updateData: Record<string, unknown> = { ...body.data };
+          const hasFilterCols = await checkFilterColumns(admin);
+          const updateData: Record<string, unknown> = {};
           if (body.data.codigo) updateData.codigo = body.data.codigo.toUpperCase();
+          if (body.data.tipo !== undefined) updateData.tipo = body.data.tipo;
+          if (body.data.valor !== undefined) updateData.valor = body.data.valor;
+          if (body.data.ativo !== undefined) updateData.ativo = body.data.ativo;
           if ("validade" in body.data) updateData.validade = body.data.validade || null;
+          if (body.data.uso_max !== undefined) updateData.uso_max = body.data.uso_max ?? null;
+          if (body.data.valor_minimo !== undefined) updateData.valor_minimo = body.data.valor_minimo ?? null;
+          if (hasFilterCols) {
+            if (body.data.campanha_ids !== undefined) updateData.campanha_ids = body.data.campanha_ids ?? null;
+            if (body.data.produto_ids !== undefined) updateData.produto_ids = body.data.produto_ids ?? null;
+          }
           updateData.atualizado_em = new Date().toISOString();
 
           const { data, error } = await admin
