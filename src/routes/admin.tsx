@@ -18,6 +18,7 @@ import {
   ListOrdered,
   Settings,
 } from "lucide-react";
+import { UserProfileWidget } from "@/components/admin/UserProfileWidget";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -100,6 +101,7 @@ function AdminPage() {
               <ExternalLink className="mr-2 h-4 w-4" /> Ver site
             </a>
           </Button>
+          <UserProfileWidget />
         </div>
       </aside>
 
