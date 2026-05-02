@@ -9,6 +9,7 @@ import { HomeCategoriasCarousel } from "@/components/home/HomeCategoriasCarousel
 import { HomeProdutosPorCategoria } from "@/components/home/HomeProdutosPorCategoria";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { CartDrawer } from "@/components/home/CartDrawer";
+import { HomeHeader } from "@/components/home/HomeHeader";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,11 +49,7 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <ThemeApplier />
-      <header className="bg-charcoal">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6 md:px-8">
-          <Logo variant="light" />
-        </div>
-      </header>
+      <HomeHeader />
       <main>
         <HomeBanner />
         <HomeCampanhasDestaque />
