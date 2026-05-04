@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -37,6 +37,10 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+const MapaRaioLazy = lazy(() =>
+  import("./MapaRaio").then((m) => ({ default: m.MapaRaio })),
+);
+
 import {
   Truck,
   Store,
@@ -57,6 +61,7 @@ export function CampanhaForm({ campanha }: Props) {
   const setDelivery = useAdmin((s) => s.setCampanhaDelivery);
   const setRetirada = useAdmin((s) => s.setCampanhaRetirada);
   const cestas = useAdmin((s) => s.cestas);
+  const unidades = useAdmin((s) => s.unidades);
 
   return (
     <div className="space-y-6">
@@ -86,6 +91,7 @@ export function CampanhaForm({ campanha }: Props) {
             campanha={campanha}
             cestas={cestas}
             onPatch={(p) => setDelivery(campanha.id, p)}
+            unidades={unidades}
           />
         </TabsContent>
         <TabsContent value="retirada" className="mt-4">
@@ -410,15 +416,21 @@ function DatePickerCampo({
 
 function DeliveryTab({
   campanha,
-  cestas,
+  cestas: _cestas,
+  unidades,
   onPatch,
 }: {
   campanha: Campanha;
   cestas: CestaAdmin[];
+  unidades: import("@/store/admin").UnidadeCadastrada[];
   onPatch: (p: Partial<CampanhaDelivery>) => void;
 }) {
   const d = campanha.delivery;
   const [bairroInput, setBairroInput] = useState("");
+
+  const unidade = unidades.find((u) => u.id === campanha.unidadeId);
+  const centroLat = d.centroLat ?? unidade?.lat ?? -23.5505;
+  const centroLng = d.centroLng ?? unidade?.lng ?? -46.6333;
 
   return (
     <div className="space-y-5">
@@ -570,8 +582,26 @@ function DeliveryTab({
       </Bloco>
 
       <Bloco titulo="Área de atendimento">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Raio (km)">
+        <Suspense
+          fallback={
+            <div className="h-80 animate-pulse rounded-xl bg-muted" />
+          }
+        >
+          <MapaRaioLazy
+            centroLat={centroLat}
+            centroLng={centroLng}
+            faixas={d.taxa.tipo === "faixa" ? d.taxa.faixas : []}
+            raioKm={d.raioKm}
+            tipoTaxa={d.taxa.tipo}
+            taxaFixa={d.taxa.tipo === "fixa" ? d.taxa.valor : undefined}
+            onCentroChange={(lat, lng) =>
+              onPatch({ centroLat: lat, centroLng: lng })
+            }
+          />
+        </Suspense>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Field label="Raio máximo (km)">
             <Input
               type="number"
               min={0}

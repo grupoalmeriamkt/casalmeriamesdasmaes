@@ -116,6 +116,8 @@ export type CampanhaDelivery = {
   upsellProdutoIds: string[];
   datas: { id: string; label: string; ativa: boolean }[];
   horarios: { label: string; ativo: boolean }[];
+  centroLat?: number;
+  centroLng?: number;
 };
 
 export type CampanhaRetirada = {
