@@ -164,6 +164,7 @@ export type Campanha = {
   status: "ativa" | "pausada";
   tone?: "navy" | "gold" | "cream";
   imagemDestaque?: string;
+  socialImageUrl?: string;
   unidadeId?: string;
   delivery: CampanhaDelivery;
   retirada: CampanhaRetirada;

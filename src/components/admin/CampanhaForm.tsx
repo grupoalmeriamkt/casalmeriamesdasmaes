@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -12,6 +12,10 @@ import {
   type UpsellItem,
 } from "@/store/admin";
 import { validarSlug, normalizarSlug } from "@/lib/slugs";
+import { supabase } from "@/integrations/supabase/client";
+import { ImageUpload } from "./ImageUpload";
+import { ImageCropDialog } from "./ImageCropDialog";
+import { uploadOptimizedImage } from "@/lib/imageUpload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -52,6 +56,10 @@ import {
   X,
   Settings,
   CalendarIcon,
+  Library,
+  Upload,
+  Loader2,
+  Check,
 } from "lucide-react";
 
 type Props = { campanha: Campanha };
@@ -253,6 +261,16 @@ function InfoGeralTab({
             </Select>
           </Field>
         </div>
+      </Bloco>
+
+      <Bloco titulo="Social Image">
+        <p className="text-xs text-muted-foreground">
+          Imagem exibida ao compartilhar o link da campanha (WhatsApp, redes sociais). Proporção recomendada 1200 × 630 px.
+        </p>
+        <SocialImagePicker
+          value={campanha.socialImageUrl ?? ""}
+          onChange={(url) => onPatch({ socialImageUrl: url })}
+        />
       </Bloco>
 
       <Bloco titulo="Produtos Principais">
@@ -1379,6 +1397,236 @@ function UpsellEditor({
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================ */
+/*                    SOCIAL IMAGE PICKER                       */
+/* ============================================================ */
+
+const BUCKET = "admin-uploads";
+const LIBRARY_FOLDERS = ["campanhas", "produtos", "aparencia", "geral"];
+const OG_ASPECT = 1200 / 630;
+
+function SocialImagePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+}) {
+  const [aba, setAba] = useState<"upload" | "biblioteca">("upload");
+  const [imagens, setImagens] = useState<string[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [pendente, setPendente] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function carregarBiblioteca() {
+    setCarregando(true);
+    try {
+      const urls: string[] = [];
+      for (const folder of LIBRARY_FOLDERS) {
+        const { data } = await supabase.storage
+          .from(BUCKET)
+          .list(folder, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
+        for (const item of data ?? []) {
+          if (item.name.endsWith(".webp") || item.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+            const { data: pub } = supabase.storage
+              .from(BUCKET)
+              .getPublicUrl(`${folder}/${item.name}`);
+            urls.push(pub.publicUrl);
+          }
+        }
+      }
+      setImagens(urls);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  useEffect(() => {
+    if (aba === "biblioteca" && imagens.length === 0) {
+      void carregarBiblioteca();
+    }
+  }, [aba]);
+
+  async function handleCroppedBlob(blob: Blob) {
+    setUploading(true);
+    try {
+      const url = await uploadOptimizedImage(blob, "campanhas");
+      onChange(url);
+      setPendente(null);
+      toast.success("Social image enviada com sucesso");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro no upload");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Preview da imagem atual */}
+      {value && (
+        <div className="relative">
+          <img
+            src={value}
+            alt="Social image"
+            className="h-40 w-full rounded-xl object-cover ring-1 ring-border"
+          />
+          <div className="absolute right-2 top-2 flex gap-1">
+            <button
+              type="button"
+              onClick={() => { setAba("upload"); inputRef.current?.click(); }}
+              className="rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80"
+              title="Trocar imagem"
+            >
+              <Upload className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80"
+              title="Remover"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white">
+            1200 × 630
+          </span>
+        </div>
+      )}
+
+      {/* Abas */}
+      <div className="flex rounded-lg border border-border bg-muted/40 p-0.5 gap-0.5">
+        {(["upload", "biblioteca"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setAba(t)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              aba === t
+                ? "bg-white shadow-sm text-charcoal"
+                : "text-muted-foreground hover:text-charcoal"
+            }`}
+          >
+            {t === "upload" ? (
+              <><Upload className="h-3.5 w-3.5" /> Enviar nova</>
+            ) : (
+              <><Library className="h-3.5 w-3.5" /> Biblioteca</>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {aba === "upload" && (
+        <div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setPendente(f);
+              e.target.value = "";
+            }}
+          />
+          {!value && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="w-full border-dashed"
+            >
+              {uploading
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando…</>
+                : <><Upload className="mr-2 h-4 w-4" /> Selecionar imagem</>
+              }
+            </Button>
+          )}
+          {value && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="w-full"
+            >
+              <Upload className="mr-2 h-4 w-4" /> Trocar imagem
+            </Button>
+          )}
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Proporção 1200×630 px · recorte ajustável · WebP automático
+          </p>
+          <ImageCropDialog
+            open={!!pendente}
+            file={pendente}
+            aspect={OG_ASPECT}
+            onCancel={() => setPendente(null)}
+            onConfirm={handleCroppedBlob}
+          />
+        </div>
+      )}
+
+      {aba === "biblioteca" && (
+        <div>
+          {carregando ? (
+            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando biblioteca…
+            </div>
+          ) : imagens.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nenhuma imagem encontrada na biblioteca.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {imagens.map((url) => {
+                const selecionada = url === value;
+                return (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => onChange(selecionada ? "" : url)}
+                    className={`group relative overflow-hidden rounded-lg ring-2 transition-all ${
+                      selecionada
+                        ? "ring-terracotta"
+                        : "ring-transparent hover:ring-charcoal/30"
+                    }`}
+                  >
+                    <img
+                      src={url}
+                      alt=""
+                      className="aspect-video w-full object-cover"
+                      loading="lazy"
+                    />
+                    {selecionada && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-terracotta/30">
+                        <Check className="h-5 w-5 text-white drop-shadow" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void carregarBiblioteca()}
+            disabled={carregando}
+            className="mt-2 text-xs text-muted-foreground"
+          >
+            <Loader2 className={`mr-1.5 h-3 w-3 ${carregando ? "animate-spin" : ""}`} />
+            Recarregar
+          </Button>
         </div>
       )}
     </div>
