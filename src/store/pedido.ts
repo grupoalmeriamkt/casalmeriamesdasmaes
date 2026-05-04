@@ -128,7 +128,7 @@ export const usePedido = create<State & Actions>()(
     }),
     {
       name: "casa-almeria-pedido",
-      version: 2,
+      version: 3,
       migrate: (state: any, _v) => {
         if (!state) return state;
         if (!state.extras || typeof state.extras !== "object") {
@@ -140,6 +140,9 @@ export const usePedido = create<State & Actions>()(
           state.extras.polaroids = Array.isArray(state.extras.polaroids)
             ? state.extras.polaroids
             : [];
+        }
+        if (!("destinatario" in state)) {
+          state.destinatario = null;
         }
         return state;
       },

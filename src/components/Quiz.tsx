@@ -126,7 +126,7 @@ export function Quiz({
   // Local form state
   const [nome, setNome] = useState(cliente.nome);
   const [whats, setWhats] = useState(cliente.whatsapp);
-  const [outraPessoa, setOutraPessoa] = useState(destinatario !== null);
+  const [outraPessoa, setOutraPessoa] = useState(destinatario != null);
   const [destNome, setDestNome] = useState(destinatario?.nome ?? "");
   const [destWhats, setDestWhats] = useState(destinatario?.whatsapp ?? "");
   const [cep, setCep] = useState(endereco?.cep ?? "");
