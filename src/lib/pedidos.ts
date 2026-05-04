@@ -141,7 +141,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     horario: r.horario ?? undefined,
     pagamento: {
       ...r.pagamento,
-      status: ultimoPag?.status ?? r.pagamento?.status ?? "",
+      status: ultimoPag?.status ?? r.pagamento?.status ?? r.status ?? "",
     },
     total: Number(r.total),
   };

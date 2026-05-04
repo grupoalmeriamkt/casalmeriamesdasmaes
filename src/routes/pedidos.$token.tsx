@@ -72,8 +72,8 @@ const STATUS_ALIASES: Record<string, StatusKey> = {
 };
 
 function getStatus(p: PedidoSalvo): StatusKey {
-  const s = (p.pagamento?.status || "").toLowerCase();
-  return STATUS_ALIASES[s] ?? "rascunho";
+  const s = p.pagamento?.status || "";
+  return STATUS_ALIASES[s] ?? STATUS_ALIASES[s.toLowerCase()] ?? "rascunho";
 }
 
 function horaNow() {
@@ -110,12 +110,40 @@ function CozinhaPage() {
   const [loginErro, setLoginErro] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // som
+  const [somAtivo, setSomAtivo] = useState(false);
+  const somAtivoRef = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const pedidosIdsRef = useRef<Set<string>>(new Set());
+
+  function tocarSino() {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.8);
+  }
+
   // ── Refresh estável: não recria o interval ao mudar carregar ──────────────
   const carregarRef = useRef<(() => Promise<void>) | undefined>(undefined);
   carregarRef.current = async () => {
     setCarregando(true);
     try {
       const rows: PedidoRow[] = await listarPedidosPorToken(token);
+      const prevIds = pedidosIdsRef.current;
+      if (prevIds.size > 0 && somAtivoRef.current) {
+        const temNovo = rows.some((r) => !prevIds.has(r.id));
+        if (temNovo) tocarSino();
+      }
+      pedidosIdsRef.current = new Set(rows.map((r) => r.id));
       setPedidos(rows.map(rowToPedidoSalvo));
       setUltimaAtualizacao(horaNow());
     } catch {
@@ -127,9 +155,25 @@ function CozinhaPage() {
   useEffect(() => {
     if (!user) return;
     carregarRef.current?.();
+
+    const channel = supabase
+      .channel("pedidos-cozinha")
+      .on("postgres_changes", { event: "*", schema: "public", table: "pedidos" }, () => {
+        carregarRef.current?.();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "pagamentos" }, () => {
+        carregarRef.current?.();
+      })
+      .subscribe();
+
+    // fallback polling caso Realtime não funcione por RLS
     const id = setInterval(() => carregarRef.current?.(), 30_000);
-    return () => clearInterval(id);
-  }, [user, token]); // deps estáveis — sem carregar no array
+
+    return () => {
+      void supabase.removeChannel(channel);
+      clearInterval(id);
+    };
+  }, [user, token]);
 
   // ── Filtros aplicados ─────────────────────────────────────────────────────
   const pedidosFiltrados = useMemo(() => {
@@ -238,7 +282,7 @@ function CozinhaPage() {
               <h1 className="font-serif text-xl font-bold">Pedidos — Casa Almeria</h1>
               <p className="text-xs text-white/50">
                 {ultimaAtualizacao
-                  ? `Atualizado às ${ultimaAtualizacao} · atualiza a cada 30s`
+                  ? `Atualizado às ${ultimaAtualizacao} · ao vivo`
                   : "Carregando…"}
               </p>
             </div>
@@ -260,6 +304,24 @@ function CozinhaPage() {
                   <Columns className="h-4 w-4" />
                 </button>
               </div>
+
+              <button
+                onClick={() => {
+                  if (!audioCtxRef.current) {
+                    audioCtxRef.current = new AudioContext();
+                  }
+                  const next = !somAtivo;
+                  setSomAtivo(next);
+                  somAtivoRef.current = next;
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
+                  somAtivo
+                    ? "bg-white text-charcoal border-white"
+                    : "bg-transparent text-white border-white/30 hover:bg-white/10"
+                }`}
+              >
+                {somAtivo ? "🔔 Som ativo" : "🔕 Ativar som"}
+              </button>
 
               <Button variant="outline" onClick={() => carregarRef.current?.()} disabled={carregando}
                 className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">
