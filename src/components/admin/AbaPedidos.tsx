@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { AdminSection } from "./AdminField";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatBRL } from "@/store/pedido";
 import { toast } from "sonner";
-import { ListOrdered, RefreshCw, Link2, Copy, Trash2, Plus, MessageCircle } from "lucide-react";
+import { ListOrdered, RefreshCw, Link2, Copy, Trash2, Plus, MessageCircle, Ban, AlertTriangle } from "lucide-react";
 import {
   listarPedidos,
+  cancelarPedido,
+  excluirPedido,
   rowToPedidoSalvo,
   type PedidoRow,
   type PagamentoAsaasRow,
@@ -79,6 +81,13 @@ export function AbaPedidos() {
   const [tokens, setTokens] = useState<ShareToken[]>([]);
   const [tokensLoading, setTokensLoading] = useState(false);
   const [detalhe, setDetalhe] = useState<{ pedido: PedidoSalvo; row: PedidoRow } | null>(null);
+  const [confirmacao, setConfirmacao] = useState<{
+    tipo: "cancelar" | "excluir";
+    row: PedidoRow;
+    pago: boolean;
+  } | null>(null);
+  const [confirmacaoLoading, setConfirmacaoLoading] = useState(false);
+  const [confirmaTexto, setConfirmaTexto] = useState("");
 
   const pedidos: PedidoSalvo[] = useMemo(() => rows.map(rowToPedidoSalvo), [rows]);
 
@@ -158,6 +167,37 @@ export function AbaPedidos() {
     if (categoria(pag?.status, r.status) === "pago") return acc + Number(r.total);
     return acc;
   }, 0);
+
+  const abrirConfirmacao = (tipo: "cancelar" | "excluir", row: PedidoRow) => {
+    const pag = ultimoPagamento(row);
+    const cat = categoria(pag?.status, row.status);
+    setConfirmaTexto("");
+    setConfirmacao({ tipo, row, pago: cat === "pago" });
+  };
+
+  const executarConfirmacao = async () => {
+    if (!confirmacao) return;
+    if (confirmacao.tipo === "excluir" && confirmaTexto !== "EXCLUIR") return;
+    setConfirmacaoLoading(true);
+    const fn = confirmacao.tipo === "cancelar" ? cancelarPedido : excluirPedido;
+    const res = await fn(confirmacao.row.id);
+    setConfirmacaoLoading(false);
+    if (!res.ok) {
+      toast.error(`Erro: ${res.error}`);
+      return;
+    }
+    toast.success(
+      confirmacao.tipo === "cancelar" ? "Pedido cancelado." : "Pedido excluído permanentemente.",
+    );
+    setRows((prev) => {
+      if (confirmacao.tipo === "excluir") return prev.filter((r) => r.id !== confirmacao.row.id);
+      return prev.map((r) =>
+        r.id === confirmacao.row.id ? { ...r, status: "cancelado" } : r,
+      );
+    });
+    setConfirmacao(null);
+    setDetalhe(null);
+  };
 
   const exportar = () => {
     if (filtrados.length === 0) {
@@ -439,14 +479,133 @@ export function AbaPedidos() {
           <DialogHeader>
             <DialogTitle>Pedido #{detalhe?.pedido.id.slice(0, 8)}</DialogTitle>
           </DialogHeader>
-          {detalhe && <DetalhesPedidoAdmin p={detalhe.pedido} row={detalhe.row} />}
+          {detalhe && (
+            <DetalhesPedidoAdmin
+              p={detalhe.pedido}
+              row={detalhe.row}
+              onCancelar={() => abrirConfirmacao("cancelar", detalhe.row)}
+              onExcluir={() => abrirConfirmacao("excluir", detalhe.row)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmação: cancelar / excluir */}
+      <Dialog
+        open={!!confirmacao}
+        onOpenChange={(o) => { if (!o && !confirmacaoLoading) { setConfirmacao(null); setConfirmaTexto(""); } }}
+      >
+        <DialogContent className="max-w-md">
+          {confirmacao && (() => {
+            const isExcluir = confirmacao.tipo === "excluir";
+            const p = rowToPedidoSalvo(confirmacao.row);
+            const pag = ultimoPagamento(confirmacao.row);
+            const pago = confirmacao.pago;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className={`flex items-center gap-2 ${isExcluir ? "text-red-600" : "text-amber-700"}`}>
+                    <AlertTriangle className="h-5 w-5 flex-none" />
+                    {isExcluir ? "Excluir pedido permanentemente" : "Cancelar pedido"}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-1 text-sm">
+                  {/* Info do pedido */}
+                  <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+                    <p className="font-semibold text-charcoal">{p.cliente.nome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      #{confirmacao.row.id.slice(0, 8)} · {p.cesta?.nome ?? "—"} · {formatBRL(Number(confirmacao.row.total))}
+                    </p>
+                    {pag && (
+                      <p className="text-xs text-muted-foreground">
+                        Asaas: <span className="font-mono">{pag.asaas_payment_id}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Aviso se PAGO */}
+                  {pago && (
+                    <div className={`rounded-lg border p-3 ${isExcluir ? "border-red-300 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
+                      <p className={`flex items-start gap-2 text-xs font-semibold ${isExcluir ? "text-red-700" : "text-amber-800"}`}>
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none" />
+                        {isExcluir
+                          ? `RISCO CRÍTICO: Este pedido está PAGO (${formatBRL(Number(confirmacao.row.total))}). A exclusão remove todos os registros do banco mas NÃO estorna o pagamento no Asaas. Realize o estorno manualmente pelo painel do Asaas antes de excluir.`
+                          : `ATENÇÃO: Este pedido está PAGO. Cancelar aqui não estorna o pagamento no Asaas — você precisará fazer o estorno manualmente pelo painel do Asaas.`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Aviso padrão excluir */}
+                  {isExcluir && !pago && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs font-semibold text-red-700">
+                        Esta ação é irreversível. O pedido e todos os seus registros de pagamento serão excluídos permanentemente do banco de dados.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Campo de confirmação para exclusão */}
+                  {isExcluir && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-charcoal">
+                        Digite <span className="font-mono text-red-600">EXCLUIR</span> para confirmar:
+                      </label>
+                      <Input
+                        value={confirmaTexto}
+                        onChange={(e) => setConfirmaTexto(e.target.value)}
+                        placeholder="EXCLUIR"
+                        className="font-mono"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => { setConfirmacao(null); setConfirmaTexto(""); }}
+                    disabled={confirmacaoLoading}
+                  >
+                    Voltar
+                  </Button>
+                  <Button
+                    onClick={executarConfirmacao}
+                    disabled={confirmacaoLoading || (isExcluir && confirmaTexto !== "EXCLUIR")}
+                    className={isExcluir
+                      ? "bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                      : "bg-amber-600 text-white hover:bg-amber-700"
+                    }
+                  >
+                    {confirmacaoLoading
+                      ? "Aguarde…"
+                      : isExcluir
+                        ? "Excluir permanentemente"
+                        : "Sim, cancelar pedido"
+                    }
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </AdminSection>
   );
 }
 
-function DetalhesPedidoAdmin({ p, row }: { p: PedidoSalvo; row: PedidoRow }) {
+function DetalhesPedidoAdmin({
+  p,
+  row,
+  onCancelar,
+  onExcluir,
+}: {
+  p: PedidoSalvo;
+  row: PedidoRow;
+  onCancelar: () => void;
+  onExcluir: () => void;
+}) {
   const tel = p.cliente.whatsapp.replace(/\D/g, "");
   const cartoes = p.pagamento?.extras?.cartoes ?? [];
   const polaroids = p.pagamento?.extras?.polaroids ?? [];
@@ -599,6 +758,27 @@ function DetalhesPedidoAdmin({ p, row }: { p: PedidoSalvo; row: PedidoRow }) {
       <section className="flex items-center justify-between border-t border-border pt-3">
         <span className="text-muted-foreground">Total</span>
         <span className="font-serif text-2xl font-bold text-terracotta">{formatBRL(p.total)}</span>
+      </section>
+
+      <section className="flex flex-wrap gap-2 border-t border-border pt-4">
+        {row.status !== "cancelado" && (
+          <Button
+            variant="outline"
+            onClick={onCancelar}
+            className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+          >
+            <Ban className="mr-2 h-4 w-4" />
+            Cancelar pedido
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          onClick={onExcluir}
+          className="flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Excluir pedido
+        </Button>
       </section>
     </div>
   );

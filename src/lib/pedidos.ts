@@ -124,6 +124,45 @@ export async function listarPedidosPorToken(token: string, senha?: string): Prom
   return (data ?? []) as PedidoRow[];
 }
 
+async function getAuthToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token ?? null;
+}
+
+/** Cancela um pedido (status → "cancelado"). Requer admin autenticado. */
+export async function cancelarPedido(id: string): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "cancelar", id }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Exclui um pedido permanentemente (cascata para pagamentos). Requer admin autenticado. */
+export async function excluirPedido(id: string): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "excluir", id }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
   const ultimoPag = r.pagamentos
