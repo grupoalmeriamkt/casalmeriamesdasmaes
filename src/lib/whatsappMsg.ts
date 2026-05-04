@@ -3,6 +3,7 @@ import { formatBRL } from "@/store/pedido";
 
 type Args = {
   cliente: { nome: string; whatsapp: string };
+  destinatario?: { nome: string; whatsapp: string } | null;
   cesta?: { cesta: { nome: string; preco: number }; quantidade: number };
   sobremesas: Record<string, { sobremesa: { nome: string; preco: number }; quantidade: number }>;
   entregaTipo: "delivery" | "retirada" | null;
@@ -24,8 +25,12 @@ export function montarMensagemWhats(p: Args): string {
   linhas.push("🌸 *Novo pedido — Casa Almeria*");
   if (p.pedidoId) linhas.push(`Pedido: *${p.pedidoId}*`);
   linhas.push("");
-  linhas.push(`*Cliente:* ${p.cliente.nome}`);
+  linhas.push(`*Quem pediu:* ${p.cliente.nome}`);
   linhas.push(`*WhatsApp:* ${p.cliente.whatsapp}`);
+  if (p.destinatario) {
+    linhas.push(`*Quem recebe:* ${p.destinatario.nome}`);
+    linhas.push(`*WhatsApp (recebedor):* ${p.destinatario.whatsapp}`);
+  }
   linhas.push("");
 
   linhas.push("*Itens:*");

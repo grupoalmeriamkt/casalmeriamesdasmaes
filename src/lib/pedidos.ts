@@ -30,6 +30,7 @@ export type PedidoRow = {
   pagamento: {
     metodo: string;
     status: string;
+    destinatario?: { nome: string; whatsapp: string } | null;
     extras?: {
       cartoes?: { nome: string; preco: number; mensagem: string }[];
       polaroids?: { nome: string; preco: number; arquivoUrl: string; arquivoNome: string }[];
@@ -54,7 +55,10 @@ function toPayload(p: PedidoParcial, statusOverride?: string) {
     endereco_ou_unidade: p.enderecoOuUnidade ?? "",
     data_entrega: p.data ?? null,
     horario: p.horario ?? null,
-    pagamento: p.pagamento ?? { metodo: "", status: statusOverride ?? "rascunho" },
+    pagamento: {
+      ...(p.pagamento ?? { metodo: "", status: statusOverride ?? "rascunho" }),
+      destinatario: p.destinatario ?? null,
+    },
     total: p.total ?? 0,
     status: statusOverride ?? p.pagamento?.status ?? "rascunho",
   };
@@ -172,6 +176,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     id: r.id,
     criadoEm: r.criado_em,
     cliente: { nome: r.cliente_nome, whatsapp: r.cliente_whatsapp },
+    destinatario: r.pagamento?.destinatario ?? null,
     cesta: r.cesta ?? undefined,
     sobremesas: r.sobremesas ?? [],
     tipo: r.tipo,

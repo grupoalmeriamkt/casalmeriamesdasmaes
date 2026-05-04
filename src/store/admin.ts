@@ -211,6 +211,7 @@ export type PedidoSalvo = {
   id: string;
   criadoEm: string;
   cliente: { nome: string; whatsapp: string };
+  destinatario?: { nome: string; whatsapp: string } | null;
   cesta?: { nome: string; quantidade: number; preco: number };
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
@@ -220,6 +221,7 @@ export type PedidoSalvo = {
   pagamento: {
     metodo: string;
     status: string;
+    destinatario?: { nome: string; whatsapp: string } | null;
     extras?: {
       cartoes?: { nome: string; preco: number; mensagem: string }[];
       polaroids?: {

@@ -635,6 +635,24 @@ function DetalhesPedidoAdmin({
         )}
       </section>
 
+      {p.destinatario && (
+        <section>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Quem recebe</p>
+          <p className="font-semibold text-charcoal">{p.destinatario.nome}</p>
+          {p.destinatario.whatsapp && (
+            <a
+              href={`https://wa.me/55${p.destinatario.whatsapp.replace(/\D/g, "")}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-olive hover:underline"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {p.destinatario.whatsapp}
+            </a>
+          )}
+        </section>
+      )}
+
       <section className="grid grid-cols-2 gap-3">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Tipo</p>

@@ -84,6 +84,8 @@ export function Quiz({
   const toggleSobremesa = usePedido((s) => s.toggleSobremesa);
   const cliente = usePedido((s) => s.cliente);
   const setCliente = usePedido((s) => s.setCliente);
+  const destinatario = usePedido((s) => s.destinatario);
+  const setDestinatario = usePedido((s) => s.setDestinatario);
   const entregaTipo = usePedido((s) => s.entregaTipo);
   const setEntregaTipo = usePedido((s) => s.setEntregaTipo);
   const endereco = usePedido((s) => s.endereco);
@@ -124,6 +126,9 @@ export function Quiz({
   // Local form state
   const [nome, setNome] = useState(cliente.nome);
   const [whats, setWhats] = useState(cliente.whatsapp);
+  const [outraPessoa, setOutraPessoa] = useState(destinatario !== null);
+  const [destNome, setDestNome] = useState(destinatario?.nome ?? "");
+  const [destWhats, setDestWhats] = useState(destinatario?.whatsapp ?? "");
   const [cep, setCep] = useState(endereco?.cep ?? "");
   const [end, setEnd] = useState({
     rua: endereco?.rua ?? "",
@@ -228,6 +233,7 @@ export function Quiz({
     if (!nomeAtual || whatsAtual.replace(/\D/g, "").length < 10) return;
     const payload = {
       cliente: { nome: nomeAtual, whatsapp: whatsAtual },
+      destinatario: st.destinatario ?? null,
       cesta: st.cesta
         ? {
             nome: st.cesta.cesta.nome,
@@ -269,6 +275,13 @@ export function Quiz({
     if (step === 2) {
       if (nome.trim().length < 3) return toast.error("Informe seu nome completo.");
       if (whats.replace(/\D/g, "").length < 10) return toast.error("Informe um WhatsApp válido.");
+      if (outraPessoa) {
+        if (destNome.trim().length < 3) return toast.error("Informe o nome de quem vai receber.");
+        if (destWhats.replace(/\D/g, "").length < 10) return toast.error("Informe o WhatsApp de quem vai receber.");
+        setDestinatario({ nome: destNome.trim(), whatsapp: destWhats });
+      } else {
+        setDestinatario(null);
+      }
       setCliente({ nome, whatsapp: whats });
       // grava rascunho com nome+whatsapp para a cozinha ver mesmo se não concluir
       salvarRascunho({ cliente: { nome, whatsapp: whats } });
@@ -521,6 +534,52 @@ export function Quiz({
               placeholder="(61) 99999-9999"
               inputMode="numeric"
             />
+
+            {/* Destinatário */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-charcoal">Quem irá receber o pedido?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOutraPessoa(false)}
+                  className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                    !outraPessoa
+                      ? "border-charcoal bg-charcoal text-white"
+                      : "border-sand/70 bg-white text-charcoal hover:border-charcoal/40"
+                  }`}
+                >
+                  Eu mesmo(a)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOutraPessoa(true)}
+                  className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                    outraPessoa
+                      ? "border-charcoal bg-charcoal text-white"
+                      : "border-sand/70 bg-white text-charcoal hover:border-charcoal/40"
+                  }`}
+                >
+                  Outra Pessoa
+                </button>
+              </div>
+              {outraPessoa && (
+                <div className="animate-fade-up space-y-3 rounded-2xl bg-charcoal/5 p-4">
+                  <CampoInput
+                    label="Nome de quem vai receber"
+                    value={destNome}
+                    onChange={setDestNome}
+                    placeholder="Nome completo"
+                  />
+                  <CampoInput
+                    label="WhatsApp de quem vai receber"
+                    value={destWhats}
+                    onChange={(v) => setDestWhats(maskWhats(v))}
+                    placeholder="(61) 99999-9999"
+                    inputMode="numeric"
+                  />
+                </div>
+              )}
+            </div>
 
             <BotoesNav onAvancar={avancar} onVoltar={voltar} />
           </section>
@@ -998,7 +1057,10 @@ export function Quiz({
                 }
               />
               <ResumoLinha label="Data e horário" valor={`${data ?? ""} · ${horario ?? ""}`} />
-              <ResumoLinha label="Cliente" valor={`${cliente.nome} · ${cliente.whatsapp}`} />
+              <ResumoLinha label="Quem pediu" valor={`${cliente.nome} · ${cliente.whatsapp}`} />
+              {destinatario && (
+                <ResumoLinha label="Quem recebe" valor={`${destinatario.nome} · ${destinatario.whatsapp}`} />
+              )}
               {extras.cartoes.map((c) => (
                 <ResumoLinha key={`c-${c.itemId}`} label={`💌 ${c.nome}`} valor={formatBRL(c.preco)} />
               ))}
@@ -1048,6 +1110,7 @@ export function Quiz({
                 const usandoMp = pagamento.checkoutAtivo;
                 const payload = {
                   cliente: st.cliente,
+                  destinatario: st.destinatario ?? null,
                   cesta: st.cesta
                     ? {
                         nome: st.cesta.cesta.nome,
@@ -1156,6 +1219,7 @@ export function Quiz({
 
                 const mensagem = montarMensagemWhats({
                   cliente,
+                  destinatario: st.destinatario,
                   cesta,
                   sobremesas,
                   entregaTipo,

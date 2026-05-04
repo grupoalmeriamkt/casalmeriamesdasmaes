@@ -26,6 +26,7 @@ type State = {
   cesta?: { cesta: Cesta; quantidade: number };
   sobremesas: Record<string, { sobremesa: Sobremesa; quantidade: number }>;
   cliente: { nome: string; whatsapp: string };
+  destinatario: { nome: string; whatsapp: string } | null;
   entregaTipo: "delivery" | "retirada" | null;
   endereco?: EnderecoEntrega;
   unidade?: Unidade;
@@ -41,6 +42,7 @@ type Actions = {
   toggleSobremesa: (s: Sobremesa) => void;
   setSobremesaQtd: (id: string, q: number) => void;
   setCliente: (c: { nome: string; whatsapp: string }) => void;
+  setDestinatario: (d: { nome: string; whatsapp: string } | null) => void;
   setEntregaTipo: (t: "delivery" | "retirada") => void;
   setEndereco: (e: EnderecoEntrega) => void;
   setUnidade: (u: Unidade) => void;
@@ -58,6 +60,7 @@ type Actions = {
 const initial: State = {
   sobremesas: {},
   cliente: { nome: "", whatsapp: "" },
+  destinatario: null,
   entregaTipo: null,
   extras: { cartoes: [], polaroids: [] },
 };
@@ -85,6 +88,7 @@ export const usePedido = create<State & Actions>()(
           return { sobremesas: next };
         }),
       setCliente: (cliente) => set({ cliente }),
+      setDestinatario: (destinatario) => set({ destinatario }),
       setEntregaTipo: (entregaTipo) => set({ entregaTipo }),
       setEndereco: (endereco) => set({ endereco }),
       setUnidade: (unidade) => set({ unidade }),

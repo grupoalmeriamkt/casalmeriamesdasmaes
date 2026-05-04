@@ -711,7 +711,7 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
   return (
     <div className="space-y-3 text-sm">
       <div>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Cliente</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem pediu</p>
         <p className="font-semibold text-charcoal">{p.cliente.nome || "—"}</p>
         {tel && (
           <a href={`https://wa.me/55${tel}`} target="_blank" rel="noreferrer" className="text-olive hover:underline">
@@ -719,6 +719,17 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           </a>
         )}
       </div>
+      {p.destinatario && (
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem recebe</p>
+          <p className="font-semibold text-charcoal">{p.destinatario.nome}</p>
+          {p.destinatario.whatsapp && (
+            <a href={`https://wa.me/55${p.destinatario.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="text-olive hover:underline">
+              {p.destinatario.whatsapp}
+            </a>
+          )}
+        </div>
+      )}
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Itens</p>
         {p.cesta && (
@@ -780,8 +791,14 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
           #{p.id.slice(0, 8)} · {new Date(p.criadoEm).toLocaleString("pt-BR")}
         </p>
       </div>
-      <p><strong>Cliente:</strong> {p.cliente.nome || "—"}</p>
+      <p><strong>Quem pediu:</strong> {p.cliente.nome || "—"}</p>
       <p><strong>WhatsApp:</strong> {p.cliente.whatsapp || "—"}</p>
+      {p.destinatario && (
+        <>
+          <p><strong>Quem recebe:</strong> {p.destinatario.nome}</p>
+          <p><strong>WhatsApp (recebedor):</strong> {p.destinatario.whatsapp}</p>
+        </>
+      )}
       <p><strong>Status:</strong> {p.pagamento?.status || "—"}</p>
       <hr style={{ margin: "10pt 0" }} />
       <p style={{ fontWeight: "bold", marginBottom: "4pt" }}>Itens</p>
