@@ -6,14 +6,52 @@ import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { usePedido } from "@/store/pedido";
 import { useAdmin } from "@/store/admin";
+import type { Campanha } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 import { loadCloudConfig } from "@/lib/cloudConfig";
 import { RESERVED_SLUGS } from "@/lib/slugs";
+import { supabase } from "@/integrations/supabase/client";
+
+const DEFAULT_OG_IMAGE =
+  "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a757c35e-60cb-4c5a-8c7a-bcae910168c6/id-preview-b1a18bad--04fc775e-2e76-4061-b66c-29560aa9eff1.lovable.app-1777266918125.png";
 
 export const Route = createFileRoute("/$slug")({
-  head: () => ({
-    meta: [{ title: "Monte seu pedido — Casa Almeria" }],
-  }),
+  loader: async ({ params }) => {
+    try {
+      const { data } = await supabase
+        .from("app_config")
+        .select("payload")
+        .eq("id", "default")
+        .maybeSingle();
+      const campanhas = (data?.payload as { campanhas?: Campanha[] })?.campanhas ?? [];
+      const campanha = campanhas.find((c) => c.slug === params.slug);
+      return { campanha: campanha ?? null };
+    } catch {
+      return { campanha: null };
+    }
+  },
+  head: ({ loaderData }) => {
+    const c = loaderData?.campanha;
+    const titulo = c
+      ? `${c.textos?.titulo ?? c.nome} — Casa Almeria`
+      : "Monte seu pedido — Casa Almeria";
+    const descricao = c?.textos?.subtitulo ?? "Cestas, sobremesas e produtos artesanais. Brasília-DF.";
+    const ogImage = c?.socialImageUrl ?? DEFAULT_OG_IMAGE;
+    return {
+      meta: [
+        { title: titulo },
+        { property: "og:title", content: titulo },
+        { property: "og:description", content: descricao },
+        { name: "description", content: descricao },
+        { property: "og:image", content: ogImage },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: ogImage },
+      ],
+    };
+  },
   component: CampanhaPage,
 });
 
