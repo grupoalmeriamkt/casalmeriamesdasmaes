@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
   listarPedidosPorToken,
+  editarPedidoPorToken,
   rowToPedidoSalvo,
   type PedidoRow,
 } from "@/lib/pedidos";
@@ -22,8 +23,12 @@ import {
   LayoutList,
   Columns,
   X,
+  Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +96,21 @@ function CozinhaPage() {
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
   const [imprimindo, setImprimindo] = useState<PedidoSalvo[] | null>(null);
+
+  // Edição
+  const [editando, setEditando] = useState<PedidoSalvo | null>(null);
+  const [editForm, setEditForm] = useState({
+    clienteNome: "",
+    clienteWhatsapp: "",
+    enderecoOuUnidade: "",
+    data: "",
+    horario: "",
+    temDestinatario: false,
+    destinatarioNome: "",
+    destinatarioWhatsapp: "",
+  });
+  const [editConfirm, setEditConfirm] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   // view mode
   const [view, setView] = useState<"lista" | "kanban">(() => {
@@ -242,6 +262,64 @@ function CozinhaPage() {
       </div>
     );
   }
+
+  // ── Edição de pedido ──────────────────────────────────────────────────────
+  const abrirEdicao = (p: PedidoSalvo) => {
+    setEditForm({
+      clienteNome: p.cliente.nome,
+      clienteWhatsapp: p.cliente.whatsapp,
+      enderecoOuUnidade: p.enderecoOuUnidade,
+      data: p.data ?? "",
+      horario: p.horario ?? "",
+      temDestinatario: !!p.destinatario,
+      destinatarioNome: p.destinatario?.nome ?? "",
+      destinatarioWhatsapp: p.destinatario?.whatsapp ?? "",
+    });
+    setEditConfirm(false);
+    setDetalhe(null);
+    setEditando(p);
+  };
+
+  const salvarEdicao = async () => {
+    if (!editando || !editConfirm) return;
+    setEditLoading(true);
+    const destinatario = editForm.temDestinatario
+      ? { nome: editForm.destinatarioNome, whatsapp: editForm.destinatarioWhatsapp }
+      : null;
+    const res = await editarPedidoPorToken(
+      token,
+      editando.id,
+      {
+        cliente_nome: editForm.clienteNome,
+        cliente_whatsapp: editForm.clienteWhatsapp,
+        endereco_ou_unidade: editForm.enderecoOuUnidade,
+        data_entrega: editForm.data || null,
+        horario: editForm.horario || null,
+      },
+      destinatario,
+    );
+    setEditLoading(false);
+    if (!res.ok) {
+      toast.error(`Erro ao salvar: ${res.error}`);
+      return;
+    }
+    toast.success("Pedido atualizado com sucesso.");
+    setPedidos((prev) =>
+      prev.map((p) =>
+        p.id === editando.id
+          ? {
+              ...p,
+              cliente: { nome: editForm.clienteNome, whatsapp: editForm.clienteWhatsapp },
+              enderecoOuUnidade: editForm.enderecoOuUnidade,
+              data: editForm.data || undefined,
+              horario: editForm.horario || undefined,
+              destinatario,
+            }
+          : p,
+      ),
+    );
+    setEditando(null);
+  };
 
   // ── Helpers de impressão ───────────────────────────────────────────────────
   const imprimirUm = (p: PedidoSalvo) => {
@@ -473,13 +551,131 @@ function CozinhaPage() {
           </DialogHeader>
           {detalhe && <DetalhesPedido p={detalhe} />}
           {detalhe && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => abrirEdicao(detalhe)}>
+                <Pencil className="mr-2 h-4 w-4" /> Editar
+              </Button>
               <Button onClick={() => imprimirUm(detalhe)}
                 className="bg-charcoal text-white hover:bg-charcoal/90">
                 <Printer className="mr-2 h-4 w-4" /> Imprimir
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de edição */}
+      <Dialog open={!!editando} onOpenChange={(o) => !o && setEditando(null)}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Pedido #{editando?.id.slice(0, 8)}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <p className="text-xs text-amber-800">
+              <strong>Atenção:</strong> Você está editando dados reais deste pedido. As alterações são permanentes e imediatamente refletidas no sistema.
+            </p>
+          </div>
+
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Nome do cliente</label>
+                <Input
+                  value={editForm.clienteNome}
+                  onChange={(e) => setEditForm((f) => ({ ...f, clienteNome: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">WhatsApp do cliente</label>
+                <Input
+                  value={editForm.clienteWhatsapp}
+                  onChange={(e) => setEditForm((f) => ({ ...f, clienteWhatsapp: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">Endereço / Unidade</label>
+              <Input
+                value={editForm.enderecoOuUnidade}
+                onChange={(e) => setEditForm((f) => ({ ...f, enderecoOuUnidade: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Data de entrega</label>
+                <Input
+                  type="date"
+                  value={editForm.data}
+                  onChange={(e) => setEditForm((f) => ({ ...f, data: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Horário</label>
+                <Input
+                  value={editForm.horario}
+                  placeholder="ex: 14h–16h"
+                  onChange={(e) => setEditForm((f) => ({ ...f, horario: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-charcoal">
+              <input
+                type="checkbox"
+                checked={editForm.temDestinatario}
+                onChange={(e) => setEditForm((f) => ({ ...f, temDestinatario: e.target.checked }))}
+              />
+              Pedido tem destinatário (quem recebe)
+            </label>
+
+            {editForm.temDestinatario && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">Nome do destinatário</label>
+                  <Input
+                    value={editForm.destinatarioNome}
+                    onChange={(e) => setEditForm((f) => ({ ...f, destinatarioNome: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">WhatsApp do destinatário</label>
+                  <Input
+                    value={editForm.destinatarioWhatsapp}
+                    onChange={(e) => setEditForm((f) => ({ ...f, destinatarioWhatsapp: e.target.value }))}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={editConfirm}
+              onChange={(e) => setEditConfirm(e.target.checked)}
+            />
+            <span className="text-xs text-red-800">
+              Entendo que estou alterando os dados reais do pedido do cliente e que esta ação é irreversível.
+            </span>
+          </label>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditando(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={!editConfirm || editLoading}
+              onClick={salvarEdicao}
+              className="bg-terracotta text-white hover:bg-terracotta/90"
+            >
+              {editLoading ? "Salvando…" : "Confirmar alteração"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

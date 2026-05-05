@@ -57,16 +57,13 @@ function statusBadge(asaasStatus?: string, pedidoStatus?: string) {
 }
 
 function categoria(asaasStatus?: string, pedidoStatus?: string): string {
+  // Cancelamento manual tem precedência sobre qualquer status do Asaas
+  if (pedidoStatus === "cancelado") return "cancelado";
   if (asaasStatus === "CONFIRMED" || asaasStatus === "RECEIVED" || pedidoStatus === "pago")
     return "pago";
   if (asaasStatus === "PENDING" || pedidoStatus === "aguardando_pagamento") return "aguardando";
   if (asaasStatus === "OVERDUE" || pedidoStatus === "vencido") return "vencido";
-  if (
-    asaasStatus === "REFUNDED" ||
-    asaasStatus === "PAYMENT_DELETED" ||
-    pedidoStatus === "cancelado"
-  )
-    return "cancelado";
+  if (asaasStatus === "REFUNDED" || asaasStatus === "PAYMENT_DELETED") return "cancelado";
   return "outro";
 }
 

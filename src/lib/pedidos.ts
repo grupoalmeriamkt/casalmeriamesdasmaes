@@ -167,6 +167,32 @@ export async function excluirPedido(id: string): Promise<{ ok: boolean; error?: 
   }
 }
 
+/** Edita campos de um pedido via token público (link compartilhado). */
+export async function editarPedidoPorToken(
+  token: string,
+  pedidoId: string,
+  campos: Partial<{
+    cliente_nome: string;
+    cliente_whatsapp: string;
+    endereco_ou_unidade: string;
+    data_entrega: string | null;
+    horario: string | null;
+  }>,
+  destinatario?: { nome: string; whatsapp: string } | null,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch("/api/pedidos/editar-por-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, pedido_id: pedidoId, campos, destinatario }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
   const ultimoPag = r.pagamentos
