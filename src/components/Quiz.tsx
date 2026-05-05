@@ -84,6 +84,8 @@ export function Quiz({
   const toggleSobremesa = usePedido((s) => s.toggleSobremesa);
   const cliente = usePedido((s) => s.cliente);
   const setCliente = usePedido((s) => s.setCliente);
+  const email = usePedido((s) => s.email);
+  const setEmail = usePedido((s) => s.setEmail);
   const destinatario = usePedido((s) => s.destinatario);
   const setDestinatario = usePedido((s) => s.setDestinatario);
   const entregaTipo = usePedido((s) => s.entregaTipo);
@@ -126,6 +128,7 @@ export function Quiz({
   // Local form state
   const [nome, setNome] = useState(cliente.nome);
   const [whats, setWhats] = useState(cliente.whatsapp);
+  const [emailInput, setEmailInput] = useState(email);
   const [outraPessoa, setOutraPessoa] = useState(destinatario != null);
   const [destNome, setDestNome] = useState(destinatario?.nome ?? "");
   const [destWhats, setDestWhats] = useState(destinatario?.whatsapp ?? "");
@@ -283,6 +286,7 @@ export function Quiz({
         setDestinatario(null);
       }
       setCliente({ nome, whatsapp: whats });
+      setEmail(emailInput.trim());
       // grava rascunho com nome+whatsapp para a cozinha ver mesmo se não concluir
       salvarRascunho({ cliente: { nome, whatsapp: whats } });
       if (!isPreview) {
@@ -299,6 +303,7 @@ export function Quiz({
             eventName: "Lead",
             eventId,
             userData: {
+              email: emailInput.trim() || undefined,
               phone: `55${whats.replace(/\D/g, "")}`,
               firstName,
               lastName: rest.join(" ") || undefined,
@@ -533,6 +538,13 @@ export function Quiz({
               onChange={(v) => setWhats(maskWhats(v))}
               placeholder="(61) 99999-9999"
               inputMode="numeric"
+            />
+            <CampoInput
+              label="E-mail (opcional)"
+              value={emailInput}
+              onChange={setEmailInput}
+              placeholder="seu@email.com"
+              inputMode="email"
             />
 
             {/* Destinatário */}

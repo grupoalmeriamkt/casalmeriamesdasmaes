@@ -154,15 +154,22 @@ function CheckoutPage() {
     fbqTrack("AddPaymentInfo", { value: totalComDesconto, currency: "BRL", payment_type: metodo }, eventId);
     trackAddPaymentInfo({ value: totalComDesconto, currency: "BRL", payment_type: metodo });
     if (pixelId) {
+      const [firstName, ...rest] = nome.trim().split(/\s+/);
       void sendCapiEvent({
         pixelId,
         testEventCode,
         eventName: "AddPaymentInfo",
         eventId,
+        userData: {
+          email: email.trim() || undefined,
+          phone: whatsapp ? `55${whatsapp.replace(/\D/g, "")}` : undefined,
+          firstName: firstName || undefined,
+          lastName: rest.join(" ") || undefined,
+        },
         customData: { value: totalComDesconto, currency: "BRL", payment_type: metodo },
       });
     }
-  }, [metodo, totalComDesconto, pixelId, testEventCode]);
+  }, [metodo, totalComDesconto, pixelId, testEventCode, nome, email, whatsapp]);
 
   async function aplicarCupom(codigo: string, silent = false) {
     if (!codigo.trim()) return;

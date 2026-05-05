@@ -6,6 +6,7 @@ import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useAdmin } from "@/store/admin";
+import { usePedido } from "@/store/pedido";
 import { CheckCircle2, Copy, Loader2, MessageCircle, Clock, ArrowLeft } from "lucide-react";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackPurchase } from "@/lib/gtm";
@@ -46,6 +47,9 @@ function SucessoPage() {
   const whatsappUrl = useAdmin((s) => s.home.rodape.redes.whatsapp);
   const pixelId = useAdmin((s) => s.integracoes.metaPixelId);
   const testEventCode = useAdmin((s) => s.integracoes.metaTestEventCode);
+  const clienteNome = usePedido((s) => s.cliente.nome);
+  const clienteWhats = usePedido((s) => s.cliente.whatsapp);
+  const clienteEmail = usePedido((s) => s.email ?? "");
   const firedPurchase = useRef(false);
 
   useEffect(() => {
@@ -114,15 +118,23 @@ function SucessoPage() {
 
     // Meta CAPI (server-side, deduplicado pelo mesmo eventId)
     if (pixelId) {
+      const [firstName, ...rest] = (clienteNome ?? "").trim().split(/\s+/);
       void sendCapiEvent({
         pixelId,
         testEventCode,
         eventName: "Purchase",
         eventId,
+        userData: {
+          email: clienteEmail || undefined,
+          phone: clienteWhats ? `55${clienteWhats.replace(/\D/g, "")}` : undefined,
+          firstName: firstName || undefined,
+          lastName: rest.join(" ") || undefined,
+          externalId: pagamento.pedido_id || undefined,
+        },
         customData: { value, currency: "BRL", order_id: pagamento.id },
       });
     }
-  }, [pago, pagamento, pixelId, testEventCode]);
+  }, [pago, pagamento, pixelId, testEventCode, clienteNome, clienteWhats, clienteEmail]);
 
   const wppHref = useMemo(() => {
     const base = whatsappUrl?.startsWith("http")

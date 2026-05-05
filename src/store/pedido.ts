@@ -26,6 +26,7 @@ type State = {
   cesta?: { cesta: Cesta; quantidade: number };
   sobremesas: Record<string, { sobremesa: Sobremesa; quantidade: number }>;
   cliente: { nome: string; whatsapp: string };
+  email: string;
   destinatario: { nome: string; whatsapp: string } | null;
   entregaTipo: "delivery" | "retirada" | null;
   endereco?: EnderecoEntrega;
@@ -42,6 +43,7 @@ type Actions = {
   toggleSobremesa: (s: Sobremesa) => void;
   setSobremesaQtd: (id: string, q: number) => void;
   setCliente: (c: { nome: string; whatsapp: string }) => void;
+  setEmail: (e: string) => void;
   setDestinatario: (d: { nome: string; whatsapp: string } | null) => void;
   setEntregaTipo: (t: "delivery" | "retirada") => void;
   setEndereco: (e: EnderecoEntrega) => void;
@@ -60,6 +62,7 @@ type Actions = {
 const initial: State = {
   sobremesas: {},
   cliente: { nome: "", whatsapp: "" },
+  email: "",
   destinatario: null,
   entregaTipo: null,
   extras: { cartoes: [], polaroids: [] },
@@ -88,6 +91,7 @@ export const usePedido = create<State & Actions>()(
           return { sobremesas: next };
         }),
       setCliente: (cliente) => set({ cliente }),
+      setEmail: (email) => set({ email }),
       setDestinatario: (destinatario) => set({ destinatario }),
       setEntregaTipo: (entregaTipo) => set({ entregaTipo }),
       setEndereco: (endereco) => set({ endereco }),
@@ -141,9 +145,8 @@ export const usePedido = create<State & Actions>()(
             ? state.extras.polaroids
             : [];
         }
-        if (!("destinatario" in state)) {
-          state.destinatario = null;
-        }
+        if (!("destinatario" in state)) state.destinatario = null;
+        if (!("email" in state)) state.email = "";
         return state;
       },
     },
