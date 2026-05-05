@@ -267,7 +267,12 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         },
         pedidoState.pedidoId,
       );
-      if (error || !pedidoId) throw error ?? new Error("Falha ao registrar pedido");
+      if (error || !pedidoId) {
+        const msg = (error as { message?: string } | null)?.message ?? "Falha ao registrar pedido";
+        console.error("[checkout] finalizarPedido error:", error);
+        toast.error(`Erro ao salvar pedido: ${msg}`);
+        return;
+      }
 
       const res = await fetch("/api/public/asaas/charge", {
         method: "POST",
@@ -288,15 +293,21 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           holderInfo: holderInfo ?? undefined,
         }),
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      let data: Record<string, unknown> = {};
+      try { data = JSON.parse(text) as Record<string, unknown>; } catch { /* resposta não-JSON */ }
+
       if (!res.ok) {
-        toast.error(data?.motivo ?? "Falha no pagamento");
+        const motivo = (data.motivo as string) ?? (data.error as string) ?? `Erro ${res.status}`;
+        console.error("[checkout] charge error:", res.status, text.slice(0, 500));
+        toast.error(motivo);
         return;
       }
 
-      navigate({ to: "/sucesso/$id", params: { id: data.pagamentoId } });
+      navigate({ to: "/sucesso/$id", params: { id: data.pagamentoId as string } });
     } catch (e) {
-      console.error(e);
+      console.error("[checkout] exceção inesperada:", e);
       toast.error("Não foi possível finalizar o pagamento. Tente novamente.");
     } finally {
       setEnviando(false);
