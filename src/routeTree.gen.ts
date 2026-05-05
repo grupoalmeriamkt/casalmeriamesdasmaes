@@ -18,6 +18,7 @@ import { Route as SucessoIdRouteImport } from './routes/sucesso.$id'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
+import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
 import { Route as ApiAdminPedidosRouteImport } from './routes/api/admin/pedidos'
 import { Route as ApiAdminCuponsRouteImport } from './routes/api/admin/cupons'
@@ -27,7 +28,6 @@ import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/a
 import { Route as ApiPublicAsaasChargeRouteImport } from './routes/api/public/asaas/charge'
 import { Route as ApiPublicAdminPedidosRouteImport } from './routes/api/public/admin/pedidos'
 import { Route as ApiPublicAsaasStatusIdRouteImport } from './routes/api/public/asaas/status.$id'
-import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
 
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
@@ -74,6 +74,12 @@ const ApiPublicMetaCapiRoute = ApiPublicMetaCapiRouteImport.update({
   path: '/api/public/meta-capi',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPedidosEditarPorTokenRoute =
+  ApiPedidosEditarPorTokenRouteImport.update({
+    id: '/api/pedidos/editar-por-token',
+    path: '/api/pedidos/editar-por-token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAdminSaveConfigRoute = ApiAdminSaveConfigRouteImport.update({
   id: '/api/admin/save-config',
   path: '/api/admin/save-config',
@@ -119,11 +125,6 @@ const ApiPublicAsaasStatusIdRoute = ApiPublicAsaasStatusIdRouteImport.update({
   path: '/api/public/asaas/status/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPedidosEditarPorTokenRoute = ApiPedidosEditarPorTokenRouteImport.update({
-  id: '/api/pedidos/editar-por-token',
-  path: '/api/pedidos/editar-por-token',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -136,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
   '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
@@ -144,7 +146,6 @@ export interface FileRoutesByFullPath {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
-  '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -157,6 +158,7 @@ export interface FileRoutesByTo {
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
   '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
@@ -165,7 +167,6 @@ export interface FileRoutesByTo {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
-  '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -179,6 +180,7 @@ export interface FileRoutesById {
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
   '/api/public/admin/pedidos': typeof ApiPublicAdminPedidosRoute
@@ -187,7 +189,6 @@ export interface FileRoutesById {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
-  '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -202,6 +203,7 @@ export interface FileRouteTypes {
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
+    | '/api/pedidos/editar-por-token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
     | '/api/public/admin/pedidos'
@@ -210,7 +212,6 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
-    | '/api/pedidos/editar-por-token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -223,6 +224,7 @@ export interface FileRouteTypes {
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
+    | '/api/pedidos/editar-por-token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
     | '/api/public/admin/pedidos'
@@ -231,7 +233,6 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
-    | '/api/pedidos/editar-por-token'
   id:
     | '__root__'
     | '/'
@@ -244,6 +245,7 @@ export interface FileRouteTypes {
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
+    | '/api/pedidos/editar-por-token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
     | '/api/public/admin/pedidos'
@@ -252,7 +254,6 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/asaas/status/$id'
-    | '/api/pedidos/editar-por-token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -266,6 +267,7 @@ export interface RootRouteChildren {
   ApiAdminCuponsRoute: typeof ApiAdminCuponsRoute
   ApiAdminPedidosRoute: typeof ApiAdminPedidosRoute
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
+  ApiPedidosEditarPorTokenRoute: typeof ApiPedidosEditarPorTokenRoute
   ApiPublicMetaCapiRoute: typeof ApiPublicMetaCapiRoute
   ApiPublicMpPreferenceRoute: typeof ApiPublicMpPreferenceRoute
   ApiPublicAdminPedidosRoute: typeof ApiPublicAdminPedidosRoute
@@ -274,7 +276,6 @@ export interface RootRouteChildren {
   ApiPublicCupomValidarRoute: typeof ApiPublicCupomValidarRoute
   ApiPublicPagamentoIdRoute: typeof ApiPublicPagamentoIdRoute
   ApiPublicAsaasStatusIdRoute: typeof ApiPublicAsaasStatusIdRoute
-  ApiPedidosEditarPorTokenRoute: typeof ApiPedidosEditarPorTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -342,6 +343,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaCapiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pedidos/editar-por-token': {
+      id: '/api/pedidos/editar-por-token'
+      path: '/api/pedidos/editar-por-token'
+      fullPath: '/api/pedidos/editar-por-token'
+      preLoaderRoute: typeof ApiPedidosEditarPorTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/save-config': {
       id: '/api/admin/save-config'
       path: '/api/admin/save-config'
@@ -405,13 +413,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAsaasStatusIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/pedidos/editar-por-token': {
-      id: '/api/pedidos/editar-por-token'
-      path: '/api/pedidos/editar-por-token'
-      fullPath: '/api/pedidos/editar-por-token'
-      preLoaderRoute: typeof ApiPedidosEditarPorTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -426,6 +427,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminCuponsRoute: ApiAdminCuponsRoute,
   ApiAdminPedidosRoute: ApiAdminPedidosRoute,
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
+  ApiPedidosEditarPorTokenRoute: ApiPedidosEditarPorTokenRoute,
   ApiPublicMetaCapiRoute: ApiPublicMetaCapiRoute,
   ApiPublicMpPreferenceRoute: ApiPublicMpPreferenceRoute,
   ApiPublicAdminPedidosRoute: ApiPublicAdminPedidosRoute,
@@ -434,7 +436,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCupomValidarRoute: ApiPublicCupomValidarRoute,
   ApiPublicPagamentoIdRoute: ApiPublicPagamentoIdRoute,
   ApiPublicAsaasStatusIdRoute: ApiPublicAsaasStatusIdRoute,
-  ApiPedidosEditarPorTokenRoute: ApiPedidosEditarPorTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
