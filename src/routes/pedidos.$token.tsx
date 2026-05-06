@@ -968,6 +968,30 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           <p>{p.horario || "—"}</p>
         </div>
       </div>
+      {p.pagamento?.metodo && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Forma de pagamento</span>
+          <span className="capitalize">
+            {p.pagamento.metodo === "credit_card" || p.pagamento.metodo === "CREDIT_CARD"
+              ? "Cartão de crédito"
+              : p.pagamento.metodo.toUpperCase() === "PIX"
+                ? "PIX"
+                : p.pagamento.metodo}
+          </span>
+        </div>
+      )}
+      {p.pagamento?.desconto != null && Number(p.pagamento.desconto) > 0 && (
+        <div className="space-y-1 border-t border-border pt-2 text-xs">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>Subtotal</span>
+            <span>{formatBRL(Number(p.total) + Number(p.pagamento.desconto))}</span>
+          </div>
+          <div className="flex items-center justify-between text-emerald-700">
+            <span>Desconto{p.pagamento.cupom ? ` (${p.pagamento.cupom})` : ""}</span>
+            <span>−{formatBRL(Number(p.pagamento.desconto))}</span>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between border-t border-border pt-2">
         <span className="text-muted-foreground">Total</span>
         <span className="font-serif text-lg font-bold text-terracotta">{formatBRL(p.total)}</span>

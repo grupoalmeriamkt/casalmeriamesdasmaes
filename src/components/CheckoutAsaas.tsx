@@ -241,6 +241,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
       const { id: pedidoId, error } = await finalizarPedido(
         {
           cliente: pedidoState.cliente,
+          destinatario: pedidoState.destinatario,
           cesta: pedidoState.cesta
             ? {
                 nome: pedidoState.cesta.cesta.nome,

@@ -231,6 +231,8 @@ export type PedidoSalvo = {
         arquivoNome: string;
       }[];
     };
+    cupom?: string | null;
+    desconto?: number | null;
   };
   total: number;
 };

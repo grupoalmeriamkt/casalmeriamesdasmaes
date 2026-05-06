@@ -123,7 +123,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status")
+          .select("id, total, status, pagamento")
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
@@ -214,7 +214,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             return Response.json({ error: "db_error" }, { status: 500 });
           }
 
-          // Atualiza pedido com snapshot do pagamento (mantém compatibilidade com pagamento jsonb)
+          // Atualiza pedido preservando extras/destinatario já salvos pelo checkout
           await admin
             .from("pedidos")
             .update({
@@ -222,6 +222,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               cliente_email: body.cliente.email,
               total: valorFinal,
               pagamento: {
+                ...(pedido.pagamento as Record<string, unknown> ?? {}),
                 metodo: body.metodo.toLowerCase(),
                 status: payment.status,
                 pagamento_id: pagamentoIns.id,

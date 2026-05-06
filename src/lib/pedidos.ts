@@ -35,6 +35,8 @@ export type PedidoRow = {
       cartoes?: { nome: string; preco: number; mensagem: string }[];
       polaroids?: { nome: string; preco: number; arquivoUrl: string; arquivoNome: string }[];
     };
+    cupom?: string | null;
+    desconto?: number | null;
   };
   total: number;
   status: string;

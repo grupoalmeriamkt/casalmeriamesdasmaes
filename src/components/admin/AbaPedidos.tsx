@@ -770,6 +770,18 @@ function DetalhesPedidoAdmin({
         </section>
       )}
 
+      {ultimo?.cupom_desconto != null && Number(ultimo.cupom_desconto) > 0 && (
+        <section className="space-y-1 border-t border-border pt-3 text-sm">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>Subtotal</span>
+            <span>{formatBRL(Number(p.total) + Number(ultimo.cupom_desconto))}</span>
+          </div>
+          <div className="flex items-center justify-between text-emerald-700">
+            <span>Desconto{ultimo.cupom_codigo ? ` (${ultimo.cupom_codigo})` : ""}</span>
+            <span>−{formatBRL(Number(ultimo.cupom_desconto))}</span>
+          </div>
+        </section>
+      )}
       <section className="flex items-center justify-between border-t border-border pt-3">
         <span className="text-muted-foreground">Total</span>
         <span className="font-serif text-2xl font-bold text-terracotta">{formatBRL(p.total)}</span>
