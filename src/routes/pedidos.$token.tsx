@@ -904,8 +904,21 @@ function PedidoCard({
 
 function DetalhesPedido({ p }: { p: PedidoSalvo }) {
   const tel = p.cliente.whatsapp.replace(/\D/g, "");
+  const cartoes = p.pagamento?.extras?.cartoes ?? [];
+  const polaroids = p.pagamento?.extras?.polaroids ?? [];
+  const desconto = Number(p.pagamento?.desconto ?? 0);
+  const cupom = p.pagamento?.cupom;
+  const metodo = p.pagamento?.metodo;
+  const metodoLabel =
+    metodo === "credit_card" || metodo === "CREDIT_CARD"
+      ? "Cartão de crédito"
+      : metodo?.toUpperCase() === "PIX"
+        ? "PIX"
+        : metodo ?? null;
+
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-4 text-sm">
+      {/* Quem pediu */}
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem pediu</p>
         <p className="font-semibold text-charcoal">{p.cliente.nome || "—"}</p>
@@ -915,6 +928,7 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           </a>
         )}
       </div>
+
       {p.destinatario && (
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem recebe</p>
@@ -926,27 +940,77 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           )}
         </div>
       )}
+
+      {/* Itens com preços individuais */}
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Itens</p>
-        {p.cesta && (
-          <p>{p.cesta.nome} × {p.cesta.quantidade} — {formatBRL(p.cesta.preco * p.cesta.quantidade)}</p>
-        )}
-        {p.sobremesas.map((s, i) => (
-          <p key={i}>{s.nome} × {s.quantidade} — {formatBRL(s.preco * s.quantidade)}</p>
-        ))}
+        <div className="mt-1 space-y-1 text-charcoal">
+          {p.cesta && (
+            <div className="flex justify-between">
+              <span>{p.cesta.nome} × {p.cesta.quantidade}</span>
+              <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
+            </div>
+          )}
+          {p.sobremesas.map((s, i) => (
+            <div key={i} className="flex justify-between">
+              <span>{s.nome} × {s.quantidade}</span>
+              <span className="font-semibold">{formatBRL(s.preco * s.quantidade)}</span>
+            </div>
+          ))}
+          {cartoes.map((c, i) => (
+            <div key={`c-${i}`} className="flex justify-between">
+              <span>💌 {c.nome}</span>
+              <span className="font-semibold">{formatBRL(c.preco)}</span>
+            </div>
+          ))}
+          {polaroids.map((pol, i) => (
+            <div key={`p-${i}`} className="flex justify-between">
+              <span>📸 {pol.nome}</span>
+              <span className="font-semibold">{formatBRL(pol.preco)}</span>
+            </div>
+          ))}
+          {!p.cesta && p.sobremesas.length === 0 && cartoes.length === 0 && polaroids.length === 0 && (
+            <p className="text-muted-foreground">— sem itens —</p>
+          )}
+        </div>
       </div>
-      {(() => {
-        const cartoes = p.pagamento?.extras?.cartoes ?? [];
-        const polaroids = p.pagamento?.extras?.polaroids ?? [];
-        if (!cartoes.length && !polaroids.length) return null;
-        return (
-          <div>
-            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Personalizações</p>
-            <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
+
+      {/* Desconto + Total */}
+      <div className="space-y-1 border-t border-border pt-2">
+        {desconto > 0 && (
+          <>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span>{formatBRL(Number(p.total) + desconto)}</span>
+            </div>
+            <div className="flex justify-between text-emerald-700">
+              <span>Desconto{cupom ? ` (${cupom})` : ""}</span>
+              <span>−{formatBRL(desconto)}</span>
+            </div>
+          </>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-charcoal">Total</span>
+          <span className="font-serif text-lg font-bold text-terracotta">{formatBRL(p.total)}</span>
+        </div>
+        {metodoLabel && (
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Forma de pagamento</span>
+            <span>{metodoLabel}</span>
           </div>
-        );
-      })()}
-      <div className="grid grid-cols-2 gap-2">
+        )}
+      </div>
+
+      {/* Fotos e Mensagens */}
+      {(cartoes.length > 0 || polaroids.length > 0) && (
+        <div>
+          <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Fotos e Mensagens</p>
+          <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
+        </div>
+      )}
+
+      {/* Entrega */}
+      <div className="border-t border-border pt-3 grid grid-cols-2 gap-2">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</p>
           <p className="capitalize">{p.tipo || "—"}</p>
@@ -967,34 +1031,6 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Horário</p>
           <p>{p.horario || "—"}</p>
         </div>
-      </div>
-      {p.pagamento?.metodo && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Forma de pagamento</span>
-          <span className="capitalize">
-            {p.pagamento.metodo === "credit_card" || p.pagamento.metodo === "CREDIT_CARD"
-              ? "Cartão de crédito"
-              : p.pagamento.metodo.toUpperCase() === "PIX"
-                ? "PIX"
-                : p.pagamento.metodo}
-          </span>
-        </div>
-      )}
-      {p.pagamento?.desconto != null && Number(p.pagamento.desconto) > 0 && (
-        <div className="space-y-1 border-t border-border pt-2 text-xs">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span>{formatBRL(Number(p.total) + Number(p.pagamento.desconto))}</span>
-          </div>
-          <div className="flex items-center justify-between text-emerald-700">
-            <span>Desconto{p.pagamento.cupom ? ` (${p.pagamento.cupom})` : ""}</span>
-            <span>−{formatBRL(Number(p.pagamento.desconto))}</span>
-          </div>
-        </div>
-      )}
-      <div className="flex items-center justify-between border-t border-border pt-2">
-        <span className="text-muted-foreground">Total</span>
-        <span className="font-serif text-lg font-bold text-terracotta">{formatBRL(p.total)}</span>
       </div>
     </div>
   );

@@ -650,7 +650,72 @@ function DetalhesPedidoAdmin({
         </section>
       )}
 
-      <section className="grid grid-cols-2 gap-3">
+      {/* Itens com preços individuais */}
+      <section>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Itens</p>
+        <div className="mt-1 space-y-1 text-charcoal">
+          {p.cesta && (
+            <div className="flex justify-between">
+              <span>{p.cesta.nome} × {p.cesta.quantidade}</span>
+              <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
+            </div>
+          )}
+          {p.sobremesas.map((s, i) => (
+            <div key={i} className="flex justify-between">
+              <span>{s.nome} × {s.quantidade}</span>
+              <span className="font-semibold">{formatBRL(s.preco * s.quantidade)}</span>
+            </div>
+          ))}
+          {cartoes.map((c, i) => (
+            <div key={`c-${i}`} className="flex justify-between">
+              <span>💌 {c.nome}</span>
+              <span className="font-semibold">{formatBRL(c.preco)}</span>
+            </div>
+          ))}
+          {polaroids.map((pol, i) => (
+            <div key={`p-${i}`} className="flex justify-between">
+              <span>📸 {pol.nome}</span>
+              <span className="font-semibold">{formatBRL(pol.preco)}</span>
+            </div>
+          ))}
+          {!p.cesta && p.sobremesas.length === 0 && cartoes.length === 0 && polaroids.length === 0 && (
+            <p className="text-muted-foreground">— sem itens —</p>
+          )}
+        </div>
+      </section>
+
+      {/* Desconto + Total */}
+      <section className="space-y-1 border-t border-border pt-3">
+        {ultimo?.cupom_desconto != null && Number(ultimo.cupom_desconto) > 0 && (
+          <>
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span>{formatBRL(Number(p.total) + Number(ultimo.cupom_desconto))}</span>
+            </div>
+            <div className="flex items-center justify-between text-emerald-700">
+              <span>Desconto{ultimo.cupom_codigo ? ` (${ultimo.cupom_codigo})` : ""}</span>
+              <span>−{formatBRL(Number(ultimo.cupom_desconto))}</span>
+            </div>
+          </>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-charcoal">Total</span>
+          <span className="font-serif text-2xl font-bold text-terracotta">{formatBRL(p.total)}</span>
+        </div>
+      </section>
+
+      {/* Fotos e Mensagens */}
+      {(cartoes.length > 0 || polaroids.length > 0) && (
+        <section>
+          <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
+            Fotos e Mensagens
+          </p>
+          <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
+        </section>
+      )}
+
+      {/* Entrega */}
+      <section className="grid grid-cols-2 gap-3 border-t border-border pt-3">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Tipo</p>
           <p className="capitalize text-charcoal">{p.tipo || "—"}</p>
@@ -679,40 +744,7 @@ function DetalhesPedidoAdmin({
         </div>
       </section>
 
-      <section>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Itens</p>
-        <div className="mt-1 space-y-1 text-charcoal">
-          {p.cesta && (
-            <div className="flex justify-between">
-              <span>
-                {p.cesta.nome} × {p.cesta.quantidade}
-              </span>
-              <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
-            </div>
-          )}
-          {p.sobremesas.map((s, i) => (
-            <div key={i} className="flex justify-between">
-              <span>
-                {s.nome} × {s.quantidade}
-              </span>
-              <span className="font-semibold">{formatBRL(s.preco * s.quantidade)}</span>
-            </div>
-          ))}
-          {!p.cesta && p.sobremesas.length === 0 && (
-            <p className="text-muted-foreground">— sem itens —</p>
-          )}
-        </div>
-      </section>
-
-      {(cartoes.length > 0 || polaroids.length > 0) && (
-        <section>
-          <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
-            Personalizações
-          </p>
-          <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
-        </section>
-      )}
-
+      {/* Pagamento Asaas (detalhes técnicos) */}
       {pagamentos.length > 0 && (
         <section className="rounded-lg bg-linen/50 p-3">
           <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">
@@ -769,23 +801,6 @@ function DetalhesPedidoAdmin({
           </div>
         </section>
       )}
-
-      {ultimo?.cupom_desconto != null && Number(ultimo.cupom_desconto) > 0 && (
-        <section className="space-y-1 border-t border-border pt-3 text-sm">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span>{formatBRL(Number(p.total) + Number(ultimo.cupom_desconto))}</span>
-          </div>
-          <div className="flex items-center justify-between text-emerald-700">
-            <span>Desconto{ultimo.cupom_codigo ? ` (${ultimo.cupom_codigo})` : ""}</span>
-            <span>−{formatBRL(Number(ultimo.cupom_desconto))}</span>
-          </div>
-        </section>
-      )}
-      <section className="flex items-center justify-between border-t border-border pt-3">
-        <span className="text-muted-foreground">Total</span>
-        <span className="font-serif text-2xl font-bold text-terracotta">{formatBRL(p.total)}</span>
-      </section>
 
       <section className="flex flex-wrap gap-2 border-t border-border pt-4">
         {row.status !== "cancelado" && (
