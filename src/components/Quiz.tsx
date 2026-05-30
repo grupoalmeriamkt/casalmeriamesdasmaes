@@ -1100,19 +1100,70 @@ export function Quiz({
               <p className="mt-2 text-sm text-ink/65">Revise e escolha como pagar</p>
             </div>
 
+            {/* Itens e valores */}
             <div className="rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
-              <ResumoLinha
-                label="Produto"
-                valor={cesta ? `${cesta.cesta.nome} (${cesta.quantidade}x)` : "—"}
-              />
-              {Object.values(sobremesas).length > 0 && (
-                <ResumoLinha
-                  label="Sobremesas"
-                  valor={Object.values(sobremesas)
-                    .map((s) => s.sobremesa.nome)
-                    .join(", ")}
-                />
-              )}
+              <h3 className="mb-3 text-sm font-semibold text-charcoal">Itens</h3>
+              <ul className="space-y-1.5 text-sm">
+                {cesta && (
+                  <li className="flex justify-between">
+                    <span className="text-charcoal">
+                      {cesta.cesta.nome} × {cesta.quantidade}
+                    </span>
+                    <span className="font-semibold text-charcoal">
+                      {formatBRL(cesta.cesta.preco * cesta.quantidade)}
+                    </span>
+                  </li>
+                )}
+                {Object.values(sobremesas).map((s) => (
+                  <li key={s.sobremesa.id} className="flex justify-between">
+                    <span className="text-charcoal">
+                      {s.sobremesa.nome} × {s.quantidade}
+                    </span>
+                    <span className="font-semibold text-charcoal">
+                      {formatBRL(s.sobremesa.preco * s.quantidade)}
+                    </span>
+                  </li>
+                ))}
+                {extras.cartoes.map((c) => (
+                  <li key={`c-${c.itemId}`} className="flex justify-between">
+                    <span className="text-charcoal">💌 {c.nome}</span>
+                    <span className="font-semibold text-charcoal">{formatBRL(c.preco)}</span>
+                  </li>
+                ))}
+                {extras.polaroids.map((p) => (
+                  <li key={`p-${p.itemId}`} className="flex justify-between">
+                    <span className="text-charcoal">📸 {p.nome}</span>
+                    <span className="font-semibold text-charcoal">{formatBRL(p.preco)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 space-y-1.5 border-t border-sand/60 pt-3 text-sm">
+                <div className="flex justify-between text-ink/70">
+                  <span>Subtotal</span>
+                  <span>{formatBRL(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-ink/70">
+                  <span>Taxa de entrega</span>
+                  <span>
+                    {entregaTipo === "delivery"
+                      ? taxaEntrega > 0
+                        ? formatBRL(taxaEntrega)
+                        : "Grátis"
+                      : "Grátis"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-sand/60 pt-2">
+                  <span className="text-sm font-medium text-charcoal">Total</span>
+                  <span className="font-serif text-2xl font-bold text-terracotta">
+                    {formatBRL(total)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Detalhes do pedido */}
+            <div className="rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
+              <h3 className="mb-1 text-sm font-semibold text-charcoal">Detalhes</h3>
               <ResumoLinha
                 label="Entrega"
                 valor={
@@ -1130,24 +1181,11 @@ export function Quiz({
               <ResumoLinha label="Data e horário" valor={`${data ?? ""} · ${horario ?? ""}`} />
               <ResumoLinha label="Quem pediu" valor={`${cliente.nome} · ${cliente.whatsapp}`} />
               {destinatario && (
-                <ResumoLinha label="Quem recebe" valor={`${destinatario.nome} · ${destinatario.whatsapp}`} />
+                <ResumoLinha
+                  label="Quem recebe"
+                  valor={`${destinatario.nome} · ${destinatario.whatsapp}`}
+                />
               )}
-              {extras.cartoes.map((c) => (
-                <ResumoLinha key={`c-${c.itemId}`} label={`💌 ${c.nome}`} valor={formatBRL(c.preco)} />
-              ))}
-              {extras.polaroids.map((p) => (
-                <ResumoLinha key={`p-${p.itemId}`} label={`📸 ${p.nome}`} valor={formatBRL(p.preco)} />
-              ))}
-              <ResumoLinha
-                label="Taxa de entrega"
-                valor={entregaTipo === "delivery" ? formatBRL(taxaEntrega) : "Grátis"}
-              />
-              <div className="mt-3 flex items-center justify-between border-t border-sand/60 pt-4">
-                <span className="text-sm font-medium text-charcoal">Total</span>
-                <span className="font-serif text-2xl font-bold text-terracotta">
-                  {formatBRL(total)}
-                </span>
-              </div>
             </div>
 
             {pagamento.checkoutAtivo ? (
