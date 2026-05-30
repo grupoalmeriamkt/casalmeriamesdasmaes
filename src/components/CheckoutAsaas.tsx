@@ -269,6 +269,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           total,
         },
         pedidoState.pedidoId,
+        campanhaAtiva?.id,
       );
       if (error || !pedidoId) {
         const msg = (error as { message?: string } | null)?.message ?? "Falha ao registrar pedido";
