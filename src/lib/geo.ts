@@ -23,6 +23,33 @@ export function distanciaKm(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+const NOMINATIM_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": "CasaAlmeria/1.0 (contato@casaalmeria.com.br)",
+};
+
+/**
+ * Geocodifica um CEP via Nominatim usando busca por postalcode.
+ * Mais confiável que busca livre para CEPs brasileiros (inclui Brasília-DF).
+ */
+export async function geocodificarCep(cep: string): Promise<LatLng | null> {
+  try {
+    const limpo = cep.replace(/\D/g, "");
+    if (limpo.length !== 8) return null;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&postalcode=${limpo}&countrycodes=br`;
+    const r = await fetch(url, { headers: NOMINATIM_HEADERS });
+    if (!r.ok) return null;
+    const data = (await r.json()) as Array<{ lat: string; lon: string }>;
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Geocodifica um endereço (string livre) via Nominatim/OpenStreetMap.
  * Retorna null se não encontrar.
@@ -33,12 +60,7 @@ export async function geocodificarEndereco(
   try {
     const q = encodeURIComponent(enderecoLivre);
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`;
-    const r = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "CasaAlmeria/1.0 (contato@casaalmeria.com.br)",
-      },
-    });
+    const r = await fetch(url, { headers: NOMINATIM_HEADERS });
     if (!r.ok) return null;
     const data = (await r.json()) as Array<{ lat: string; lon: string }>;
     if (!Array.isArray(data) || data.length === 0) return null;

@@ -15,7 +15,7 @@ import {
   calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
-import { distanciaKm, geocodificarEndereco, encontrarZona } from "@/lib/geo";
+import { distanciaKm, geocodificarEndereco, geocodificarCep, encontrarZona } from "@/lib/geo";
 import { parseDateId } from "@/lib/dateUtils";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -210,10 +210,14 @@ export function Quiz({
         ]
           .filter(Boolean)
           .join(", ");
-        const coords = await geocodificarEndereco(consulta);
+        // Tenta CEP direto primeiro (mais confiável p/ Brasília), depois endereço completo
+        let coords = await geocodificarCep(limpo);
+        if (!coords) coords = await geocodificarEndereco(consulta);
+
         if (!coords) {
-          toast.warning(
-            "Não conseguimos confirmar sua localização. Validaremos a área de entrega pelo WhatsApp.",
+          setForaDeRaio(true);
+          toast.error(
+            "Não conseguimos localizar este CEP. Tente outro CEP ou escolha a opção de retirada.",
           );
           return;
         }
@@ -221,7 +225,7 @@ export function Quiz({
         if (!zona) {
           setForaDeRaio(true);
           toast.error(
-            "Endereço fora da nossa área de entrega. Tente a opção de retirada.",
+            "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha a opção de retirada.",
           );
           return;
         }
@@ -370,6 +374,14 @@ export function Quiz({
         if (foraDeRaio)
           return toast.error(
             "Este endereço está fora da nossa área de entrega. Escolha retirada ou outro CEP.",
+          );
+        const zonasAtivas = !!(
+          campanhaAtiva?.delivery?.zonas?.ativo &&
+          (campanhaAtiva?.delivery?.zonas?.zonas?.length ?? 0) > 0
+        );
+        if (zonasAtivas && !zonaEntregaAtual)
+          return toast.error(
+            "Clique em 'Buscar' para validar seu CEP antes de continuar.",
           );
         setEndereco({ cep, ...end });
       } else if (!unidade) return toast.error("Escolha uma unidade de retirada.");
