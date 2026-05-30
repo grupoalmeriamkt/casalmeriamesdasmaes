@@ -215,19 +215,19 @@ export function Quiz({
           toast.warning(
             "Não conseguimos confirmar sua localização. Validaremos a área de entrega pelo WhatsApp.",
           );
-        } else {
-          const zona = encontrarZona(coords, zonasConfig!.zonas);
-          if (!zona) {
-            setForaDeRaio(true);
-            toast.error(
-              "Endereço fora da nossa área de entrega. Tente a opção de retirada.",
-            );
-            return;
-          }
-          setZonaEntregaAtual(zona);
-          toast.success(`Endereço encontrado — zona "${zona.nome}".`);
           return;
         }
+        const zona = encontrarZona(coords, zonasConfig!.zonas);
+        if (!zona) {
+          setForaDeRaio(true);
+          toast.error(
+            "Endereço fora da nossa área de entrega. Tente a opção de retirada.",
+          );
+          return;
+        }
+        setZonaEntregaAtual(zona);
+        toast.success(`Endereço confirmado — ${zona.nome}.`);
+        return;
       } else {
         // Validação por raio (se ativa no admin)
         const restr = entregaConfig.restricaoRaio;
@@ -755,6 +755,17 @@ export function Quiz({
                     placeholder="DF"
                   />
                 </div>
+                {zonaEntregaAtual && (
+                  <div className="flex items-center justify-between rounded-xl bg-olive/10 px-3 py-2.5 ring-1 ring-olive/30">
+                    <div className="flex items-center gap-1.5 text-sm text-charcoal">
+                      <Check className="h-4 w-4 text-olive shrink-0" />
+                      <span className="font-medium">{zonaEntregaAtual.nome}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-charcoal">
+                      {taxaEntrega > 0 ? formatBRL(taxaEntrega) : "Grátis"}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

@@ -34,7 +34,10 @@ export async function geocodificarEndereco(
     const q = encodeURIComponent(enderecoLivre);
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`;
     const r = await fetch(url, {
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "CasaAlmeria/1.0 (contato@casaalmeria.com.br)",
+      },
     });
     if (!r.ok) return null;
     const data = (await r.json()) as Array<{ lat: string; lon: string }>;
