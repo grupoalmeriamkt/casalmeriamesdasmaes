@@ -21,6 +21,7 @@ import {
   urlPublicaPedidos,
   type ShareToken,
 } from "@/lib/shareToken";
+import { useAdmin } from "@/store/admin";
 import type { PedidoSalvo } from "@/store/admin";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 
@@ -68,6 +69,7 @@ function categoria(asaasStatus?: string, pedidoStatus?: string): string {
 }
 
 export function AbaPedidos() {
+  const campanhas = useAdmin((s) => s.campanhas);
   const [rows, setRows] = useState<PedidoRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtro, setFiltro] = useState("");
@@ -75,6 +77,7 @@ export function AbaPedidos() {
   const [filtroTipo, setFiltroTipo] = useState<"" | "delivery" | "retirada">("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroPolaroid, setFiltroPolaroid] = useState(false);
+  const [filtroCampanha, setFiltroCampanha] = useState("");
   const [tokens, setTokens] = useState<ShareToken[]>([]);
   const [tokensLoading, setTokensLoading] = useState(false);
   const [detalhe, setDetalhe] = useState<{ pedido: PedidoSalvo; row: PedidoRow } | null>(null);
@@ -106,10 +109,10 @@ export function AbaPedidos() {
 
   const gerarLink = async () => {
     setTokensLoading(true);
-    const t = await criarTokenPedidos();
+    const t = await criarTokenPedidos(undefined, filtroCampanha || undefined);
     setTokensLoading(false);
     if (!t) return toast.error("Não foi possível gerar o link.");
-    toast.success("Link público criado.");
+    toast.success(filtroCampanha ? "Link da campanha criado." : "Link público criado.");
     await carregarTokens();
   };
 
@@ -138,13 +141,14 @@ export function AbaPedidos() {
       if (filtro && !`${r.cliente_nome} ${r.id} ${pag?.asaas_payment_id ?? ""}`.toLowerCase().includes(filtro.toLowerCase())) return false;
       if (filtroTipo && r.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroData && r.data_entrega !== filtroData) return false;
+      if (filtroCampanha && r.campanha_id !== filtroCampanha) return false;
       if (filtroPolaroid) {
         const p = rowToPedidoSalvo(r);
         if (!((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       }
       return true;
     });
-  }, [rows, filtro, status, filtroTipo, filtroData, filtroPolaroid]);
+  }, [rows, filtro, status, filtroTipo, filtroData, filtroCampanha, filtroPolaroid]);
 
   const hojeCount = rows.filter((r) => {
     const d = new Date(r.criado_em);
@@ -287,12 +291,22 @@ export function AbaPedidos() {
           <ul className="mt-3 space-y-2">
             {tokens.map((t) => {
               const url = urlPublicaPedidos(t.token);
+              const nomeCampanha = t.campanha_id
+                ? (campanhas.find((c) => c.id === t.campanha_id)?.nome ?? t.campanha_id)
+                : null;
               return (
                 <li
                   key={t.token}
                   className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-border"
                 >
-                  <code className="flex-1 truncate text-xs text-charcoal">{url}</code>
+                  <div className="flex flex-1 flex-col min-w-0">
+                    <code className="truncate text-xs text-charcoal">{url}</code>
+                    {nomeCampanha && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Campanha: {nomeCampanha}
+                      </span>
+                    )}
+                  </div>
                   <Button size="sm" variant="outline" onClick={() => copiar(url)}>
                     <Copy className="mr-1 h-3 w-3" /> Copiar
                   </Button>
@@ -353,6 +367,16 @@ export function AbaPedidos() {
             <option value="">Todos os tipos</option>
             <option value="delivery">Delivery</option>
             <option value="retirada">Retirada</option>
+          </select>
+          <select
+            value={filtroCampanha}
+            onChange={(e) => setFiltroCampanha(e.target.value)}
+            className="rounded-md border border-border bg-background px-3 text-sm"
+          >
+            <option value="">Todas as campanhas</option>
+            {campanhas.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
           </select>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-muted-foreground">Entrega:</label>

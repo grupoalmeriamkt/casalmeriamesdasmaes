@@ -49,7 +49,12 @@ function AdminPage() {
   }
 
   if (!user) {
-    return <AdminLogin />;
+    return (
+      <>
+        <AdminLogin />
+        <Toaster position="bottom-right" />
+      </>
+    );
   }
 
   return <AdminPanel />;

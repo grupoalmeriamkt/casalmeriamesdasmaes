@@ -56,16 +56,18 @@ type Props = {
   onVoltar: () => void;
   habilitarPix?: boolean;
   habilitarCartao?: boolean;
+  taxaEntrega?: number;
 };
 
-export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao = true }: Props) {
+export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao = true, taxaEntrega: taxaEntregaProp }: Props) {
   const navigate = useNavigate();
   const pedidoState = usePedido((s) => s);
   const subtotal = usePedido(selectTotal);
   const campanhaAtiva = useCampanhaAtiva();
-  const taxaEntrega = pedidoState.entregaTipo === "delivery"
+  const taxaEntregaFallback = pedidoState.entregaTipo === "delivery"
     ? calcTaxaEntrega(campanhaAtiva?.delivery?.taxa)
     : 0;
+  const taxaEntrega = taxaEntregaProp ?? taxaEntregaFallback;
   const total = subtotal + taxaEntrega;
 
   const metodosDisponiveis: Metodo[] = [

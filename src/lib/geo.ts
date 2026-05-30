@@ -1,6 +1,9 @@
-// Utilitários de geolocalização para validar entrega por raio.
+// Utilitários de geolocalização para validar entrega por raio ou polígono.
 // Usa ViaCEP (já no projeto) + Nominatim (OpenStreetMap) para geocoding gratuito.
 // Nominatim exige User-Agent identificável e tem limite de ~1 req/seg — uso pontual no checkout.
+
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+import type { ZonaEntrega } from "@/store/admin";
 
 export type LatLng = { lat: number; lng: number };
 
@@ -43,4 +46,26 @@ export async function geocodificarEndereco(
   } catch {
     return null;
   }
+}
+
+/**
+ * Retorna a primeira ZonaEntrega cujo polígono contém o ponto dado,
+ * ou null se o ponto estiver fora de todas as zonas.
+ * GeoJSON usa [lng, lat] — o swap é feito aqui.
+ */
+export function encontrarZona(ponto: LatLng, zonas: ZonaEntrega[]): ZonaEntrega | null {
+  const turfPoint = {
+    type: "Feature" as const,
+    geometry: { type: "Point" as const, coordinates: [ponto.lng, ponto.lat] },
+    properties: {},
+  };
+  for (const zona of zonas) {
+    const turfPoly = {
+      type: "Feature" as const,
+      geometry: zona.poligono,
+      properties: {},
+    };
+    if (booleanPointInPolygon(turfPoint, turfPoly)) return zona;
+  }
+  return null;
 }

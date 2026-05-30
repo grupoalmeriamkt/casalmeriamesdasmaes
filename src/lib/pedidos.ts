@@ -40,6 +40,7 @@ export type PedidoRow = {
   };
   total: number;
   status: string;
+  campanha_id?: string | null;
   pagamentos?: PagamentoAsaasRow[];
 };
 
@@ -47,7 +48,7 @@ type PedidoParcial = Partial<Omit<PedidoSalvo, "id" | "criadoEm">> & {
   cliente: { nome: string; whatsapp: string };
 };
 
-function toPayload(p: PedidoParcial, statusOverride?: string) {
+function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: string) {
   return {
     cliente_nome: p.cliente.nome,
     cliente_whatsapp: p.cliente.whatsapp,
@@ -63,6 +64,7 @@ function toPayload(p: PedidoParcial, statusOverride?: string) {
     },
     total: p.total ?? 0,
     status: statusOverride ?? p.pagamento?.status ?? "rascunho",
+    campanha_id: campanhaId ?? null,
   };
 }
 
@@ -70,8 +72,9 @@ function toPayload(p: PedidoParcial, statusOverride?: string) {
 export async function upsertRascunho(
   p: PedidoParcial,
   pedidoId?: string,
+  campanhaId?: string,
 ): Promise<{ id: string; error: Error | null }> {
-  const payload = toPayload(p, "rascunho");
+  const payload = toPayload(p, "rascunho", campanhaId);
   const { data, error } = await supabase.rpc("upsert_pedido_rascunho", {
     _pedido_id: pedidoId ?? null,
     _payload: payload,
@@ -86,8 +89,9 @@ export async function upsertRascunho(
 export async function finalizarPedido(
   p: Omit<PedidoSalvo, "id" | "criadoEm">,
   pedidoId?: string,
+  campanhaId?: string,
 ): Promise<{ id: string; error: Error | null }> {
-  const payload = toPayload(p, p.pagamento.status ?? "aprovado");
+  const payload = toPayload(p, p.pagamento.status ?? "aprovado", campanhaId);
   const { data, error } = await supabase.rpc("upsert_pedido_rascunho", {
     _pedido_id: pedidoId ?? null,
     _payload: payload,

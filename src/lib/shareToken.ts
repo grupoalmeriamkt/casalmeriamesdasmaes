@@ -5,6 +5,7 @@ export type ShareToken = {
   scope: string;
   criado_em: string;
   senha?: string | null;
+  campanha_id?: string | null;
 };
 
 function gerarToken(): string {
@@ -28,10 +29,12 @@ export async function listarTokensPedidos(): Promise<ShareToken[]> {
 
 export async function criarTokenPedidos(
   senha?: string,
+  campanhaId?: string,
 ): Promise<ShareToken | null> {
   const token = gerarToken();
   const payload: Record<string, unknown> = { token, scope: "pedidos" };
   if (senha && senha.length >= 4) payload.senha = senha;
+  if (campanhaId) payload.campanha_id = campanhaId;
 
   const { data, error } = await supabase
     .from("share_tokens")
@@ -80,6 +83,28 @@ export async function tokenRequerSenha(token: string): Promise<boolean> {
     return false;
   }
   return !!data;
+}
+
+/** Lista tokens associados a uma campanha específica. */
+export async function listarTokensDaCampanha(campanhaId: string): Promise<ShareToken[]> {
+  const { data, error } = await supabase
+    .from("share_tokens")
+    .select("*")
+    .eq("scope", "pedidos")
+    .eq("campanha_id", campanhaId)
+    .order("criado_em", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data ?? []) as ShareToken[];
+}
+
+/** Retorna nome da campanha vinculada ao token (para página pública). */
+export async function buscarInfoToken(token: string): Promise<{
+  campanha_id: string | null;
+  nome: string | null;
+} | null> {
+  const { data, error } = await supabase.rpc("token_campanha_info", { _token: token });
+  if (error || !data) return null;
+  return data as { campanha_id: string | null; nome: string | null };
 }
 
 /** Valida senha contra um token. */

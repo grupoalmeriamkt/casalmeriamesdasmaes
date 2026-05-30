@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Logo } from "./Logo";
-import { useAdmin } from "@/store/admin";
+import { useAdmin, useCampanhaAtiva } from "@/store/admin";
 import { Link } from "@tanstack/react-router";
 import { Menu, X, Instagram } from "lucide-react";
 import {
@@ -16,6 +16,7 @@ export function Header() {
   const insta = useAdmin((s) => s.integracoes.instagramUrl);
   const wa = useAdmin((s) => s.integracoes.whatsappUrl);
   const encerrado = false;
+  const campanha = useCampanhaAtiva();
   const [open, setOpen] = useState(false);
 
   const navItems = [
@@ -50,10 +51,9 @@ export function Header() {
               Encerradas
             </span>
           ) : (
-            <span className="badge-mae" aria-label="Dia das Mães">
-              <span className="sm:hidden">Dia das Mães</span>
-              <span className="hidden sm:inline">Dia das Mães</span>
-            </span>
+            campanha?.textos?.eyebrow ? (
+              <span className="badge-mae">{campanha.textos.eyebrow}</span>
+            ) : null
           )}
 
           {/* Mobile menu trigger */}

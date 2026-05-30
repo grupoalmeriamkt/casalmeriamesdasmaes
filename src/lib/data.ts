@@ -100,8 +100,8 @@ export const UNIDADES: Unidade[] = [
 ];
 
 export const DATAS_ENTREGA = [
-  { id: "10-05", label: "Sábado, 10 de maio de 2025" },
-  { id: "11-05", label: "Domingo, 11 de maio de 2025" },
+  { id: "2026-06-13", label: "Sábado, 13 de Junho de 2026" },
+  { id: "2026-06-14", label: "Domingo, 14 de Junho de 2026" },
 ];
 
 export const HORARIOS = [

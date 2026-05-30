@@ -26,7 +26,9 @@ export function Sucesso({ onVoltar }: { onVoltar: () => void }) {
       <header className="bg-charcoal/40 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 md:px-8">
           <Logo variant="light" />
-          <span className="badge-mae">🌸 Dia das Mães</span>
+          {campanha?.textos?.eyebrow && (
+            <span className="badge-mae">{campanha.textos.eyebrow}</span>
+          )}
         </div>
       </header>
 

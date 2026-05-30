@@ -12,6 +12,7 @@ import {
   type UpsellItem,
 } from "@/store/admin";
 import { validarSlug, normalizarSlug } from "@/lib/slugs";
+import { formatDatePtBR, dateRange, toISODateString } from "@/lib/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageUpload } from "./ImageUpload";
 import { ImageCropDialog } from "./ImageCropDialog";
@@ -41,8 +42,8 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-const MapaRaioLazy = lazy(() =>
-  import("./MapaRaio").then((m) => ({ default: m.MapaRaio })),
+const MapaZonasLazy = lazy(() =>
+  import("./MapaZonas").then((m) => ({ default: m.MapaZonas })),
 );
 
 import {
@@ -60,7 +61,15 @@ import {
   Upload,
   Loader2,
   Check,
+  Link2,
 } from "lucide-react";
+import {
+  listarTokensDaCampanha,
+  criarTokenPedidos,
+  revogarToken,
+  urlPublicaPedidos,
+  type ShareToken,
+} from "@/lib/shareToken";
 
 type Props = { campanha: Campanha };
 
@@ -83,6 +92,9 @@ export function CampanhaForm({ campanha }: Props) {
           </TabsTrigger>
           <TabsTrigger value="retirada" className="gap-2">
             <Store className="h-4 w-4" /> Retirada
+          </TabsTrigger>
+          <TabsTrigger value="links" className="gap-2">
+            <Link2 className="h-4 w-4" /> Links
           </TabsTrigger>
         </TabsList>
 
@@ -108,6 +120,9 @@ export function CampanhaForm({ campanha }: Props) {
             cestas={cestas}
             onPatch={(p) => setRetirada(campanha.id, p)}
           />
+        </TabsContent>
+        <TabsContent value="links" className="mt-4">
+          <LinksTab campanhaId={campanha.id} campanhaNome={campanha.nome} />
         </TabsContent>
       </Tabs>
     </div>
@@ -375,6 +390,15 @@ function InfoGeralTab({
               }
             />
           </Field>
+          <Field label="Tag/Badge (exibida no cabeçalho do quiz e site — deixe vazio para ocultar)">
+            <Input
+              value={textos.eyebrow ?? ""}
+              placeholder="Ex: 🌸 Dia das Mães"
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, eyebrow: e.target.value || undefined } })
+              }
+            />
+          </Field>
         </div>
       </Bloco>
     </div>
@@ -444,11 +468,15 @@ function DeliveryTab({
   onPatch: (p: Partial<CampanhaDelivery>) => void;
 }) {
   const d = campanha.delivery;
-  const [bairroInput, setBairroInput] = useState("");
+
+  // Defesa contra dados legados incompletos vindos do cloud/localStorage
+  const taxa = d?.taxa ?? { tipo: "fixa" as const, valor: 0 };
+  const datas = d?.datas ?? [];
+  const horarios = d?.horarios ?? [];
 
   const unidade = unidades.find((u) => u.id === campanha.unidadeId);
-  const centroLat = d.centroLat ?? unidade?.lat ?? -23.5505;
-  const centroLng = d.centroLng ?? unidade?.lng ?? -46.6333;
+  const centroLat = d?.centroLat ?? unidade?.lat ?? -23.5505;
+  const centroLng = d?.centroLng ?? unidade?.lng ?? -46.6333;
 
   return (
     <div className="space-y-5">
@@ -500,7 +528,7 @@ function DeliveryTab({
       <Bloco titulo="Taxa de entrega">
         <div className="space-y-3">
           <Select
-            value={d.taxa.tipo}
+            value={taxa.tipo}
             onValueChange={(v) => {
               if (v === "fixa") onPatch({ taxa: { tipo: "fixa", valor: 0 } });
               else onPatch({ taxa: { tipo: "faixa", faixas: [] } });
@@ -515,13 +543,13 @@ function DeliveryTab({
             </SelectContent>
           </Select>
 
-          {d.taxa.tipo === "fixa" ? (
+          {taxa.tipo === "fixa" ? (
             <Field label="Valor da taxa (R$)">
               <Input
                 type="number"
                 min={0}
                 step="0.01"
-                value={d.taxa.valor}
+                value={taxa.tipo === "fixa" ? taxa.valor : 0}
                 onChange={(e) =>
                   onPatch({
                     taxa: { tipo: "fixa", valor: Number(e.target.value) || 0 },
@@ -532,7 +560,7 @@ function DeliveryTab({
             </Field>
           ) : (
             (() => {
-              const faixas = d.taxa.faixas;
+              const faixas = taxa.tipo === "faixa" ? taxa.faixas : [];
               return (
                 <div className="space-y-2">
                   {faixas.map((f, i) => (
@@ -599,83 +627,33 @@ function DeliveryTab({
         </div>
       </Bloco>
 
-      <Bloco titulo="Área de atendimento">
-        <Suspense
-          fallback={
-            <div className="h-80 animate-pulse rounded-xl bg-muted" />
+      <Bloco titulo="Área de atendimento (Zonas)">
+        <ToggleLinha
+          label="Usar zonas de entrega"
+          checked={d.zonas?.ativo ?? false}
+          onChange={(v) =>
+            onPatch({ zonas: { ...(d.zonas ?? { zonas: [] }), ativo: v } })
           }
-        >
-          <MapaRaioLazy
-            centroLat={centroLat}
-            centroLng={centroLng}
-            faixas={d.taxa.tipo === "faixa" ? d.taxa.faixas : []}
-            raioKm={d.raioKm}
-            tipoTaxa={d.taxa.tipo}
-            taxaFixa={d.taxa.tipo === "fixa" ? d.taxa.valor : undefined}
-            onCentroChange={(lat, lng) =>
-              onPatch({ centroLat: lat, centroLng: lng })
+        />
+        {d.zonas?.ativo && (
+          <Suspense
+            fallback={
+              <div className="h-80 animate-pulse rounded-xl bg-muted" />
             }
-          />
-        </Suspense>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Field label="Raio máximo (km)">
-            <Input
-              type="number"
-              min={0}
-              value={d.raioKm}
-              onChange={(e) => onPatch({ raioKm: Number(e.target.value) || 0 })}
-              className="max-w-[160px]"
+          >
+            <MapaZonasLazy
+              centroLat={centroLat}
+              centroLng={centroLng}
+              zonas={d.zonas.zonas}
+              onChange={(zonas) => onPatch({ zonas: { ativo: true, zonas } })}
             />
-          </Field>
-          <Field label="Bairros atendidos">
-            <div className="flex flex-wrap gap-1.5">
-              {d.bairros.map((b, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-charcoal/5 px-2.5 py-1 text-xs text-charcoal"
-                >
-                  {b}
-                  <button
-                    onClick={() =>
-                      onPatch({
-                        bairros: d.bairros.filter((_, idx) => idx !== i),
-                      })
-                    }
-                    className="text-terracotta hover:opacity-70"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <Input
-                value={bairroInput}
-                placeholder="Nome do bairro"
-                onChange={(e) => setBairroInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && bairroInput.trim()) {
-                    e.preventDefault();
-                    onPatch({ bairros: [...d.bairros, bairroInput.trim()] });
-                    setBairroInput("");
-                  }
-                }}
-              />
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (bairroInput.trim()) {
-                    onPatch({ bairros: [...d.bairros, bairroInput.trim()] });
-                    setBairroInput("");
-                  }
-                }}
-              >
-                Adicionar
-              </Button>
-            </div>
-          </Field>
-        </div>
+          </Suspense>
+        )}
+        {!d.zonas?.ativo && (
+          <p className="text-xs text-muted-foreground">
+            Zonas desativadas — todos os endereços são aceitos no checkout. Ative para delimitar áreas específicas com frete por zona.
+          </p>
+        )}
       </Bloco>
 
       <Bloco titulo="Horário de funcionamento (Delivery)">
@@ -683,8 +661,8 @@ function DeliveryTab({
           Datas e janelas de horário oferecidas no Quiz desta forma de entrega.
         </p>
         <DatasHorarios
-          datas={d.datas}
-          horarios={d.horarios}
+          datas={datas}
+          horarios={horarios}
           onDatas={(datas) => onPatch({ datas })}
           onHorarios={(horarios) => onPatch({ horarios })}
         />
@@ -786,6 +764,111 @@ function RetiradaTab({
 }
 
 /* ============================================================ */
+/*                        LINKS TAB                             */
+/* ============================================================ */
+
+function LinksTab({ campanhaId, campanhaNome }: { campanhaId: string; campanhaNome: string }) {
+  const [tokens, setTokens] = useState<ShareToken[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [iniciado, setIniciado] = useState(false);
+
+  const carregar = async () => {
+    const data = await listarTokensDaCampanha(campanhaId);
+    setTokens(data);
+  };
+
+  useEffect(() => {
+    carregar().then(() => setIniciado(true));
+  }, [campanhaId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gerarLink = async () => {
+    setLoading(true);
+    const t = await criarTokenPedidos(undefined, campanhaId);
+    setLoading(false);
+    if (!t) { toast.error("Não foi possível gerar o link."); return; }
+    toast.success("Link criado.");
+    await carregar();
+  };
+
+  const revogar = async (token: string) => {
+    if (!confirm("Revogar este link? Quem tiver a URL perderá acesso.")) return;
+    const ok = await revogarToken(token);
+    if (!ok) { toast.error("Falha ao revogar."); return; }
+    toast.success("Link revogado.");
+    await carregar();
+  };
+
+  const copiar = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado!");
+    } catch {
+      toast.error("Não foi possível copiar.");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Bloco titulo="Links de acompanhamento de pedidos">
+        <p className="text-xs text-muted-foreground">
+          Compartilhe com a equipe de produção para acompanhar os pedidos de <strong>{campanhaNome}</strong> em tempo real, sem precisar de login.
+        </p>
+        <Button
+          size="sm"
+          onClick={gerarLink}
+          disabled={loading}
+          className="bg-charcoal text-white hover:bg-charcoal/90"
+        >
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
+          Gerar link
+        </Button>
+
+        {iniciado && tokens.length === 0 && (
+          <p className="text-xs text-muted-foreground py-2">
+            Nenhum link gerado ainda.
+          </p>
+        )}
+
+        {tokens.length > 0 && (
+          <ul className="space-y-2">
+            {tokens.map((t) => {
+              const url = urlPublicaPedidos(t.token);
+              const data = new Date(t.criado_em).toLocaleString("pt-BR");
+              return (
+                <li
+                  key={t.token}
+                  className="flex flex-wrap items-center gap-2 rounded-lg bg-background p-2.5 ring-1 ring-border"
+                >
+                  <div className="flex flex-1 flex-col min-w-0">
+                    <code className="truncate text-xs text-charcoal">{url}</code>
+                    <span className="text-[10px] text-muted-foreground">Criado em {data}</span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => copiar(url)}>
+                    <Copy className="mr-1 h-3 w-3" /> Copiar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => revogar(t.token)}
+                    className="text-terracotta hover:text-terracotta"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Bloco>
+    </div>
+  );
+}
+
+/* ============================================================ */
 /*                       SHARED PIECES                          */
 /* ============================================================ */
 
@@ -840,6 +923,23 @@ function ToggleLinha({
   );
 }
 
+function parseHoraLabel(label: string): { inicio: string; fim: string } {
+  const match = label.match(/Entre (\d{1,2})h e (\d{1,2})h/);
+  if (match) {
+    return {
+      inicio: match[1].padStart(2, "0"),
+      fim: match[2].padStart(2, "0"),
+    };
+  }
+  return { inicio: "06", fim: "07" };
+}
+
+function gerarLabelHora(inicio: string, fim: string): string {
+  return `Entre ${inicio.padStart(2, "0")}h e ${fim.padStart(2, "0")}h`;
+}
+
+const HORAS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+
 function DatasHorarios({
   datas,
   horarios,
@@ -851,105 +951,256 @@ function DatasHorarios({
   onDatas: (d: { id: string; label: string; ativa: boolean }[]) => void;
   onHorarios: (h: { label: string; ativo: boolean }[]) => void;
 }) {
+  const [mostrarIntervalo, setMostrarIntervalo] = useState(false);
+  const [intervaloInicio, setIntervaloInicio] = useState("");
+  const [intervaloFim, setIntervaloFim] = useState("");
+
+  function atualizarData(i: number, isoDate: string) {
+    if (!isoDate) return;
+    const [y, m, d] = isoDate.split("-").map(Number);
+    const date = new Date(y, m - 1, d, 12);
+    onDatas(
+      datas.map((x, idx) =>
+        idx === i ? { ...x, id: isoDate, label: formatDatePtBR(date) } : x,
+      ),
+    );
+  }
+
+  function adicionarDataUnica() {
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    amanha.setHours(12, 0, 0, 0);
+    const iso = toISODateString(amanha);
+    onDatas([...datas, { id: iso, label: formatDatePtBR(amanha), ativa: true }]);
+  }
+
+  function adicionarIntervalo() {
+    if (!intervaloInicio || !intervaloFim) return;
+    const [y1, m1, d1] = intervaloInicio.split("-").map(Number);
+    const [y2, m2, d2] = intervaloFim.split("-").map(Number);
+    const inicio = new Date(y1, m1 - 1, d1, 12);
+    const fim = new Date(y2, m2 - 1, d2, 12);
+    if (inicio > fim) return;
+    const existingIds = new Set(datas.map((d) => d.id));
+    const novas = dateRange(inicio, fim)
+      .map((date) => ({
+        id: toISODateString(date),
+        label: formatDatePtBR(date),
+        ativa: true,
+      }))
+      .filter((d) => !existingIds.has(d.id));
+    onDatas([...datas, ...novas]);
+    setMostrarIntervalo(false);
+    setIntervaloInicio("");
+    setIntervaloFim("");
+  }
+
+  function adicionarJanela() {
+    const ultimo = horarios[horarios.length - 1];
+    let nextHour = 6;
+    if (ultimo) {
+      const { fim } = parseHoraLabel(ultimo.label);
+      nextHour = Math.min(parseInt(fim, 10), 22);
+    }
+    const inicio = String(nextHour).padStart(2, "0");
+    const fim = String(nextHour + 1).padStart(2, "0");
+    onHorarios([...horarios, { label: gerarLabelHora(inicio, fim), ativo: true }]);
+  }
+
+  const inputDateClass =
+    "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring";
+  const selectClass =
+    "h-9 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring";
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      {/* ── Datas ── */}
       <div>
         <p className="mb-2 text-xs font-semibold text-charcoal">Datas</p>
         <div className="space-y-1.5">
-          {datas.map((d, i) => (
-            <div
-              key={d.id}
-              className="grid grid-cols-[auto_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
-            >
-              <Switch
-                checked={d.ativa}
-                onCheckedChange={(v) =>
-                  onDatas(datas.map((x, idx) => (idx === i ? { ...x, ativa: v } : x)))
-                }
-              />
-              <Input
-                value={d.label}
-                onChange={(e) =>
-                  onDatas(
-                    datas.map((x, idx) =>
-                      idx === i ? { ...x, label: e.target.value } : x,
-                    ),
-                  )
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-terracotta hover:bg-terracotta/10"
-                onClick={() => onDatas(datas.filter((_, idx) => idx !== i))}
+          {datas.map((d, i) => {
+            const isIso = /^\d{4}-\d{2}-\d{2}$/.test(d.id);
+            return (
+              <div
+                key={d.id}
+                className="rounded-md border border-border bg-background/40 p-2 space-y-1"
               >
-                <Trash2 className="h-4 w-4" />
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+                  <Switch
+                    checked={d.ativa}
+                    onCheckedChange={(v) =>
+                      onDatas(
+                        datas.map((x, idx) => (idx === i ? { ...x, ativa: v } : x)),
+                      )
+                    }
+                  />
+                  {isIso ? (
+                    <input
+                      type="date"
+                      value={d.id}
+                      onChange={(e) => atualizarData(i, e.target.value)}
+                      className={inputDateClass}
+                    />
+                  ) : (
+                    <Input
+                      value={d.label}
+                      onChange={(e) =>
+                        onDatas(
+                          datas.map((x, idx) =>
+                            idx === i ? { ...x, label: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="Texto da data"
+                    />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-terracotta hover:bg-terracotta/10"
+                    onClick={() => onDatas(datas.filter((_, idx) => idx !== i))}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                {isIso && (
+                  <p className="pl-10 text-xs text-charcoal/60">{d.label}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {mostrarIntervalo ? (
+          <div className="mt-2 rounded-md border border-dashed border-border bg-background/30 p-3 space-y-2">
+            <p className="text-xs font-medium text-charcoal">Selecionar intervalo</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-charcoal/60">De</label>
+                <input
+                  type="date"
+                  value={intervaloInicio}
+                  onChange={(e) => setIntervaloInicio(e.target.value)}
+                  className={cn("mt-0.5", inputDateClass)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-charcoal/60">Até</label>
+                <input
+                  type="date"
+                  value={intervaloFim}
+                  min={intervaloInicio}
+                  onChange={(e) => setIntervaloFim(e.target.value)}
+                  className={cn("mt-0.5", inputDateClass)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={adicionarIntervalo}
+                disabled={!intervaloInicio || !intervaloFim}
+              >
+                Adicionar datas
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setMostrarIntervalo(false);
+                  setIntervaloInicio("");
+                  setIntervaloFim("");
+                }}
+              >
+                Cancelar
               </Button>
             </div>
-          ))}
-        </div>
-        <Button
-          variant="outline"
-          className="mt-2 border-dashed"
-          onClick={() =>
-            onDatas([
-              ...datas,
-              { id: `d-${Date.now()}`, label: "Nova data", ativa: true },
-            ])
-          }
-        >
-          <Plus className="mr-2 h-4 w-4" /> Adicionar data
-        </Button>
+          </div>
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button variant="outline" className="border-dashed" onClick={adicionarDataUnica}>
+              <Plus className="mr-2 h-4 w-4" /> Adicionar data
+            </Button>
+            <Button
+              variant="outline"
+              className="border-dashed"
+              onClick={() => setMostrarIntervalo(true)}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" /> Intervalo
+            </Button>
+          </div>
+        )}
       </div>
 
+      {/* ── Horários ── */}
       <div>
         <p className="mb-2 text-xs font-semibold text-charcoal">Janelas de horário</p>
         <div className="space-y-1.5">
-          {horarios.map((h, i) => (
-            <div
-              key={i}
-              className="grid grid-cols-[auto_1fr_auto] gap-2 rounded-md border border-border bg-background/40 p-2"
-            >
-              <Switch
-                checked={h.ativo}
-                onCheckedChange={(v) =>
-                  onHorarios(
-                    horarios.map((x, idx) =>
-                      idx === i ? { ...x, ativo: v } : x,
-                    ),
-                  )
-                }
-              />
-              <Input
-                value={h.label}
-                onChange={(e) =>
-                  onHorarios(
-                    horarios.map((x, idx) =>
-                      idx === i ? { ...x, label: e.target.value } : x,
-                    ),
-                  )
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-terracotta hover:bg-terracotta/10"
-                onClick={() =>
-                  onHorarios(horarios.filter((_, idx) => idx !== i))
-                }
+          {horarios.map((h, i) => {
+            const { inicio, fim } = parseHoraLabel(h.label);
+            return (
+              <div
+                key={i}
+                className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border border-border bg-background/40 p-2"
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+                <Switch
+                  checked={h.ativo}
+                  onCheckedChange={(v) =>
+                    onHorarios(
+                      horarios.map((x, idx) => (idx === i ? { ...x, ativo: v } : x)),
+                    )
+                  }
+                />
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={inicio}
+                    onChange={(e) =>
+                      onHorarios(
+                        horarios.map((x, idx) =>
+                          idx === i
+                            ? { ...x, label: gerarLabelHora(e.target.value, fim) }
+                            : x,
+                        ),
+                      )
+                    }
+                    className={selectClass}
+                  >
+                    {HORAS.map((h) => (
+                      <option key={h} value={h}>{h}h</option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-charcoal/50 shrink-0">às</span>
+                  <select
+                    value={fim}
+                    onChange={(e) =>
+                      onHorarios(
+                        horarios.map((x, idx) =>
+                          idx === i
+                            ? { ...x, label: gerarLabelHora(inicio, e.target.value) }
+                            : x,
+                        ),
+                      )
+                    }
+                    className={selectClass}
+                  >
+                    {HORAS.map((h) => (
+                      <option key={h} value={h}>{h}h</option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-terracotta hover:bg-terracotta/10"
+                  onClick={() => onHorarios(horarios.filter((_, idx) => idx !== i))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
-        <Button
-          variant="outline"
-          className="mt-2 border-dashed"
-          onClick={() =>
-            onHorarios([...horarios, { label: "Nova janela", ativo: true }])
-          }
-        >
+        <Button variant="outline" className="mt-2 border-dashed" onClick={adicionarJanela}>
           <Plus className="mr-2 h-4 w-4" /> Adicionar janela
         </Button>
       </div>

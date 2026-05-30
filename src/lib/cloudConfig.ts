@@ -73,7 +73,42 @@ export async function loadCloudConfig(): Promise<{
       found = true;
       const payload = data.payload as CloudConfigPayload;
       for (const key of SYNCED_KEYS) {
-        if (payload[key] !== undefined) patch[key] = payload[key];
+        if (payload[key] === undefined) continue;
+
+        if (key === "campanhas" && Array.isArray(payload.campanhas)) {
+          // Normaliza cada campanha do cloud para garantir campos obrigatórios
+          // em delivery (evita crash na DeliveryTab quando taxa/zonas estão ausentes).
+          const cloudCampanhas = (payload.campanhas as any[]).map((c: any) => {
+            const del = c.delivery ?? {};
+            return {
+              ...c,
+              delivery: {
+                ativo: true,
+                valorMinimo: 0,
+                tempoEstimadoMin: 40,
+                tempoEstimadoMax: 60,
+                raioKm: 10,
+                upsellAtivo: false,
+                upsellProdutoIds: [],
+                datas: [],
+                horarios: [],
+                ...del,
+                taxa: del.taxa ?? { tipo: "fixa", valor: 0 },
+                bairros: del.bairros ?? [],
+                zonas: del.zonas ?? { ativo: false, zonas: [] },
+              },
+            };
+          });
+
+          // Preserva campanhas criadas localmente que ainda não foram publicadas
+          const localCampanhas = useAdmin.getState().campanhas;
+          const cloudIds = new Set(cloudCampanhas.map((c: any) => c.id as string));
+          const localOnly = localCampanhas.filter((c) => !cloudIds.has(c.id));
+
+          patch.campanhas = [...cloudCampanhas, ...localOnly];
+        } else {
+          patch[key] = payload[key];
+        }
       }
     }
 

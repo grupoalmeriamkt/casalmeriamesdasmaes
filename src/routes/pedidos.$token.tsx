@@ -6,6 +6,7 @@ import {
   rowToPedidoSalvo,
   type PedidoRow,
 } from "@/lib/pedidos";
+import { buscarInfoToken } from "@/lib/shareToken";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
@@ -96,6 +97,7 @@ function CozinhaPage() {
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
   const [imprimindo, setImprimindo] = useState<PedidoSalvo[] | null>(null);
+  const [campanhaInfo, setCampanhaInfo] = useState<{ campanha_id: string | null; nome: string | null } | null>(null);
 
   // Edição
   const [editando, setEditando] = useState<PedidoSalvo | null>(null);
@@ -171,6 +173,15 @@ function CozinhaPage() {
     }
     setCarregando(false);
   };
+
+  useEffect(() => {
+    buscarInfoToken(token).then((info) => {
+      if (info) {
+        setCampanhaInfo(info);
+        if (info.nome) document.title = `Pedidos · ${info.nome}`;
+      }
+    });
+  }, [token]);
 
   useEffect(() => {
     if (!user) return;
@@ -357,7 +368,11 @@ function CozinhaPage() {
         <header className="bg-charcoal text-white">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
             <div>
-              <h1 className="font-serif text-xl font-bold">Pedidos — Casa Almeria</h1>
+              <h1 className="font-serif text-xl font-bold">
+                {campanhaInfo?.nome
+                  ? `Pedidos · ${campanhaInfo.nome}`
+                  : "Pedidos — Casa Almeria"}
+              </h1>
               <p className="text-xs text-white/50">
                 {ultimaAtualizacao
                   ? `Atualizado às ${ultimaAtualizacao} · ao vivo`

@@ -15,7 +15,9 @@ import {
   calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
-import { distanciaKm, geocodificarEndereco } from "@/lib/geo";
+import { distanciaKm, geocodificarEndereco, encontrarZona } from "@/lib/geo";
+import { parseDateId } from "@/lib/dateUtils";
+import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 import { useIsPreview } from "@/components/admin/PreviewContext";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,8 +119,16 @@ export function Quiz({
   const textosGlobais = useAdmin((s) => s.textos);
   const campanhaAtiva = useCampanhaAtiva();
 
+  const [zonaEntregaAtual, setZonaEntregaAtual] = useState<ZonaEntrega | null>(null);
+
   const taxaEntrega = entregaTipo === "delivery"
-    ? calcTaxaEntrega(campanhaAtiva?.delivery?.taxa)
+    ? (() => {
+        const zonasConfig = campanhaAtiva?.delivery?.zonas;
+        if (zonasConfig?.ativo && zonaEntregaAtual) {
+          return calcTaxaEntrega(zonaEntregaAtual.taxa);
+        }
+        return calcTaxaEntrega(campanhaAtiva?.delivery?.taxa);
+      })()
     : 0;
   const total = subtotal + taxaEntrega;
   const textosCampanha = campanhaAtiva?.textos;
@@ -129,7 +139,7 @@ export function Quiz({
   const [nome, setNome] = useState(cliente.nome);
   const [whats, setWhats] = useState(cliente.whatsapp);
   const [emailInput, setEmailInput] = useState(email);
-  const [outraPessoa, setOutraPessoa] = useState(destinatario != null);
+  const [outraPessoa, setOutraPessoa] = useState(true);
   const [destNome, setDestNome] = useState(destinatario?.nome ?? "");
   const [destWhats, setDestWhats] = useState(destinatario?.whatsapp ?? "");
   const [cep, setCep] = useState(endereco?.cep ?? "");
@@ -143,6 +153,10 @@ export function Quiz({
   });
   const [buscando, setBuscando] = useState(false);
   const [foraDeRaio, setForaDeRaio] = useState(false);
+
+  useEffect(() => {
+    if (entregaTipo !== "delivery") setZonaEntregaAtual(null);
+  }, [entregaTipo]);
   const [detalhe, setDetalhe] = useState<Cesta | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -182,39 +196,72 @@ export function Quiz({
       };
       setEnd((s) => ({ ...s, ...novoEnd }));
 
-      // Validação por raio (se ativa no admin)
-      const restr = entregaConfig.restricaoRaio;
-      if (restr?.ativo) {
-        const base = entregaConfig.unidades.find((u) => u.id === restr.unidadeBaseId);
-        if (!base || base.lat == null || base.lng == null) {
-          // Sem coordenadas configuradas: avisa mas não bloqueia.
+      const zonasConfig = campanhaAtiva?.delivery?.zonas;
+      const usandoZonas = zonasConfig?.ativo && zonasConfig.zonas.length > 0;
+
+      if (usandoZonas) {
+        const consulta = [
+          novoEnd.rua,
+          novoEnd.bairro,
+          novoEnd.cidade,
+          novoEnd.estado,
+          limpo,
+          "Brasil",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        const coords = await geocodificarEndereco(consulta);
+        if (!coords) {
           toast.warning(
-            "Restrição de entrega ativa, mas a unidade base não tem coordenadas. Confirmaremos a viabilidade pelo WhatsApp.",
+            "Não conseguimos confirmar sua localização. Validaremos a área de entrega pelo WhatsApp.",
           );
         } else {
-          const consulta = [
-            novoEnd.rua,
-            novoEnd.bairro,
-            novoEnd.cidade,
-            novoEnd.estado,
-            limpo,
-            "Brasil",
-          ]
-            .filter(Boolean)
-            .join(", ");
-          const coords = await geocodificarEndereco(consulta);
-          if (!coords) {
+          const zona = encontrarZona(coords, zonasConfig!.zonas);
+          if (!zona) {
+            setForaDeRaio(true);
+            toast.error(
+              "Endereço fora da nossa área de entrega. Tente a opção de retirada.",
+            );
+            return;
+          }
+          setZonaEntregaAtual(zona);
+          toast.success(`Endereço encontrado — zona "${zona.nome}".`);
+          return;
+        }
+      } else {
+        // Validação por raio (se ativa no admin)
+        const restr = entregaConfig.restricaoRaio;
+        if (restr?.ativo) {
+          const base = entregaConfig.unidades.find((u) => u.id === restr.unidadeBaseId);
+          if (!base || base.lat == null || base.lng == null) {
             toast.warning(
-              "Não conseguimos confirmar a distância automaticamente. Vamos validar pelo WhatsApp.",
+              "Restrição de entrega ativa, mas a unidade base não tem coordenadas. Confirmaremos a viabilidade pelo WhatsApp.",
             );
           } else {
-            const dist = distanciaKm({ lat: base.lat, lng: base.lng }, coords);
-            if (dist > restr.raioKm) {
-              setForaDeRaio(true);
-              toast.error(
-                `Endereço a ${dist.toFixed(1)} km da loja — fora do raio de ${restr.raioKm} km. Tente a opção de retirada.`,
+            const consulta = [
+              novoEnd.rua,
+              novoEnd.bairro,
+              novoEnd.cidade,
+              novoEnd.estado,
+              limpo,
+              "Brasil",
+            ]
+              .filter(Boolean)
+              .join(", ");
+            const coords = await geocodificarEndereco(consulta);
+            if (!coords) {
+              toast.warning(
+                "Não conseguimos confirmar a distância automaticamente. Vamos validar pelo WhatsApp.",
               );
-              return;
+            } else {
+              const dist = distanciaKm({ lat: base.lat, lng: base.lng }, coords);
+              if (dist > restr.raioKm) {
+                setForaDeRaio(true);
+                toast.error(
+                  `Endereço a ${dist.toFixed(1)} km da loja — fora do raio de ${restr.raioKm} km. Tente a opção de retirada.`,
+                );
+                return;
+              }
             }
           }
         }
@@ -261,10 +308,11 @@ export function Quiz({
         (st.cesta ? st.cesta.cesta.preco * st.cesta.quantidade : 0) +
         Object.values(st.sobremesas).reduce((a, s) => a + s.sobremesa.preco * s.quantidade, 0) +
         st.extras.cartoes.reduce((a, c) => a + c.preco, 0) +
-        st.extras.polaroids.reduce((a, p) => a + p.preco, 0),
+        st.extras.polaroids.reduce((a, p) => a + p.preco, 0) +
+        taxaEntrega,
       ...extras,
     } as Parameters<typeof upsertRascunho>[0];
-    const { id, error } = await upsertRascunho(payload, st.pedidoId);
+    const { id, error } = await upsertRascunho(payload, st.pedidoId, campanhaAtiva?.id);
     if (!error && id && id !== st.pedidoId) {
       usePedido.getState().setPedidoId(id);
     }
@@ -380,7 +428,9 @@ export function Quiz({
       <header className="sticky top-0 z-30 bg-charcoal">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 md:px-8">
           <Logo variant="light" />
-          <span className="badge-mae">🌸 Dia das Mães</span>
+          {textosCampanha?.eyebrow && (
+            <span className="badge-mae">{textosCampanha.eyebrow}</span>
+          )}
         </div>
         <div className="mx-auto w-full max-w-2xl px-4 pb-4 sm:px-6 md:px-8">
           <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-[0.18em] text-linen/55">
@@ -807,9 +857,10 @@ export function Quiz({
               <div className="grid grid-cols-2 gap-3">
                 {datas.map((d) => {
                   const sel = data === d.label;
-                  const partes = d.label.split(",").map((s) => s.trim());
-                  const semana = partes[0] || d.label;
-                  const numero = partes[1]?.split("/")?.[0] || "•";
+                  const parsed = parseDateId(d.id);
+                  const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
+                  const numero = parsed?.dia ?? (d.label.split(",")[1]?.trim().split(" ")?.[0] || "•");
+                  const mesAno = parsed?.mesAno ?? "";
                   return (
                     <button
                       key={d.id}
@@ -835,6 +886,13 @@ export function Quiz({
                       >
                         {semana}
                       </div>
+                      {mesAno && (
+                        <div
+                          className={`mt-0.5 text-xs ${sel ? "text-linen/70" : "text-charcoal/50"}`}
+                        >
+                          {mesAno}
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -1028,6 +1086,7 @@ export function Quiz({
             onVoltar={voltar}
             habilitarPix={pagamento.pix}
             habilitarCartao={pagamento.cartao}
+            taxaEntrega={taxaEntrega}
           />
         )}
 
@@ -1149,7 +1208,7 @@ export function Quiz({
                   },
                   total,
                 };
-                const { id } = await finalizarPedido(payload, st.pedidoId);
+                const { id } = await finalizarPedido(payload, st.pedidoId, campanhaAtiva?.id);
                 if (id) usePedido.getState().setPedidoId(id);
 
                 trackPurchase({

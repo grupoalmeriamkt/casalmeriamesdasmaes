@@ -93,6 +93,22 @@ export type TaxaEntrega =
   | { tipo: "fixa"; valor: number }
   | { tipo: "faixa"; faixas: { ateKm: number; valor: number }[] };
 
+export type ZonaEntrega = {
+  id: string;
+  nome: string;
+  cor: string;
+  taxa: TaxaEntrega;
+  poligono: {
+    type: "Polygon";
+    coordinates: number[][][];
+  };
+};
+
+export type ConfigZonasEntrega = {
+  ativo: boolean;
+  zonas: ZonaEntrega[];
+};
+
 /** Resolve o valor numérico da taxa com base no tipo e distância (km). */
 export function calcTaxaEntrega(taxa: TaxaEntrega | undefined, distKm = 0): number {
   if (!taxa) return 0;
@@ -118,6 +134,7 @@ export type CampanhaDelivery = {
   horarios: { label: string; ativo: boolean }[];
   centroLat?: number;
   centroLng?: number;
+  zonas?: ConfigZonasEntrega;
 };
 
 export type CampanhaRetirada = {
@@ -333,6 +350,7 @@ const deliveryDefault = (): CampanhaDelivery => ({
   upsellProdutoIds: [],
   datas: datasDefault(),
   horarios: horariosDefault(),
+  zonas: { ativo: false, zonas: [] },
 });
 
 const retiradaDefault = (endereco = ""): CampanhaRetirada => ({
@@ -770,7 +788,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 10,
+      version: 12,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -961,6 +979,15 @@ export const useAdmin = create<AdminState>()(
               upsellAtivo: !!c.upsellAtivo,
               upsellProdutoIds,
             };
+            if (!delivery.taxa || typeof delivery.taxa !== "object") {
+              delivery.taxa = { tipo: "fixa" as const, valor: 0 };
+            }
+            if (!Array.isArray(delivery.bairros)) delivery.bairros = [];
+            if (!Array.isArray(delivery.datas)) delivery.datas = datasDefault();
+            if (!Array.isArray(delivery.horarios)) delivery.horarios = horariosDefault();
+            if (!delivery.zonas || typeof delivery.zonas !== "object") {
+              delivery.zonas = { ativo: false, zonas: [] };
+            }
             const retirada: CampanhaRetirada = c.retirada ?? {
               ...retiradaDefault(enderecoUnidade),
               ativo: quiz.retirada,
