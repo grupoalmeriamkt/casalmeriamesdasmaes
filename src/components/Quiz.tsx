@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
@@ -474,7 +475,7 @@ export function Quiz({
             {(() => {
               const prazo = campanhaAtiva?.dataLimitePedidos
                 ? (() => {
-                    const d = new Date(campanhaAtiva.dataLimitePedidos + "T12:00:00");
+                    const d = new Date(campanhaAtiva.dataLimitePedidos.slice(0, 10) + "T12:00:00");
                     return `Encomendas encerram ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}`;
                   })()
                 : (textos.badgePrazo || null);
@@ -621,19 +622,13 @@ export function Quiz({
 
             {/* Destinatário */}
             <div className="space-y-3">
-              <p className="text-sm font-medium text-charcoal">Quem irá receber o pedido?</p>
+              <div>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-terracotta">Destinatário</p>
+                <p className="font-serif text-lg font-semibold leading-tight text-charcoal">
+                  Quem irá receber o pedido? 🎁
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOutraPessoa(false)}
-                  className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
-                    !outraPessoa
-                      ? "border-charcoal bg-charcoal text-white"
-                      : "border-sand/70 bg-white text-charcoal hover:border-charcoal/40"
-                  }`}
-                >
-                  Eu mesmo(a)
-                </button>
                 <button
                   type="button"
                   onClick={() => setOutraPessoa(true)}
@@ -644,6 +639,17 @@ export function Quiz({
                   }`}
                 >
                   Outra Pessoa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOutraPessoa(false)}
+                  className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                    !outraPessoa
+                      ? "border-charcoal bg-charcoal text-white"
+                      : "border-sand/70 bg-white text-charcoal hover:border-charcoal/40"
+                  }`}
+                >
+                  Eu mesmo(a)
                 </button>
               </div>
               {outraPessoa && (
@@ -1509,9 +1515,12 @@ function BotoesNav({
   disabled?: boolean;
   avancarLabel?: string;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   return (
     <>
-      {/* Spacer mobile: reserva espaço para a barra fixa não cobrir conteúdo */}
+      {/* Spacer mobile: reserva espaço para a barra não cobrir conteúdo */}
       <div className="h-24 sm:hidden" />
 
       {/* Desktop: fluxo normal */}
@@ -1528,26 +1537,29 @@ function BotoesNav({
         </button>
       </div>
 
-      {/* Mobile: barra fixa no rodapé */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-40 flex gap-2 border-t border-sand/40 bg-white/95 px-4 py-3 backdrop-blur-sm sm:hidden"
-        style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
-      >
-        <button
-          onClick={onVoltar}
-          aria-label="Voltar"
-          className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-sand bg-white text-lg text-charcoal transition-colors hover:bg-sand/30"
+      {/* Mobile: portal em document.body — evita stacking context de ancestors animados */}
+      {mounted && createPortal(
+        <div
+          className="fixed bottom-0 left-0 right-0 z-[9999] flex gap-2 border-t border-sand/40 bg-white/95 px-4 py-3 backdrop-blur-sm sm:hidden"
+          style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
         >
-          ←
-        </button>
-        <button
-          onClick={onAvancar}
-          disabled={disabled}
-          className="h-12 flex-1 rounded-xl bg-charcoal text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
-        >
-          {avancarLabel}
-        </button>
-      </div>
+          <button
+            onClick={onVoltar}
+            aria-label="Voltar"
+            className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-sand bg-white text-lg text-charcoal transition-colors hover:bg-sand/30"
+          >
+            ←
+          </button>
+          <button
+            onClick={onAvancar}
+            disabled={disabled}
+            className="h-12 flex-1 rounded-xl bg-charcoal text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
+          >
+            {avancarLabel}
+          </button>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
