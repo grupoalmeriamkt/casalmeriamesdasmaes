@@ -120,11 +120,18 @@ function CozinhaPage() {
     return (localStorage.getItem("pedidos-view") as "lista" | "kanban") ?? "lista";
   });
 
+  const [rawRows, setRawRows] = useState<PedidoRow[]>([]);
+
   // filtros
   const [filtroStatus, setFiltroStatus] = useState<StatusKey[]>([]);
   const [filtroTipo, setFiltroTipo] = useState<"" | "delivery" | "retirada">("");
   const [filtroData, setFiltroData] = useState("");
   const [filtroPolaroid, setFiltroPolaroid] = useState(false);
+  const [filtroTexto, setFiltroTexto] = useState("");
+  const [filtroInicio, setFiltroInicio] = useState("");
+  const [filtroFim, setFiltroFim] = useState("");
+  const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -166,6 +173,7 @@ function CozinhaPage() {
         if (temNovo) tocarSino();
       }
       pedidosIdsRef.current = new Set(rows.map((r) => r.id));
+      setRawRows(rows);
       setPedidos(rows.map(rowToPedidoSalvo));
       setUltimaAtualizacao(horaNow());
     } catch {
@@ -213,9 +221,16 @@ function CozinhaPage() {
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroData && p.data !== filtroData) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
+      if (filtroTexto) {
+        const q = filtroTexto.toLowerCase();
+        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (filtroInicio && p.criadoEm.slice(0, 10) < filtroInicio) return false;
+      if (filtroFim   && p.criadoEm.slice(0, 10) > filtroFim)     return false;
       return true;
     });
-  }, [pedidos, filtroStatus, filtroTipo, filtroData, filtroPolaroid]);
+  }, [pedidos, filtroStatus, filtroTipo, filtroData, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
@@ -357,7 +372,96 @@ function CozinhaPage() {
     );
   };
 
-  const temFiltro = filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid;
+  function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+
+  const aplicarPeriodo = (p: typeof filtroPeriodo) => {
+    const hoje = new Date();
+    if (p === "hoje") {
+      setFiltroInicio(toISO(hoje)); setFiltroFim(toISO(hoje));
+    } else if (p === "ontem") {
+      const d = new Date(hoje); d.setDate(d.getDate() - 1);
+      setFiltroInicio(toISO(d)); setFiltroFim(toISO(d));
+    } else if (p === "semana") {
+      const d = new Date(hoje); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      setFiltroInicio(toISO(d)); setFiltroFim(toISO(hoje));
+    } else if (p === "mes") {
+      setFiltroInicio(toISO(new Date(hoje.getFullYear(), hoje.getMonth(), 1)));
+      setFiltroFim(toISO(hoje));
+    } else {
+      setFiltroInicio(""); setFiltroFim("");
+    }
+    setFiltroPeriodo(p);
+  };
+
+  const exportarCSV = (lista: PedidoSalvo[], nome = "pedidos-casa-almeria") => {
+    if (lista.length === 0) { toast.error("Nenhum pedido para exportar."); return; }
+    const rowMap = new Map(rawRows.map((r) => [r.id, r]));
+    const head = [
+      "ID", "Data/Hora", "Nome", "CPF", "Email", "WhatsApp",
+      "Destinatário", "Tel Destinatário", "Cesta", "Qtd Cesta",
+      "Sobremesas", "Cartões", "Polaroids", "Tipo", "Endereço/Unidade",
+      "Data Entrega", "Horário", "Método Pagamento", "Status Pagamento",
+      "Frete Estimado", "Total",
+    ];
+    const csvRows = lista.map((p) => {
+      const raw = rowMap.get(p.id);
+      const sobrNomes = p.sobremesas.map((s) => `${s.nome} x${s.quantidade}`).join(" | ");
+      const itensSoma =
+        (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
+        + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
+        + (p.pagamento?.extras?.cartoes ?? []).reduce((a, c) => a + c.preco, 0)
+        + (p.pagamento?.extras?.polaroids ?? []).reduce((a, po) => a + po.preco, 0)
+        - Number(p.pagamento?.desconto ?? 0);
+      const frete = Math.max(0, p.total - itensSoma);
+      return [
+        p.id,
+        new Date(p.criadoEm).toLocaleString("pt-BR"),
+        p.cliente.nome,
+        raw?.cliente_cpf ?? "",
+        raw?.cliente_email ?? "",
+        p.cliente.whatsapp,
+        p.destinatario?.nome ?? "",
+        p.destinatario?.whatsapp ?? "",
+        p.cesta?.nome ?? "",
+        String(p.cesta?.quantidade ?? 0),
+        sobrNomes,
+        String(p.pagamento?.extras?.cartoes?.length ?? 0),
+        String(p.pagamento?.extras?.polaroids?.length ?? 0),
+        p.tipo ?? "",
+        p.enderecoOuUnidade ?? "",
+        p.data ?? "",
+        p.horario ?? "",
+        p.pagamento?.metodo ?? "",
+        p.pagamento?.status ?? "",
+        frete > 0 ? frete.toFixed(2) : "",
+        p.total.toFixed(2),
+      ];
+    });
+    const bom = "﻿";
+    const csv = bom + [head, ...csvRows]
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${nome}-${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleSelecionado = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selecionarTodos = () =>
+    setSelectedIds(new Set(pedidosFiltrados.map((p) => p.id)));
+
+  const temFiltro =
+    filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
+    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "";
 
   // ── View ──────────────────────────────────────────────────────────────────
   return (
@@ -421,6 +525,14 @@ function CozinhaPage() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
                 Atualizar
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => exportarCSV(pedidosFiltrados)}
+                disabled={pedidosFiltrados.length === 0}
+                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              >
+                ⬇ Exportar visíveis
+              </Button>
               <Button onClick={imprimirAprovadosHoje} disabled={porStatus.aprovado.length === 0}
                 className="bg-terracotta text-white hover:bg-terracotta/90">
                 <Printer className="mr-2 h-4 w-4" />
@@ -436,89 +548,133 @@ function CozinhaPage() {
 
         {/* Filtros */}
         <div className="border-b border-border bg-white">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+          <div className="mx-auto max-w-6xl space-y-2 px-4 py-3 sm:px-6">
 
-            {/* Status chips */}
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((s) => {
-                const active = filtroStatus.includes(s);
-                return (
+            {/* Linha 1: busca + data entrega + polaroid + contagem */}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="search"
+                placeholder="🔍 Buscar por nome, telefone…"
+                value={filtroTexto}
+                onChange={(e) => setFiltroTexto(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-1 focus:ring-charcoal/30"
+              />
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Entrega:</label>
+                <input
+                  type="date"
+                  value={filtroData}
+                  onChange={(e) => setFiltroData(e.target.value)}
+                  className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+                />
+                {filtroData && (
+                  <button onClick={() => setFiltroData("")} className="text-muted-foreground hover:text-charcoal">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setFiltroPolaroid((v) => !v)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                  filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                }`}
+              >
+                📸 Polaroid
+              </button>
+              <div className="ml-auto flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? "s" : ""}
+                </span>
+                <button
+                  onClick={selecionarTodos}
+                  className="text-xs font-semibold text-charcoal/60 hover:text-charcoal"
+                >
+                  Selecionar todos
+                </button>
+                {temFiltro && (
                   <button
-                    key={s}
-                    onClick={() => toggleStatus(s)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                      active
-                        ? "bg-charcoal text-white"
-                        : "bg-linen text-charcoal hover:bg-charcoal/10"
+                    onClick={() => {
+                      setFiltroStatus([]); setFiltroTipo(""); setFiltroData("");
+                      setFiltroPolaroid(false); setFiltroTexto("");
+                      aplicarPeriodo("");
+                    }}
+                    className="text-xs font-semibold text-terracotta hover:text-terracotta/80"
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Linha 2: status + tipo */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((s) => {
+                  const active = filtroStatus.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => toggleStatus(s)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                        active ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                      }`}
+                    >
+                      {STATUS_CONFIG[s].label}
+                      {active && <X className="ml-1 inline h-3 w-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="h-3 w-px bg-border" />
+              <div className="flex gap-1.5">
+                {(["", "delivery", "retirada"] as const).map((t) => (
+                  <button
+                    key={t || "todos"}
+                    onClick={() => setFiltroTipo(t)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors capitalize ${
+                      filtroTipo === t ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
                     }`}
                   >
-                    {STATUS_CONFIG[s].label}
-                    {active && <X className="ml-1 inline h-3 w-3" />}
+                    {t === "" ? "Todos os tipos" : t}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
 
-            <div className="h-4 w-px bg-border" />
-
-            {/* Tipo chips */}
-            <div className="flex gap-1.5">
-              {(["", "delivery", "retirada"] as const).map((t) => (
+            {/* Linha 3: período recebido */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
+              {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
                 <button
-                  key={t || "todos"}
-                  onClick={() => setFiltroTipo(t)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors capitalize ${
-                    filtroTipo === t
-                      ? "bg-charcoal text-white"
-                      : "bg-linen text-charcoal hover:bg-charcoal/10"
+                  key={p}
+                  onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                    filtroPeriodo === p ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
                   }`}
                 >
-                  {t === "" ? "Todos os tipos" : t}
+                  {{ hoje: "Hoje", ontem: "Ontem", semana: "Esta semana", mes: "Este mês" }[p]}
                 </button>
               ))}
-            </div>
-
-            <div className="h-4 w-px bg-border" />
-
-            {/* Data */}
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs text-muted-foreground">Entrega:</label>
+              <span className="text-xs text-muted-foreground">De</span>
               <input
                 type="date"
-                value={filtroData}
-                onChange={(e) => setFiltroData(e.target.value)}
-                className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                value={filtroInicio}
+                onChange={(e) => { setFiltroInicio(e.target.value); setFiltroPeriodo(""); }}
+                className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
               />
-              {filtroData && (
-                <button onClick={() => setFiltroData("")} className="text-muted-foreground hover:text-charcoal">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            <div className="h-4 w-px bg-border" />
-
-            {/* Polaroid */}
-            <button
-              onClick={() => setFiltroPolaroid((v) => !v)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
-              }`}
-            >
-              📸 Com polaroid
-            </button>
-
-            {/* Contador + limpar */}
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? "s" : ""}
-              </span>
-              {temFiltro && (
+              <span className="text-xs text-muted-foreground">até</span>
+              <input
+                type="date"
+                value={filtroFim}
+                onChange={(e) => { setFiltroFim(e.target.value); setFiltroPeriodo(""); }}
+                className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+              />
+              {(filtroInicio || filtroFim || filtroPeriodo) && (
                 <button
-                  onClick={() => { setFiltroStatus([]); setFiltroTipo(""); setFiltroData(""); setFiltroPolaroid(false); }}
-                  className="text-xs font-semibold text-terracotta hover:text-terracotta/80"
+                  onClick={() => aplicarPeriodo("")}
+                  className="text-xs text-muted-foreground hover:text-terracotta"
                 >
-                  Limpar filtros
+                  ✕ Limpar período
                 </button>
               )}
             </div>
@@ -540,6 +696,8 @@ function CozinhaPage() {
               temFiltro={temFiltro}
               onDetalhe={setDetalhe}
               onImprimir={imprimirUm}
+              selectedIds={selectedIds}
+              onToggle={toggleSelecionado}
             />
           ) : (
             <KanbanView
@@ -694,6 +852,28 @@ function CozinhaPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Barra flutuante de seleção */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-2xl bg-charcoal px-5 py-3 shadow-xl text-white text-sm font-semibold">
+          <span>✓ {selectedIds.size} selecionado{selectedIds.size !== 1 ? "s" : ""}</span>
+          <button
+            onClick={() => {
+              const lista = pedidosFiltrados.filter((p) => selectedIds.has(p.id));
+              exportarCSV(lista, "pedidos-selecionados");
+            }}
+            className="rounded-lg bg-terracotta px-3 py-1.5 text-xs hover:bg-terracotta/90"
+          >
+            ⬇ Exportar Excel
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="rounded-lg bg-white/15 px-3 py-1.5 text-xs hover:bg-white/25"
+          >
+            ✕ Limpar
+          </button>
+        </div>
+      )}
+
       <Toaster position="bottom-right" />
     </div>
   );
@@ -707,18 +887,23 @@ function ListView({
   temFiltro,
   onDetalhe,
   onImprimir,
+  selectedIds,
+  onToggle,
 }: {
   porStatus: Record<StatusKey, PedidoSalvo[]>;
   pedidosFiltrados: PedidoSalvo[];
   temFiltro: boolean;
   onDetalhe: (p: PedidoSalvo) => void;
   onImprimir: (p: PedidoSalvo) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
 }) {
   if (temFiltro) {
     return (
       <div className="grid gap-3">
         {pedidosFiltrados.map((p) => (
-          <PedidoCard key={p.id} p={p} onDetalhe={onDetalhe} onImprimir={onImprimir} />
+          <PedidoCard key={p.id} p={p} onDetalhe={onDetalhe} onImprimir={onImprimir}
+            selected={selectedIds.has(p.id)} onToggle={() => onToggle(p.id)} />
         ))}
       </div>
     );
@@ -739,7 +924,8 @@ function ListView({
             </div>
             <div className="grid gap-3">
               {lista.map((p) => (
-                <PedidoCard key={p.id} p={p} onDetalhe={onDetalhe} onImprimir={onImprimir} />
+                <PedidoCard key={p.id} p={p} onDetalhe={onDetalhe} onImprimir={onImprimir}
+                  selected={selectedIds.has(p.id)} onToggle={() => onToggle(p.id)} />
               ))}
             </div>
           </section>
@@ -857,26 +1043,54 @@ function PedidoCard({
   p,
   onDetalhe,
   onImprimir,
+  selected = false,
+  onToggle,
 }: {
   p: PedidoSalvo;
   onDetalhe: (p: PedidoSalvo) => void;
   onImprimir: (p: PedidoSalvo) => void;
+  selected?: boolean;
+  onToggle?: () => void;
 }) {
   const s = getStatus(p);
   const tel = p.cliente.whatsapp.replace(/\D/g, "");
+  const destTel = p.destinatario?.whatsapp?.replace(/\D/g, "");
+  const cartoes = p.pagamento?.extras?.cartoes ?? [];
+  const polaroids = p.pagamento?.extras?.polaroids ?? [];
+  const itensSoma =
+    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
+    + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
+    + cartoes.reduce((a, c) => a + c.preco, 0)
+    + polaroids.reduce((a, po) => a + po.preco, 0)
+    - Number(p.pagamento?.desconto ?? 0);
+  const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
+
   return (
-    <article className="rounded-2xl bg-white p-4 ring-1 ring-border">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article className={`rounded-2xl bg-white p-4 ring-1 transition-colors ${selected ? "ring-2 ring-charcoal" : "ring-border"}`}>
+      <div className="flex flex-wrap items-start gap-3">
+        {/* Checkbox */}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          onClick={(e) => e.stopPropagation()}
+          className="mt-1 h-4 w-4 cursor-pointer rounded border-border accent-charcoal"
+        />
+
         <div className="min-w-0 flex-1">
+          {/* Cabeçalho: status + ID + data */}
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CONFIG[s].bg}`}>
               {STATUS_CONFIG[s].label}
             </span>
+            <span className="font-mono text-xs font-bold text-charcoal">#{p.id.slice(-6).toUpperCase()}</span>
             <span className="text-xs text-muted-foreground">
-              #{p.id.slice(0, 8)} · {new Date(p.criadoEm).toLocaleString("pt-BR")}
+              {new Date(p.criadoEm).toLocaleString("pt-BR")}
             </span>
           </div>
-          <p className="mt-2 font-serif text-lg font-bold text-charcoal">
+
+          {/* Cliente */}
+          <p className="mt-2 font-serif text-lg font-bold text-charcoal leading-tight">
             {p.cliente.nome || "(sem nome)"}
           </p>
           {tel && (
@@ -886,20 +1100,49 @@ function PedidoCard({
               {p.cliente.whatsapp}
             </a>
           )}
-          <div className="mt-2 text-sm text-charcoal">
+
+          {/* Destinatário */}
+          {p.destinatario && (
+            <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-terracotta/8 px-2.5 py-1.5">
+              <span className="text-xs font-semibold text-terracotta">🎁 Para:</span>
+              <span className="text-xs font-semibold text-charcoal">{p.destinatario.nome}</span>
+              {destTel && (
+                <a href={`https://wa.me/55${destTel}`} target="_blank" rel="noreferrer"
+                  className="ml-1 text-xs text-olive hover:underline">
+                  {p.destinatario.whatsapp}
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Itens */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-charcoal">
             {p.cesta?.nome
-              ? <span>{p.cesta.nome} × {p.cesta.quantidade}</span>
+              ? <span className="font-medium">{p.cesta.nome} × {p.cesta.quantidade}</span>
               : <span className="text-muted-foreground">— sem cesta —</span>}
             {p.sobremesas.length > 0 && (
-              <span className="text-muted-foreground"> + {p.sobremesas.length} sobremesa(s)</span>
+              <span className="text-charcoal/60">+{p.sobremesas.length} sobremesa{p.sobremesas.length !== 1 ? "s" : ""}</span>
+            )}
+            {cartoes.length > 0 && (
+              <span className="text-charcoal/60">📝 {cartoes.length} cartão{cartoes.length !== 1 ? "ões" : ""}</span>
+            )}
+            {polaroids.length > 0 && (
+              <span className="text-charcoal/60">📸 {polaroids.length} polaroid{polaroids.length !== 1 ? "s" : ""}</span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground capitalize">
+
+          {/* Entrega */}
+          <p className="mt-1 text-xs text-muted-foreground capitalize">
             {[p.tipo, p.enderecoOuUnidade, p.data, p.horario].filter(Boolean).join(" · ")}
           </p>
+          {frete > 0 && (
+            <p className="text-xs text-charcoal/50">🚚 Frete: {formatBRL(frete)}</p>
+          )}
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="font-serif text-xl font-bold text-terracotta">{formatBRL(p.total)}</span>
+
+        {/* Total + ações */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <span className="font-serif text-2xl font-bold text-terracotta">{formatBRL(p.total)}</span>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => onDetalhe(p)}>
               <Eye className="mr-1 h-4 w-4" /> Detalhes
