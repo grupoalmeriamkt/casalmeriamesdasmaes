@@ -466,7 +466,9 @@ export function Quiz({
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 Qual <em className="italic text-terracotta">cesta</em> você escolhe?
               </h1>
-              <p className="mt-2 text-sm text-ink/65">Feitas artesanalmente para o Dia das Mães</p>
+              {textosCampanha?.subtitulo && (
+                <p className="mt-2 text-sm text-ink/65">{textosCampanha.subtitulo}</p>
+              )}
             </div>
 
             {textos.badgePrazo && <div className="tag-prazo">📦 {textos.badgePrazo}</div>}
