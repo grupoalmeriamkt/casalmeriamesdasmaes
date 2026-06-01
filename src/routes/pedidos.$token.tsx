@@ -1173,9 +1173,30 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
       : metodo?.toUpperCase() === "PIX"
         ? "PIX"
         : metodo ?? null;
+  const itensSoma =
+    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
+    + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
+    + cartoes.reduce((a, c) => a + c.preco, 0)
+    + polaroids.reduce((a, po) => a + po.preco, 0)
+    - desconto;
+  const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
+  const s = getStatus(p);
 
   return (
     <div className="space-y-4 text-sm">
+      {/* Cabeçalho: status + ID + data */}
+      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-border">
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CONFIG[s].bg}`}>
+          {STATUS_CONFIG[s].label}
+        </span>
+        <span className="font-mono text-sm font-bold text-charcoal">
+          #{p.id.slice(-6).toUpperCase()}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {new Date(p.criadoEm).toLocaleString("pt-BR")}
+        </span>
+      </div>
+
       {/* Quem pediu */}
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem pediu</p>
@@ -1188,11 +1209,12 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
       </div>
 
       {p.destinatario && (
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem recebe</p>
+        <div className="rounded-lg bg-terracotta/8 px-3 py-2.5 flex flex-col gap-0.5">
+          <p className="text-xs font-semibold text-terracotta uppercase tracking-wide">🎁 Para quem é o pedido</p>
           <p className="font-semibold text-charcoal">{p.destinatario.nome}</p>
           {p.destinatario.whatsapp && (
-            <a href={`https://wa.me/55${p.destinatario.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="text-olive hover:underline">
+            <a href={`https://wa.me/55${p.destinatario.whatsapp.replace(/\D/g, "")}`}
+              target="_blank" rel="noreferrer" className="text-sm text-olive hover:underline">
               {p.destinatario.whatsapp}
             </a>
           )}
@@ -1233,19 +1255,25 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
         </div>
       </div>
 
-      {/* Desconto + Total */}
+      {/* Desconto + Frete + Total */}
       <div className="space-y-1 border-t border-border pt-2">
         {desconto > 0 && (
           <>
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span>
-              <span>{formatBRL(Number(p.total) + desconto)}</span>
+              <span>{formatBRL(itensSoma + desconto)}</span>
             </div>
             <div className="flex justify-between text-emerald-700">
               <span>Desconto{cupom ? ` (${cupom})` : ""}</span>
               <span>−{formatBRL(desconto)}</span>
             </div>
           </>
+        )}
+        {frete > 0 && (
+          <div className="flex justify-between text-sm text-charcoal/70">
+            <span>🚚 Taxa de entrega</span>
+            <span className="font-semibold">{formatBRL(frete)}</span>
+          </div>
         )}
         <div className="flex items-center justify-between">
           <span className="font-semibold text-charcoal">Total</span>
@@ -1297,49 +1325,86 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
 // ── Folha de impressão ─────────────────────────────────────────────────────
 
 function FolhaImpressao({ p }: { p: PedidoSalvo }) {
+  const cartoes = p.pagamento?.extras?.cartoes ?? [];
+  const polaroids = p.pagamento?.extras?.polaroids ?? [];
+  const desconto = Number(p.pagamento?.desconto ?? 0);
+  const cupom = p.pagamento?.cupom;
+  const itensSoma =
+    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
+    + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
+    + cartoes.reduce((a, c) => a + c.preco, 0)
+    + polaroids.reduce((a, po) => a + po.preco, 0)
+    - desconto;
+  const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
+
   return (
     <div style={{ pageBreakAfter: "always", padding: "20mm 15mm", fontFamily: "system-ui, sans-serif", color: "#000", fontSize: "12pt" }}>
+      {/* Cabeçalho */}
       <div style={{ borderBottom: "2px solid #000", paddingBottom: "8pt", marginBottom: "12pt" }}>
         <h1 style={{ fontSize: "18pt", margin: 0 }}>Casa Almeria — Pedido</h1>
-        <p style={{ fontSize: "10pt", margin: "4pt 0 0" }}>
-          #{p.id.slice(0, 8)} · {new Date(p.criadoEm).toLocaleString("pt-BR")}
+        <p style={{ fontSize: "10pt", margin: "4pt 0 0", fontFamily: "monospace" }}>
+          #{p.id.slice(-6).toUpperCase()} · {new Date(p.criadoEm).toLocaleString("pt-BR")}
+        </p>
+        <p style={{ margin: "4pt 0 0", fontSize: "10pt" }}>
+          <strong>Status:</strong> {STATUS_CONFIG[getStatus(p)].label}
         </p>
       </div>
+
+      {/* Quem pediu */}
       <p><strong>Quem pediu:</strong> {p.cliente.nome || "—"}</p>
       <p><strong>WhatsApp:</strong> {p.cliente.whatsapp || "—"}</p>
+
+      {/* Destinatário em destaque */}
       {p.destinatario && (
-        <>
-          <p><strong>Quem recebe:</strong> {p.destinatario.nome}</p>
-          <p><strong>WhatsApp (recebedor):</strong> {p.destinatario.whatsapp}</p>
-        </>
+        <div style={{ background: "#f9f0e8", border: "1.5px solid #c4855a", borderRadius: "4pt", padding: "6pt 10pt", margin: "10pt 0" }}>
+          <p style={{ fontWeight: "bold", margin: 0, fontSize: "11pt" }}>🎁 Para quem é o pedido:</p>
+          <p style={{ margin: "3pt 0 0", fontSize: "12pt" }}>{p.destinatario.nome}</p>
+          {p.destinatario.whatsapp && (
+            <p style={{ margin: "2pt 0 0", color: "#555", fontSize: "10pt" }}>WhatsApp: {p.destinatario.whatsapp}</p>
+          )}
+        </div>
       )}
-      <p><strong>Status:</strong> {p.pagamento?.status || "—"}</p>
+
+      {/* Entrega */}
+      <hr style={{ margin: "10pt 0" }} />
+      <p><strong>Tipo:</strong> {p.tipo || "—"}</p>
+      <p><strong>Endereço/Unidade:</strong> {p.enderecoOuUnidade || "—"}</p>
+      <p><strong>Data:</strong> {p.data || "—"} · <strong>Horário:</strong> {p.horario || "—"}</p>
+
+      {/* Itens */}
       <hr style={{ margin: "10pt 0" }} />
       <p style={{ fontWeight: "bold", marginBottom: "4pt" }}>Itens</p>
       {p.cesta && <p>• {p.cesta.nome} × {p.cesta.quantidade} — {formatBRL(p.cesta.preco * p.cesta.quantidade)}</p>}
       {p.sobremesas.map((s, i) => (
         <p key={i}>• {s.nome} × {s.quantidade} — {formatBRL(s.preco * s.quantidade)}</p>
       ))}
-      <hr style={{ margin: "10pt 0" }} />
-      <p><strong>Tipo:</strong> {p.tipo || "—"}</p>
-      <p><strong>Endereço/Unidade:</strong> {p.enderecoOuUnidade || "—"}</p>
-      <p><strong>Data:</strong> {p.data || "—"} · <strong>Horário:</strong> {p.horario || "—"}</p>
-      {((p.pagamento?.extras?.cartoes?.length ?? 0) > 0 || (p.pagamento?.extras?.polaroids?.length ?? 0) > 0) && (
+
+      {/* Personalizações */}
+      {(cartoes.length > 0 || polaroids.length > 0) && (
         <>
-          <hr style={{ margin: "10pt 0" }} />
-          <p style={{ fontWeight: "bold", marginBottom: "4pt" }}>Personalizações</p>
-          {(p.pagamento?.extras?.cartoes ?? []).map((c, i) => (
+          <p style={{ fontWeight: "bold", margin: "8pt 0 4pt" }}>Personalizações</p>
+          {cartoes.map((c, i) => (
             <div key={`c${i}`} style={{ marginBottom: "6pt" }}>
-              <p>• {c.nome} — {formatBRL(c.preco)}</p>
+              <p>• 💌 {c.nome} — {formatBRL(c.preco)}</p>
               {c.mensagem && <p style={{ margin: "2pt 0 0 12pt", fontStyle: "italic" }}>"{c.mensagem}"</p>}
             </div>
           ))}
-          {(p.pagamento?.extras?.polaroids ?? []).map((pl, i) => (
-            <p key={`p${i}`}>• {pl.nome} — {formatBRL(pl.preco)} — Foto enviada{pl.arquivoNome ? ` (${pl.arquivoNome})` : ""}</p>
+          {polaroids.map((pl, i) => (
+            <p key={`p${i}`}>• 📸 {pl.nome} — {formatBRL(pl.preco)}{pl.arquivoNome ? ` (${pl.arquivoNome})` : ""}</p>
           ))}
         </>
       )}
+
+      {/* Totais */}
       <hr style={{ margin: "10pt 0" }} />
+      {desconto > 0 && (
+        <p style={{ textAlign: "right", color: "#2d7a2d" }}>
+          Desconto{cupom ? ` (${cupom})` : ""}: −{formatBRL(desconto)}
+        </p>
+      )}
+      {frete > 0 && (
+        <p style={{ textAlign: "right", color: "#555" }}>🚚 Taxa de entrega: {formatBRL(frete)}</p>
+      )}
       <p style={{ fontSize: "16pt", fontWeight: "bold", textAlign: "right" }}>
         Total: {formatBRL(p.total)}
       </p>
