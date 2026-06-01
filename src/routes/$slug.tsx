@@ -60,7 +60,6 @@ function CampanhaPage() {
   const campanhas = useAdmin((s) => s.campanhas);
   const setCampanhaAtivaId = useAdmin((s) => s.setCampanhaAtivaId);
   const reset = usePedido((s) => s.reset);
-  const cestaSelecionada = usePedido((s) => s.cesta);
   const [concluido, setConcluido] = useState(false);
   const [slugResolvido, setSlugResolvido] = useState(false);
 
@@ -150,7 +149,7 @@ function CampanhaPage() {
     <div className="min-h-screen bg-background">
       <ThemeApplier />
       <Quiz
-        initialStep={cestaSelecionada ? 2 : 1}
+        initialStep={1}
         onConcluir={() => setConcluido(true)}
         onVoltar={() => reset()}
       />

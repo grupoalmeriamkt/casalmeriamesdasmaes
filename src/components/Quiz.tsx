@@ -471,7 +471,15 @@ export function Quiz({
               )}
             </div>
 
-            {textos.badgePrazo && <div className="tag-prazo">📦 {textos.badgePrazo}</div>}
+            {(() => {
+              const prazo = campanhaAtiva?.dataLimitePedidos
+                ? (() => {
+                    const d = new Date(campanhaAtiva.dataLimitePedidos + "T12:00:00");
+                    return `Encomendas encerram ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}`;
+                  })()
+                : (textos.badgePrazo || null);
+              return prazo ? <div className="tag-prazo">📦 {prazo}</div> : null;
+            })()}
 
             {textosCampanha?.boasVindas && (
               <p className="rounded-xl bg-charcoal/5 p-3 text-sm text-charcoal">
@@ -1475,7 +1483,7 @@ function CampoInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         inputMode={inputMode}
-        className="w-full rounded-xl border-[1.5px] border-sand/80 bg-white px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-charcoal"
+        className="w-full rounded-xl border-[1.5px] border-sand/80 bg-white px-4 py-3 text-base text-ink outline-none transition-colors placeholder:text-ink/35 focus:border-charcoal"
       />
     </div>
   );
@@ -1502,18 +1510,45 @@ function BotoesNav({
   avancarLabel?: string;
 }) {
   return (
-    <div className="space-y-2 pt-2">
-      <button
-        onClick={onAvancar}
-        disabled={disabled}
-        className="w-full rounded-xl bg-charcoal py-4 text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
+    <>
+      {/* Spacer mobile: reserva espaço para a barra fixa não cobrir conteúdo */}
+      <div className="h-24 sm:hidden" />
+
+      {/* Desktop: fluxo normal */}
+      <div className="hidden sm:block space-y-2 pt-2">
+        <button
+          onClick={onAvancar}
+          disabled={disabled}
+          className="w-full rounded-xl bg-charcoal py-4 text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
+        >
+          {avancarLabel}
+        </button>
+        <button onClick={onVoltar} className="mx-auto block text-xs text-ink/60 hover:text-charcoal">
+          ← Voltar
+        </button>
+      </div>
+
+      {/* Mobile: barra fixa no rodapé */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 flex gap-2 border-t border-sand/40 bg-white/95 px-4 py-3 backdrop-blur-sm sm:hidden"
+        style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
       >
-        {avancarLabel}
-      </button>
-      <button onClick={onVoltar} className="mx-auto block text-xs text-ink/60 hover:text-charcoal">
-        ← Voltar
-      </button>
-    </div>
+        <button
+          onClick={onVoltar}
+          aria-label="Voltar"
+          className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-sand bg-white text-lg text-charcoal transition-colors hover:bg-sand/30"
+        >
+          ←
+        </button>
+        <button
+          onClick={onAvancar}
+          disabled={disabled}
+          className="h-12 flex-1 rounded-xl bg-charcoal text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
+        >
+          {avancarLabel}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -1594,7 +1629,7 @@ function PersonalizacaoExtras({
                 })
               }
               placeholder="Ex.: Para a melhor mãe do mundo, com todo amor..."
-              className="min-h-[110px] rounded-xl border-[1.5px] border-sand/80 bg-white text-[15px] text-ink"
+              className="min-h-[110px] rounded-xl border-[1.5px] border-sand/80 bg-white text-base text-ink"
             />
             <div className="flex justify-end text-[11px] text-ink/55">
               {c.mensagem.length} / {max}
