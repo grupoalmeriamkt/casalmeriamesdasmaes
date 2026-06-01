@@ -467,9 +467,9 @@ function DeliveryTab({
   unidades: import("@/store/admin").UnidadeCadastrada[];
   onPatch: (p: Partial<CampanhaDelivery>) => void;
 }) {
-  const d = campanha.delivery;
+  // Defesa contra campanha.delivery ausente em dados legados
+  const d = (campanha.delivery ?? {}) as CampanhaDelivery;
 
-  // Defesa contra dados legados incompletos vindos do cloud/localStorage
   const taxa = d?.taxa ?? { tipo: "fixa" as const, valor: 0 };
   const datas = d?.datas ?? [];
   const horarios = d?.horarios ?? [];
@@ -483,7 +483,7 @@ function DeliveryTab({
       <Bloco>
         <ToggleLinha
           label="Delivery ativo"
-          checked={d.ativo}
+          checked={d.ativo ?? false}
           onChange={(v) => onPatch({ ativo: v })}
         />
       </Bloco>
@@ -495,7 +495,7 @@ function DeliveryTab({
               type="number"
               min={0}
               step="0.01"
-              value={d.valorMinimo}
+              value={d.valorMinimo ?? 0}
               onChange={(e) =>
                 onPatch({ valorMinimo: Number(e.target.value) || 0 })
               }
@@ -506,7 +506,7 @@ function DeliveryTab({
               <Input
                 type="number"
                 min={0}
-                value={d.tempoEstimadoMin}
+                value={d.tempoEstimadoMin ?? 40}
                 onChange={(e) =>
                   onPatch({ tempoEstimadoMin: Number(e.target.value) || 0 })
                 }
@@ -515,7 +515,7 @@ function DeliveryTab({
               <Input
                 type="number"
                 min={0}
-                value={d.tempoEstimadoMax}
+                value={d.tempoEstimadoMax ?? 60}
                 onChange={(e) =>
                   onPatch({ tempoEstimadoMax: Number(e.target.value) || 0 })
                 }
