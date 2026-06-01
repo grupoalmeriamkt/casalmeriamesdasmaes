@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatBRL } from "@/store/pedido";
 import { toast } from "sonner";
-import { ListOrdered, RefreshCw, Link2, Copy, Trash2, Plus, MessageCircle, Ban, AlertTriangle } from "lucide-react";
+import { ListOrdered, RefreshCw, Link2, Copy, ExternalLink, Trash2, MessageCircle, Ban, AlertTriangle } from "lucide-react";
 import {
   listarPedidos,
   cancelarPedido,
@@ -17,7 +17,6 @@ import {
 import {
   listarTokensPedidos,
   criarTokenPedidos,
-  revogarToken,
   urlPublicaPedidos,
   type ShareToken,
 } from "@/lib/shareToken";
@@ -78,8 +77,10 @@ export function AbaPedidos() {
   const [filtroData, setFiltroData] = useState("");
   const [filtroPolaroid, setFiltroPolaroid] = useState(false);
   const [filtroCampanha, setFiltroCampanha] = useState("");
-  const [tokens, setTokens] = useState<ShareToken[]>([]);
-  const [tokensLoading, setTokensLoading] = useState(false);
+  const [tokenGeral, setTokenGeral] = useState<ShareToken | null>(null);
+  const [filtroInicio, setFiltroInicio] = useState("");
+  const [filtroFim, setFiltroFim] = useState("");
+  const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
   const [detalhe, setDetalhe] = useState<{ pedido: PedidoSalvo; row: PedidoRow } | null>(null);
   const [confirmacao, setConfirmacao] = useState<{
     tipo: "cancelar" | "excluir";
@@ -98,30 +99,38 @@ export function AbaPedidos() {
     setCarregando(false);
   }, []);
 
-  const carregarTokens = useCallback(async () => {
-    setTokens(await listarTokensPedidos());
+  const carregarTokenGeral = useCallback(async () => {
+    const lista = await listarTokensPedidos();
+    let geral = lista.find((t) => !t.campanha_id) ?? null;
+    if (!geral) {
+      geral = await criarTokenPedidos(undefined, undefined);
+    }
+    setTokenGeral(geral);
   }, []);
 
   useEffect(() => {
     carregar();
-    carregarTokens();
-  }, [carregar, carregarTokens]);
+    carregarTokenGeral();
+  }, [carregar, carregarTokenGeral]);
 
-  const gerarLink = async () => {
-    setTokensLoading(true);
-    const t = await criarTokenPedidos(undefined, filtroCampanha || undefined);
-    setTokensLoading(false);
-    if (!t) return toast.error("Não foi possível gerar o link.");
-    toast.success(filtroCampanha ? "Link da campanha criado." : "Link público criado.");
-    await carregarTokens();
-  };
+  function toISO(d: Date) { return d.toISOString().slice(0, 10); }
 
-  const revogar = async (token: string) => {
-    if (!confirm("Revogar este link? Quem tiver a URL perderá acesso.")) return;
-    const ok = await revogarToken(token);
-    if (!ok) return toast.error("Falha ao revogar.");
-    toast.success("Link revogado.");
-    await carregarTokens();
+  const aplicarPeriodo = (p: typeof filtroPeriodo) => {
+    const hoje = new Date();
+    if (p === "hoje") {
+      setFiltroInicio(toISO(hoje)); setFiltroFim(toISO(hoje));
+    } else if (p === "ontem") {
+      const d = new Date(hoje); d.setDate(d.getDate() - 1);
+      setFiltroInicio(toISO(d)); setFiltroFim(toISO(d));
+    } else if (p === "semana") {
+      const d = new Date(hoje); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      setFiltroInicio(toISO(d)); setFiltroFim(toISO(hoje));
+    } else if (p === "mes") {
+      setFiltroInicio(toISO(new Date(hoje.getFullYear(), hoje.getMonth(), 1))); setFiltroFim(toISO(hoje));
+    } else {
+      setFiltroInicio(""); setFiltroFim("");
+    }
+    setFiltroPeriodo(p);
   };
 
   const copiar = async (url: string) => {
@@ -142,13 +151,15 @@ export function AbaPedidos() {
       if (filtroTipo && r.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroData && r.data_entrega !== filtroData) return false;
       if (filtroCampanha && r.campanha_id !== filtroCampanha) return false;
+      if (filtroInicio && r.criado_em.slice(0, 10) < filtroInicio) return false;
+      if (filtroFim && r.criado_em.slice(0, 10) > filtroFim) return false;
       if (filtroPolaroid) {
         const p = rowToPedidoSalvo(r);
         if (!((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       }
       return true;
     });
-  }, [rows, filtro, status, filtroTipo, filtroData, filtroCampanha, filtroPolaroid]);
+  }, [rows, filtro, status, filtroTipo, filtroData, filtroCampanha, filtroInicio, filtroFim, filtroPolaroid]);
 
   const hojeCount = rows.filter((r) => {
     const d = new Date(r.criado_em);
@@ -269,59 +280,25 @@ export function AbaPedidos() {
     >
       {/* Link público para a equipe da cozinha */}
       <div className="rounded-2xl border border-border bg-linen/50 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-bold text-charcoal">
-              <Link2 className="h-4 w-4" /> Link público da cozinha
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Compartilhe com quem prepara os pedidos. Acesso somente-leitura, sem login.
-            </p>
+        <p className="mb-2 flex items-center gap-2 text-sm font-bold text-charcoal">
+          <Link2 className="h-4 w-4" /> Link público da cozinha
+        </p>
+        {tokenGeral ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-border">
+            <code className="flex-1 truncate text-xs text-charcoal min-w-0">
+              {urlPublicaPedidos(tokenGeral.token)}
+            </code>
+            <Button size="sm" variant="outline" asChild>
+              <a href={urlPublicaPedidos(tokenGeral.token)} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-1 h-3 w-3" /> Abrir
+              </a>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => copiar(urlPublicaPedidos(tokenGeral.token))}>
+              <Copy className="mr-1 h-3 w-3" /> Copiar
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={gerarLink}
-            disabled={tokensLoading}
-            className="bg-charcoal text-white hover:bg-charcoal/90"
-          >
-            <Plus className="mr-1 h-4 w-4" /> Gerar link
-          </Button>
-        </div>
-        {tokens.length > 0 && (
-          <ul className="mt-3 space-y-2">
-            {tokens.map((t) => {
-              const url = urlPublicaPedidos(t.token);
-              const nomeCampanha = t.campanha_id
-                ? (campanhas.find((c) => c.id === t.campanha_id)?.nome ?? t.campanha_id)
-                : null;
-              return (
-                <li
-                  key={t.token}
-                  className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-border"
-                >
-                  <div className="flex flex-1 flex-col min-w-0">
-                    <code className="truncate text-xs text-charcoal">{url}</code>
-                    {nomeCampanha && (
-                      <span className="text-[10px] text-muted-foreground">
-                        Campanha: {nomeCampanha}
-                      </span>
-                    )}
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => copiar(url)}>
-                    <Copy className="mr-1 h-3 w-3" /> Copiar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => revogar(t.token)}
-                    className="text-terracotta hover:text-terracotta"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground">Gerando link…</p>
         )}
       </div>
 
@@ -413,6 +390,46 @@ export function AbaPedidos() {
             Exportar CSV
           </Button>
         </div>
+      </div>
+
+      {/* Filtros de período (criado_em) */}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-linen/30 px-4 py-3">
+        <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
+        {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              filtroPeriodo === p
+                ? "bg-charcoal text-white"
+                : "border border-border bg-background text-charcoal hover:bg-muted"
+            }`}
+          >
+            {{ hoje: "Hoje", ontem: "Ontem", semana: "Esta semana", mes: "Este mês" }[p]}
+          </button>
+        ))}
+        <span className="text-xs text-muted-foreground">De</span>
+        <input
+          type="date"
+          value={filtroInicio}
+          onChange={(e) => { setFiltroInicio(e.target.value); setFiltroPeriodo(""); }}
+          className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+        />
+        <span className="text-xs text-muted-foreground">até</span>
+        <input
+          type="date"
+          value={filtroFim}
+          onChange={(e) => { setFiltroFim(e.target.value); setFiltroPeriodo(""); }}
+          className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
+        />
+        {(filtroInicio || filtroFim || filtroPeriodo) && (
+          <button
+            onClick={() => aplicarPeriodo("")}
+            className="text-xs text-muted-foreground hover:text-terracotta"
+          >
+            ✕ Limpar período
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border">
