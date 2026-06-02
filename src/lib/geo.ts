@@ -94,3 +94,27 @@ export function encontrarZona(ponto: LatLng, zonas: ZonaEntrega[]): ZonaEntrega 
   }
   return null;
 }
+
+/**
+ * Como encontrarZona, mas com tolerância geográfica de ±toleranciaGraus.
+ * Evita rejeições causadas por imprecisão do geocodificador (centróide Nominatim).
+ * 0.004° ≈ 440 m em Brasília-DF.
+ */
+export function encontrarZonaComTolerancia(
+  ponto: LatLng,
+  zonas: ZonaEntrega[],
+  toleranciaGraus = 0.004,
+): ZonaEntrega | null {
+  const exata = encontrarZona(ponto, zonas);
+  if (exata) return exata;
+
+  const offsets = [-toleranciaGraus, 0, toleranciaGraus];
+  for (const dLat of offsets) {
+    for (const dLng of offsets) {
+      if (dLat === 0 && dLng === 0) continue;
+      const z = encontrarZona({ lat: ponto.lat + dLat, lng: ponto.lng + dLng }, zonas);
+      if (z) return z;
+    }
+  }
+  return null;
+}

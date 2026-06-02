@@ -16,7 +16,7 @@ import {
   calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
-import { distanciaKm, geocodificarEndereco, geocodificarCep, encontrarZona } from "@/lib/geo";
+import { distanciaKm, geocodificarEndereco, geocodificarCep, encontrarZonaComTolerancia } from "@/lib/geo";
 import { parseDateId } from "@/lib/dateUtils";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -222,9 +222,12 @@ export function Quiz({
           );
           return;
         }
-        const zona = encontrarZona(coords, zonasConfig!.zonas);
+        const zona = encontrarZonaComTolerancia(coords, zonasConfig!.zonas);
         if (!zona) {
           setForaDeRaio(true);
+          console.warn(
+            `[delivery] CEP ${limpo} → lat=${coords.lat.toFixed(5)}, lng=${coords.lng.toFixed(5)} — fora de todas as zonas.`,
+          );
           toast.error(
             "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha a opção de retirada.",
           );
