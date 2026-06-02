@@ -29,6 +29,30 @@ const NOMINATIM_HEADERS = {
 };
 
 /**
+ * Geocodifica um CEP via BrasilAPI v2 (lat/lng direto da base de dados brasileira).
+ * Mais confiável que Nominatim para CEPs do DF e condomínios específicos.
+ */
+export async function geocodificarViaBrasilAPI(cep: string): Promise<LatLng | null> {
+  try {
+    const limpo = cep.replace(/\D/g, "");
+    if (limpo.length !== 8) return null;
+    const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${limpo}`);
+    if (!r.ok) return null;
+    const d = (await r.json()) as {
+      location?: {
+        coordinates?: { latitude?: string | number; longitude?: string | number };
+      };
+    };
+    const lat = parseFloat(String(d?.location?.coordinates?.latitude ?? ""));
+    const lng = parseFloat(String(d?.location?.coordinates?.longitude ?? ""));
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Geocodifica um CEP via Nominatim usando busca por postalcode.
  * Mais confiável que busca livre para CEPs brasileiros (inclui Brasília-DF).
  */

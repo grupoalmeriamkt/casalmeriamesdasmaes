@@ -16,7 +16,7 @@ import {
   calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
-import { distanciaKm, geocodificarEndereco, geocodificarCep, encontrarZonaComTolerancia } from "@/lib/geo";
+import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
 import { parseDateId } from "@/lib/dateUtils";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -211,14 +211,18 @@ export function Quiz({
         ]
           .filter(Boolean)
           .join(", ");
-        // Tenta CEP direto primeiro (mais confiável p/ Brasília), depois endereço completo
-        let coords = await geocodificarCep(limpo);
+        // Sequência: BrasilAPI (melhor p/ DF) → Nominatim CEP → Nominatim endereço
+        let coords = await geocodificarViaBrasilAPI(limpo);
+        if (!coords) coords = await geocodificarCep(limpo);
         if (!coords) coords = await geocodificarEndereco(consulta);
 
         if (!coords) {
-          setForaDeRaio(true);
-          toast.error(
-            "Não conseguimos localizar este CEP. Tente outro CEP ou escolha a opção de retirada.",
+          // Geocodificação falhou em todas as fontes — aceita com aviso (não rejeita o cliente)
+          console.warn(`[delivery] CEP ${limpo} — geocodificação falhou em todas as fontes.`);
+          const zonaFallback = zonasConfig!.zonas[0];
+          setZonaEntregaAtual(zonaFallback);
+          toast.success(
+            `Endereço aceito — ${zonaFallback.nome}. Confirmaremos a disponibilidade pelo WhatsApp.`,
           );
           return;
         }
