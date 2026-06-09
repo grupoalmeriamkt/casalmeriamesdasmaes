@@ -12,12 +12,13 @@ import {
   useUnidadesAtivas,
   useDatasAtivas,
   useHorariosAtivos,
+  useTodosDias,
   useCampanhaAtiva,
   calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
-import { parseDateId, toISODateString } from "@/lib/dateUtils";
+import { parseDateId, toISODateString, formatDatePtBR } from "@/lib/dateUtils";
 import { Calendar } from "@/components/ui/calendar";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -119,6 +120,7 @@ export function Quiz({
   const unidades = useUnidadesAtivas();
   const datas = useDatasAtivas(entregaTipo);
   const horarios = useHorariosAtivos(entregaTipo);
+  const todosDias = useTodosDias(entregaTipo);
   const entregaConfig = useAdmin((s) => s.entrega);
   const pagamento = useAdmin((s) => s.pagamento);
   const textosGlobais = useAdmin((s) => s.textos);
@@ -938,7 +940,32 @@ export function Quiz({
               <p className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-charcoal/70">
                 Dia da entrega
               </p>
-              {datas.length > 4 ? (
+              {todosDias ? (
+                /* ── Calendário livre — campanha sem restrição de data ── */
+                (() => {
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  return (
+                    <div className="flex justify-center">
+                      <Calendar
+                        mode="single"
+                        disabled={(date) => {
+                          const d = new Date(date);
+                          d.setHours(0, 0, 0, 0);
+                          return d < hoje;
+                        }}
+                        fromMonth={new Date()}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+                          setData(formatDatePtBR(d));
+                          setHorario("");
+                        }}
+                      />
+                    </div>
+                  );
+                })()
+              ) : datas.length > 4 ? (
                 /* ── Calendário para muitas datas ── */
                 (() => {
                   const datasIds = new Set(

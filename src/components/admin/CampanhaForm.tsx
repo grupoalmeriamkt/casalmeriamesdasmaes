@@ -693,6 +693,8 @@ function DeliveryTab({
           horarios={horarios}
           onDatas={(datas) => onPatch({ datas })}
           onHorarios={(horarios) => onPatch({ horarios })}
+          todosDias={d.todosDias ?? false}
+          onTodosDias={(v) => onPatch({ todosDias: v })}
         />
       </Bloco>
 
@@ -783,6 +785,8 @@ function RetiradaTab({
           horarios={r.horarios}
           onDatas={(datas) => onPatch({ datas })}
           onHorarios={(horarios) => onPatch({ horarios })}
+          todosDias={r.todosDias ?? false}
+          onTodosDias={(v) => onPatch({ todosDias: v })}
         />
       </Bloco>
 
@@ -977,11 +981,15 @@ function DatasHorarios({
   horarios,
   onDatas,
   onHorarios,
+  todosDias,
+  onTodosDias,
 }: {
   datas: { id: string; label: string; ativa: boolean }[];
   horarios: { label: string; ativo: boolean }[];
   onDatas: (d: { id: string; label: string; ativa: boolean }[]) => void;
   onHorarios: (h: { label: string; ativo: boolean }[]) => void;
+  todosDias: boolean;
+  onTodosDias: (v: boolean) => void;
 }) {
   const [mostrarCustom, setMostrarCustom] = useState(false);
   const [customInicio, setCustomInicio] = useState("06");
@@ -1055,22 +1063,48 @@ function DatasHorarios({
       {/* ── Datas ── */}
       <div>
         <p className="mb-2 text-xs font-semibold text-charcoal">Datas</p>
-        <div className="overflow-hidden rounded-lg border border-border bg-background/40">
-          <Calendar
-            mode="multiple"
-            selected={datasIso}
-            onSelect={handleCalendarSelect}
-            fromMonth={fromMonth}
-            toMonth={toMonth}
-            locale={ptBR}
+
+        {/* Toggle "Todos os dias" */}
+        <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-background/40 px-3 py-2">
+          <Switch
+            id="todos-dias-switch"
+            checked={todosDias}
+            onCheckedChange={onTodosDias}
           />
+          <label htmlFor="todos-dias-switch" className="cursor-pointer text-xs font-medium text-charcoal">
+            Todos os dias
+          </label>
+          {todosDias && (
+            <span className="ml-auto text-[11px] text-charcoal/50">
+              Cliente escolhe qualquer dia
+            </span>
+          )}
         </div>
-        {datas.length === 0 && (
-          <p className="mt-2 text-xs text-charcoal/50">
-            Clique nos dias do calendário para adicionar datas disponíveis.
+
+        {todosDias ? (
+          <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-charcoal/50">
+            Sem restrição de data — o cliente escolhe qualquer dia no formulário.
           </p>
+        ) : (
+          <>
+            <div className="overflow-hidden rounded-lg border border-border bg-background/40">
+              <Calendar
+                mode="multiple"
+                selected={datasIso}
+                onSelect={handleCalendarSelect}
+                fromMonth={fromMonth}
+                toMonth={toMonth}
+                locale={ptBR}
+              />
+            </div>
+            {datas.length === 0 && (
+              <p className="mt-2 text-xs text-charcoal/50">
+                Clique nos dias do calendário para adicionar datas disponíveis.
+              </p>
+            )}
+          </>
         )}
-        {datas.length > 0 && (
+        {!todosDias && datas.length > 0 && (
           <div className="mt-2 space-y-1">
             {datas.map((d, i) => (
               <div

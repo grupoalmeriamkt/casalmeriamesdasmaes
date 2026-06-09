@@ -135,6 +135,7 @@ export type CampanhaDelivery = {
   centroLat?: number;
   centroLng?: number;
   zonas?: ConfigZonasEntrega;
+  todosDias?: boolean;
 };
 
 export type CampanhaRetirada = {
@@ -148,6 +149,7 @@ export type CampanhaRetirada = {
   upsellProdutoIds: string[];
   datas: { id: string; label: string; ativa: boolean }[];
   horarios: { label: string; ativo: boolean }[];
+  todosDias?: boolean;
 };
 
 export type CampanhaTextos = {
@@ -1207,6 +1209,18 @@ export const useHorariosAtivos = (tipo?: "delivery" | "retirada" | null) =>
         if (h.ativo && !ativos.has(h.label)) ativos.set(h.label, h);
       }
       return Array.from(ativos.values());
+    }),
+  );
+
+export const useTodosDias = (tipo?: "delivery" | "retirada" | null) =>
+  useAdmin(
+    useShallow((s) => {
+      const camp =
+        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      if (!camp) return false;
+      if (tipo === "delivery") return camp.delivery?.todosDias ?? false;
+      if (tipo === "retirada") return camp.retirada?.todosDias ?? false;
+      return (camp.delivery?.todosDias || camp.retirada?.todosDias) ?? false;
     }),
   );
 
