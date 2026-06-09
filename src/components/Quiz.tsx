@@ -337,6 +337,19 @@ export function Quiz({
 
   const avancar = () => {
     if (step === 1) {
+      // Mobile: fixed footer button acts as "Adicionar ao pedido" when modal is open
+      if (detalhe) {
+        if (detalhe.tamanhos && detalhe.tamanhos.length > 0 && !modalTamanhoId) {
+          toast.error("Escolha um tamanho para continuar.");
+          return;
+        }
+        setCesta(detalhe);
+        if (modalTamanhoId) setTamanho(modalTamanhoId);
+        setQuantidade(modalQuantidade);
+        setDetalhe(null);
+        setStep(2);
+        return;
+      }
       if (!cesta) return toast.error("Escolha uma cesta para continuar.");
       if (cesta.cesta.tamanhos && cesta.cesta.tamanhos.length > 0 && !tamanhoId) {
         return toast.error("Escolha um tamanho para continuar.");
@@ -599,7 +612,12 @@ export function Quiz({
               })}
             </div>
 
-            <BotoesNav onAvancar={avancar} onVoltar={voltar} disabled={!cesta} />
+            <BotoesNav
+              onAvancar={avancar}
+              onVoltar={voltar}
+              disabled={detalhe ? false : !cesta}
+              avancarLabel={detalhe ? "Adicionar ao pedido →" : "Continuar →"}
+            />
           </section>
         )}
 
@@ -1607,7 +1625,7 @@ export function Quiz({
                   setDetalhe(null);
                   setStep(2);
                 }}
-                className="mt-2 w-full rounded-xl bg-charcoal py-4 text-sm font-medium text-white active:bg-charcoal/80"
+                className="mt-2 hidden w-full rounded-xl bg-charcoal py-4 text-sm font-medium text-white active:bg-charcoal/80 sm:block"
               >
                 Adicionar ao pedido →
               </button>
