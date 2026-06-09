@@ -121,6 +121,21 @@ export function Quiz({
   const datas = useDatasAtivas(entregaTipo);
   const horarios = useHorariosAtivos(entregaTipo);
   const todosDias = useTodosDias(entregaTipo);
+
+  // Filtro de datas e horários passados
+  const agoraISO = toISODateString(new Date());
+  const horaAtual = new Date().getHours();
+  const datasDisponiveis = datas.filter(
+    (d) => !/^\d{4}-\d{2}-\d{2}$/.test(d.id) || d.id >= agoraISO,
+  );
+  const dataSelecionadaId = datasDisponiveis.find((d) => d.label === data)?.id;
+  const horariosDisponiveis =
+    dataSelecionadaId === agoraISO
+      ? horarios.filter((h) => {
+          const m = h.label.match(/Entre (\d{1,2})h e (\d{1,2})h/);
+          return m ? parseInt(m[2], 10) > horaAtual : true;
+        })
+      : horarios;
   const entregaConfig = useAdmin((s) => s.entrega);
   const pagamento = useAdmin((s) => s.pagamento);
   const textosGlobais = useAdmin((s) => s.textos);
@@ -965,13 +980,13 @@ export function Quiz({
                     </div>
                   );
                 })()
-              ) : datas.length > 4 ? (
+              ) : datasDisponiveis.length > 4 ? (
                 /* ── Calendário para muitas datas ── */
                 (() => {
                   const datasIds = new Set(
-                    datas.map((d) => d.id).filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
+                    datasDisponiveis.map((d) => d.id).filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
                   );
-                  const selectedDatum = datas.find((d) => d.label === data);
+                  const selectedDatum = datasDisponiveis.find((d) => d.label === data);
                   const selectedDate = selectedDatum?.id && /^\d{4}-\d{2}-\d{2}$/.test(selectedDatum.id)
                     ? (() => {
                         const [y, m, day] = selectedDatum.id.split("-").map(Number);
@@ -992,7 +1007,7 @@ export function Quiz({
                         onSelect={(date) => {
                           if (!date) return;
                           const iso = toISODateString(date);
-                          const found = datas.find((d) => d.id === iso);
+                          const found = datasDisponiveis.find((d) => d.id === iso);
                           if (found) {
                             setData(found.label);
                             setHorario("");
@@ -1008,10 +1023,10 @@ export function Quiz({
                 /* ── Cards para até 4 datas ── */
                 <div
                   className={`grid gap-3 ${
-                    datas.length === 3 ? "grid-cols-3" : "grid-cols-2"
+                    datasDisponiveis.length === 3 ? "grid-cols-3" : "grid-cols-2"
                   }`}
                 >
-                  {datas.map((d) => {
+                  {datasDisponiveis.map((d) => {
                     const sel = data === d.label;
                     const parsed = parseDateId(d.id);
                     const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
@@ -1058,7 +1073,7 @@ export function Quiz({
                   Janela de horário
                 </p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {horarios.map((h) => {
+                  {horariosDisponiveis.map((h) => {
                     const sel = horario === h.label;
                     return (
                       <button
