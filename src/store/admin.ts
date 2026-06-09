@@ -300,6 +300,7 @@ type AdminState = {
 
   setUnidadeCadastrada: (id: string, patch: Partial<UnidadeCadastrada>) => void;
   addUnidadeCadastrada: () => void;
+  duplicateUnidadeCadastrada: (id: string) => void;
   removeUnidadeCadastrada: (id: string) => void;
 
   setCampanha: (id: string, patch: Partial<Campanha>) => void;
@@ -655,6 +656,25 @@ export const useAdmin = create<AdminState>()(
           ];
           return { unidades };
         }),
+      duplicateUnidadeCadastrada: (id) =>
+        set((s) => {
+          const u = s.unidades.find((x) => x.id === id);
+          if (!u) return s;
+          const copia: UnidadeCadastrada = {
+            ...u,
+            id: `u-${Date.now()}`,
+            nome: `${u.nome} (cópia)`,
+            status: "inativa",
+          };
+          const idx = s.unidades.findIndex((x) => x.id === id);
+          const unidades = [
+            ...s.unidades.slice(0, idx + 1),
+            copia,
+            ...s.unidades.slice(idx + 1),
+          ];
+          return { unidades };
+        }),
+
       removeUnidadeCadastrada: (id) =>
         set((s) => {
           const unidades = s.unidades.filter((u) => u.id !== id);
