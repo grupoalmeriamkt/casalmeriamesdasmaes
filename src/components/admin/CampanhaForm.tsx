@@ -399,6 +399,33 @@ function InfoGeralTab({
               }
             />
           </Field>
+          <Field label="Eyebrow do Passo 1 (deixe vazio para usar padrão)">
+            <Input
+              value={textos.passo1Eyebrow ?? ""}
+              placeholder="Presenteie com carinho"
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, passo1Eyebrow: e.target.value || undefined } })
+              }
+            />
+          </Field>
+          <Field label="Título do Passo 1 (deixe vazio para usar padrão)">
+            <Input
+              value={textos.passo1Titulo ?? ""}
+              placeholder="Qual cesta você escolhe?"
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, passo1Titulo: e.target.value || undefined } })
+              }
+            />
+          </Field>
+          <Field label="Badge de prazo do Passo 1 (substitui a data automática — deixe vazio para usar a data)">
+            <Input
+              value={textos.passo1Badge ?? ""}
+              placeholder="📦 Encomendas abertas!"
+              onChange={(e) =>
+                onPatch({ textos: { ...textos, passo1Badge: e.target.value || undefined } })
+              }
+            />
+          </Field>
         </div>
       </Bloco>
     </div>

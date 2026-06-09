@@ -24,6 +24,7 @@ export type Extras = {
 
 type State = {
   cesta?: { cesta: Cesta; quantidade: number };
+  tamanhoId?: string;
   sobremesas: Record<string, { sobremesa: Sobremesa; quantidade: number }>;
   cliente: { nome: string; whatsapp: string };
   email: string;
@@ -39,6 +40,7 @@ type State = {
 
 type Actions = {
   setCesta: (cesta: Cesta) => void;
+  setTamanho: (id: string | undefined) => void;
   setQuantidade: (q: number) => void;
   toggleSobremesa: (s: Sobremesa) => void;
   setSobremesaQtd: (id: string, q: number) => void;
@@ -72,7 +74,8 @@ export const usePedido = create<State & Actions>()(
   persist(
     (set, get) => ({
       ...initial,
-      setCesta: (cesta) => set({ cesta: { cesta, quantidade: 1 } }),
+      setCesta: (cesta) => set({ cesta: { cesta, quantidade: 1 }, tamanhoId: undefined }),
+      setTamanho: (tamanhoId) => set({ tamanhoId }),
       setQuantidade: (quantidade) => {
         const c = get().cesta;
         if (c) set({ cesta: { ...c, quantidade: Math.max(1, quantidade) } });
@@ -153,8 +156,16 @@ export const usePedido = create<State & Actions>()(
   ),
 );
 
+export const selectPrecoEfetivo = (s: State): number => {
+  if (!s.cesta) return 0;
+  const tamanho = s.tamanhoId
+    ? s.cesta.cesta.tamanhos?.find((t) => t.id === s.tamanhoId)
+    : undefined;
+  return tamanho ? tamanho.preco : s.cesta.cesta.preco;
+};
+
 export const selectTotal = (s: State) => {
-  const cestaTotal = s.cesta ? s.cesta.cesta.preco * s.cesta.quantidade : 0;
+  const cestaTotal = s.cesta ? selectPrecoEfetivo(s) * s.cesta.quantidade : 0;
   const sobremesasTotal = Object.values(s.sobremesas).reduce(
     (acc, it) => acc + it.sobremesa.preco * it.quantidade,
     0,

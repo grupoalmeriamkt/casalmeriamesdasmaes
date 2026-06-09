@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
+import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
@@ -82,6 +82,8 @@ export function Quiz({
   // Pedido store
   const cesta = usePedido((s) => s.cesta);
   const setCesta = usePedido((s) => s.setCesta);
+  const tamanhoId = usePedido((s) => s.tamanhoId);
+  const setTamanho = usePedido((s) => s.setTamanho);
   const setQuantidade = usePedido((s) => s.setQuantidade);
   const sobremesas = usePedido((s) => s.sobremesas);
   const toggleSobremesa = usePedido((s) => s.toggleSobremesa);
@@ -107,6 +109,7 @@ export function Quiz({
   const setPolaroid = usePedido((s) => s.setPolaroid);
   const removePolaroid = usePedido((s) => s.removePolaroid);
   const subtotal = usePedido(selectTotal);
+  const precoEfetivo = usePedido(selectPrecoEfetivo);
 
   // Admin store
   const cestasAtivas = useProdutosDaCampanhaAtiva();
@@ -159,6 +162,8 @@ export function Quiz({
     if (entregaTipo !== "delivery") setZonaEntregaAtual(null);
   }, [entregaTipo]);
   const [detalhe, setDetalhe] = useState<Cesta | null>(null);
+  const [modalTamanhoId, setModalTamanhoId] = useState<string | undefined>(undefined);
+  const [modalQuantidade, setModalQuantidade] = useState(1);
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
@@ -300,7 +305,7 @@ export function Quiz({
         ? {
             nome: st.cesta.cesta.nome,
             quantidade: st.cesta.quantidade,
-            preco: st.cesta.cesta.preco,
+            preco: selectPrecoEfetivo(st),
           }
         : undefined,
       sobremesas: Object.values(st.sobremesas).map((s) => ({
@@ -317,7 +322,7 @@ export function Quiz({
       horario: st.horario,
       pagamento: { metodo: "", status: "rascunho" },
       total:
-        (st.cesta ? st.cesta.cesta.preco * st.cesta.quantidade : 0) +
+        (st.cesta ? selectPrecoEfetivo(st) * st.cesta.quantidade : 0) +
         Object.values(st.sobremesas).reduce((a, s) => a + s.sobremesa.preco * s.quantidade, 0) +
         st.extras.cartoes.reduce((a, c) => a + c.preco, 0) +
         st.extras.polaroids.reduce((a, p) => a + p.preco, 0) +
@@ -333,6 +338,9 @@ export function Quiz({
   const avancar = () => {
     if (step === 1) {
       if (!cesta) return toast.error("Escolha uma cesta para continuar.");
+      if (cesta.cesta.tamanhos && cesta.cesta.tamanhos.length > 0 && !tamanhoId) {
+        return toast.error("Escolha um tamanho para continuar.");
+      }
       return setStep(2);
     }
     if (step === 2) {
@@ -470,9 +478,13 @@ export function Quiz({
         {step === 1 && (
           <section className="animate-fade-up space-y-5">
             <div>
-              <p className="eyebrow-gold mb-2">Presenteie com carinho</p>
+              <p className="eyebrow-gold mb-2">
+                {textosCampanha?.passo1Eyebrow || "Presenteie com carinho"}
+              </p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
-                Qual <em className="italic text-terracotta">cesta</em> você escolhe?
+                {textosCampanha?.passo1Titulo || (
+                  <>Qual <em className="italic text-terracotta">cesta</em> você escolhe?</>
+                )}
               </h1>
               {textosCampanha?.subtitulo && (
                 <p className="mt-2 text-sm text-ink/65">{textosCampanha.subtitulo}</p>
@@ -480,13 +492,15 @@ export function Quiz({
             </div>
 
             {(() => {
-              const prazo = campanhaAtiva?.dataLimitePedidos
-                ? (() => {
-                    const d = new Date(campanhaAtiva.dataLimitePedidos.slice(0, 10) + "T12:00:00");
-                    return `Encomendas encerram ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}`;
-                  })()
-                : (textos.badgePrazo || null);
-              return prazo ? <div className="tag-prazo">📦 {prazo}</div> : null;
+              const prazo = textosCampanha?.passo1Badge
+                ? textosCampanha.passo1Badge
+                : campanhaAtiva?.dataLimitePedidos
+                  ? (() => {
+                      const d = new Date(campanhaAtiva.dataLimitePedidos.slice(0, 10) + "T12:00:00");
+                      return `Encomendas encerram ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}`;
+                    })()
+                  : (textos.badgePrazo || null);
+              return prazo ? <div className="tag-prazo">{prazo}</div> : null;
             })()}
 
             {textosCampanha?.boasVindas && (
@@ -505,12 +519,24 @@ export function Quiz({
             <div className="grid gap-4 sm:grid-cols-2">
               {cestasAtivas.map((c) => {
                 const sel = cesta?.cesta.id === c.id;
+                const temTamanhos = c.tamanhos && c.tamanhos.length > 0;
+                const tamSelecionado = sel && tamanhoId
+                  ? c.tamanhos?.find((t) => t.id === tamanhoId)
+                  : undefined;
                 return (
                   <article
                     key={c.id}
-                    onClick={() => setCesta(c)}
+                    onClick={() => {
+                      if (temTamanhos) {
+                        setModalTamanhoId(cesta?.cesta.id === c.id ? tamanhoId : undefined);
+                        setModalQuantidade(cesta?.cesta.id === c.id ? cesta.quantidade : 1);
+                        setDetalhe(c);
+                      } else {
+                        setCesta(c);
+                      }
+                    }}
                     className={`group relative cursor-pointer overflow-hidden rounded-2xl bg-white transition-all hover:-translate-y-0.5 hover:shadow-soft ${
-                      sel ? "ring-2 ring-terracotta" : "ring-1 ring-sand/60"
+                      sel ? "ring-2 ring-terracotta shadow-warm" : "shadow-sm"
                     }`}
                   >
                     {sel && (
@@ -518,7 +544,7 @@ export function Quiz({
                         <Check className="h-4 w-4" strokeWidth={3} />
                       </span>
                     )}
-                    <div className="aspect-[16/10] w-full overflow-hidden bg-parchment">
+                    <div className="aspect-[16/10] w-full overflow-hidden">
                       <img
                         src={c.imagem}
                         alt={c.nome}
@@ -534,51 +560,44 @@ export function Quiz({
                         {c.nome}
                       </h3>
                       <p className="mt-0.5 font-serif text-xl font-semibold text-terracotta">
-                        {formatBRL(c.preco)}
+                        {temTamanhos
+                          ? tamSelecionado
+                            ? formatBRL(tamSelecionado.preco)
+                            : `A partir de ${formatBRL(Math.min(...c.tamanhos!.map((t) => t.preco)))}`
+                          : formatBRL(c.preco)}
                       </p>
-                      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink/60">
-                        {c.itens.slice(0, 5).join(" · ")}
-                      </p>
+                      {tamSelecionado && (
+                        <p className="mt-0.5 text-xs font-medium text-terracotta/70">
+                          Tamanho {tamSelecionado.label}
+                          {tamSelecionado.diametro ? ` · ${tamSelecionado.diametro}` : ""}
+                        </p>
+                      )}
+                      {c.descricao ? (
+                        <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink/60">
+                          {c.descricao}
+                        </p>
+                      ) : (
+                        <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink/60">
+                          {c.itens.slice(0, 5).join(" · ")}
+                        </p>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
+                          setModalTamanhoId(cesta?.cesta.id === c.id ? tamanhoId : undefined);
+                          setModalQuantidade(cesta?.cesta.id === c.id ? cesta.quantidade : 1);
                           setDetalhe(c);
                         }}
-                        className="mt-3 inline-block rounded-full border border-charcoal px-3.5 py-1 text-xs font-medium text-charcoal transition-colors hover:bg-charcoal hover:text-white"
+                        className="mt-3 inline-block rounded-full border border-charcoal px-4 py-2 text-xs font-medium text-charcoal transition-colors active:bg-charcoal active:text-white"
                       >
-                        Ver itens completos
+                        {temTamanhos ? "Escolher tamanho →" : "Ver itens completos"}
                       </button>
                     </div>
                   </article>
                 );
               })}
             </div>
-
-            {cesta && (
-              <div className="rounded-xl bg-charcoal/5 p-3.5 sm:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-charcoal/70">
-                    Quantidade
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setQuantidade(cesta.quantidade - 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-charcoal/40 text-charcoal hover:bg-charcoal hover:text-linen"
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center font-serif text-lg">{cesta.quantidade}</span>
-                    <button
-                      onClick={() => setQuantidade(cesta.quantidade + 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-charcoal/40 text-charcoal hover:bg-charcoal hover:text-linen"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <BotoesNav onAvancar={avancar} onVoltar={voltar} disabled={!cesta} />
           </section>
@@ -601,7 +620,7 @@ export function Quiz({
                   {cesta.cesta.nome}
                 </span>
                 <span className="whitespace-nowrap font-serif text-base font-bold text-terracotta">
-                  {formatBRL(cesta.cesta.preco * cesta.quantidade)}
+                  {formatBRL(precoEfetivo * cesta.quantidade)}
                 </span>
               </div>
             )}
@@ -1156,7 +1175,7 @@ export function Quiz({
                       {cesta.cesta.nome} × {cesta.quantidade}
                     </span>
                     <span className="font-semibold text-charcoal">
-                      {formatBRL(cesta.cesta.preco * cesta.quantidade)}
+                      {formatBRL(precoEfetivo * cesta.quantidade)}
                     </span>
                   </li>
                 )}
@@ -1270,7 +1289,7 @@ export function Quiz({
                     ? {
                         nome: st.cesta.cesta.nome,
                         quantidade: st.cesta.quantidade,
-                        preco: st.cesta.cesta.preco,
+                        preco: selectPrecoEfetivo(st),
                       }
                     : undefined,
                   sobremesas: Object.values(st.sobremesas).map((s) => ({
@@ -1306,7 +1325,7 @@ export function Quiz({
                           {
                             item_name: cesta.cesta.nome,
                             quantity: cesta.quantidade,
-                            price: cesta.cesta.preco,
+                            price: precoEfetivo,
                           },
                         ]
                       : []),
@@ -1325,7 +1344,7 @@ export function Quiz({
                           {
                             title: cesta.cesta.nome,
                             quantity: cesta.quantidade,
-                            unit_price: cesta.cesta.preco,
+                            unit_price: precoEfetivo,
                           },
                         ]
                       : []),
@@ -1423,43 +1442,172 @@ export function Quiz({
           className="fixed inset-0 z-50 flex items-end justify-center bg-charcoal/70 backdrop-blur-sm sm:items-center"
           onClick={() => setDetalhe(null)}
         >
+          {/*
+            Mobile  : bottom sheet, single column (imagem topo + conteúdo embaixo)
+            Desktop : dialog centralizado, duas colunas (imagem esquerda | conteúdo direita)
+          */}
           <div
-            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-linen sm:rounded-3xl"
+            className="flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-linen sm:max-w-3xl sm:flex-row sm:rounded-3xl"
+            style={{ maxHeight: "min(90vh, 680px)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 flex justify-end bg-linen px-4 pt-4">
+            {/* ── Coluna imagem ── */}
+            <div className="relative aspect-[16/10] w-full flex-none overflow-hidden sm:aspect-auto sm:w-[42%]">
+              <img
+                src={detalhe.imagem}
+                alt={detalhe.nome}
+                className="h-full w-full object-cover"
+              />
+              {/* Botão fechar — sempre visível sobre a imagem */}
               <button
                 onClick={() => setDetalhe(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-charcoal/10 text-charcoal hover:bg-charcoal/20"
+                className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-charcoal/60 text-white backdrop-blur-sm active:bg-charcoal/90"
               >
                 ✕
               </button>
             </div>
-            <div className="px-5 pb-6">
+
+            {/* ── Coluna conteúdo ── */}
+            <div className="flex flex-1 flex-col overflow-y-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:pb-5">
               <span className="inline-block rounded-full bg-olive px-2.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-white">
                 {detalhe.badge}
               </span>
-              <h3 className="mt-2 font-serif text-2xl font-bold text-charcoal">{detalhe.nome}</h3>
-              <p className="mt-1 font-serif text-2xl font-semibold text-terracotta">
-                {formatBRL(detalhe.preco)}
+              <h3 className="mt-2 font-serif text-xl font-bold text-charcoal sm:text-2xl">{detalhe.nome}</h3>
+              <p className="mt-1 font-serif text-xl font-semibold text-terracotta sm:text-2xl">
+                {detalhe.tamanhos && detalhe.tamanhos.length > 0
+                  ? modalTamanhoId
+                    ? formatBRL(detalhe.tamanhos.find((t) => t.id === modalTamanhoId)?.preco ?? detalhe.preco)
+                    : `A partir de ${formatBRL(Math.min(...detalhe.tamanhos.map((t) => t.preco)))}`
+                  : formatBRL(detalhe.preco)}
               </p>
-              <ul className="mt-4 space-y-2">
-                {detalhe.itens.map((i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-2 border-b border-charcoal/5 pb-2 text-sm text-ink"
-                  >
-                    <span className="mt-1.5 block h-1.5 w-1.5 flex-none rounded-full bg-terracotta" />
-                    <span>{i}</span>
-                  </li>
-                ))}
-              </ul>
+
+              {detalhe.descricao && (
+                <p className="mt-2 text-sm leading-relaxed text-ink/70">{detalhe.descricao}</p>
+              )}
+
+              {/* Cards de tamanho comparativos */}
+              {detalhe.tamanhos && detalhe.tamanhos.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-charcoal/60">
+                    Escolha o tamanho
+                  </p>
+                  <div className={`grid gap-2 ${detalhe.tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                    {detalhe.tamanhos.map((t) => {
+                      const tamSel = modalTamanhoId === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setModalTamanhoId(t.id)}
+                          className={`flex min-h-[90px] flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2.5 text-center transition-all active:scale-[0.97] sm:min-h-[100px] sm:py-3 ${
+                            tamSel
+                              ? "border-terracotta bg-terracotta/5 shadow-sm"
+                              : "border-charcoal/15 bg-white"
+                          }`}
+                        >
+                          <span className={`font-serif text-xl font-bold sm:text-2xl ${tamSel ? "text-terracotta" : "text-charcoal"}`}>
+                            {t.label}
+                          </span>
+                          <div className="w-full space-y-0.5">
+                            {t.diametro && (
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-medium uppercase tracking-wide text-charcoal/40">Diâmetro</span>
+                                <span className="text-[11px] font-semibold text-charcoal">{t.diametro}</span>
+                              </div>
+                            )}
+                            {t.fatias && (
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-medium uppercase tracking-wide text-charcoal/40">Fatias</span>
+                                <span className="text-[11px] font-semibold text-charcoal">~{t.fatias}</span>
+                              </div>
+                            )}
+                            {t.peso && (
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-medium uppercase tracking-wide text-charcoal/40">Peso</span>
+                                <span className="text-[11px] font-semibold text-charcoal">{t.peso}</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className={`mt-auto font-serif text-xs font-bold sm:text-sm ${tamSel ? "text-terracotta" : "text-charcoal/70"}`}>
+                            {formatBRL(t.preco)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Itens — 2 colunas no desktop para economizar altura */}
+              {detalhe.itens.length > 0 && (
+                <ul className="mt-3 grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
+                  {detalhe.itens.map((i) => (
+                    <li key={i} className="flex items-start gap-2 border-b border-charcoal/5 pb-1.5 text-xs text-ink sm:text-sm">
+                      <span className="mt-1 block h-1.5 w-1.5 flex-none rounded-full bg-terracotta" />
+                      <span>{i}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Espaçador para empurrar quantidade + botão para o fundo no desktop */}
+              <div className="flex-1" />
+
+              {/* Quantidade + Total */}
+              {(() => {
+                const precoUnit = detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.preco ?? detalhe.preco;
+                const totalModal = precoUnit * modalQuantidade;
+                return (
+                  <div className="mt-4 overflow-hidden rounded-xl bg-charcoal/5">
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-charcoal/70">
+                        Quantidade
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setModalQuantidade(Math.max(1, modalQuantidade - 1))}
+                          className="flex h-11 w-11 items-center justify-center rounded-full border border-charcoal/40 text-charcoal active:bg-charcoal active:text-linen"
+                        >
+                          −
+                        </button>
+                        <span className="w-8 text-center font-serif text-lg">{modalQuantidade}</span>
+                        <button
+                          type="button"
+                          onClick={() => setModalQuantidade(modalQuantidade + 1)}
+                          className="flex h-11 w-11 items-center justify-center rounded-full border border-charcoal/40 text-charcoal active:bg-charcoal active:text-linen"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    {(modalTamanhoId || !detalhe.tamanhos?.length) && (
+                      <div className="flex items-center justify-between border-t border-charcoal/10 px-4 py-2">
+                        <span className="text-xs text-charcoal/50">
+                          {formatBRL(precoUnit)} × {modalQuantidade}
+                        </span>
+                        <span className="font-serif text-base font-bold text-terracotta">
+                          {formatBRL(totalModal)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <button
                 onClick={() => {
+                  if (detalhe.tamanhos && detalhe.tamanhos.length > 0 && !modalTamanhoId) {
+                    toast.error("Escolha um tamanho para continuar.");
+                    return;
+                  }
                   setCesta(detalhe);
+                  if (modalTamanhoId) setTamanho(modalTamanhoId);
+                  setQuantidade(modalQuantidade);
                   setDetalhe(null);
+                  setStep(2);
                 }}
-                className="mt-5 w-full rounded-xl bg-charcoal py-4 text-sm font-medium text-white hover:bg-charcoal/90"
+                className="mt-2 w-full rounded-xl bg-charcoal py-4 text-sm font-medium text-white active:bg-charcoal/80"
               >
                 Adicionar ao pedido →
               </button>

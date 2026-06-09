@@ -27,6 +27,7 @@ import {
   Pencil,
   Archive,
   ArchiveRestore,
+  Copy,
   Trash2,
 } from "lucide-react";
 import { CategoriasDialog } from "./CategoriasDialog";
@@ -37,6 +38,7 @@ export function AbaCestas() {
   const cestas = useAdmin((s) => s.cestas);
   const categorias = useAdmin((s) => s.categorias);
   const addCesta = useAdmin((s) => s.addCesta);
+  const duplicateCesta = useAdmin((s) => s.duplicateCesta);
   const removeCesta = useAdmin((s) => s.removeCesta);
   const arquivarCesta = useAdmin((s) => s.arquivarCesta);
 
@@ -99,7 +101,9 @@ export function AbaCestas() {
                 </p>
               </div>
               <span className="whitespace-nowrap font-serif text-base font-semibold text-terracotta">
-                {formatBRL(c.preco)}
+                {c.tamanhos && c.tamanhos.length > 0
+                  ? `A partir de ${formatBRL(Math.min(...c.tamanhos.map((t) => t.preco)))}`
+                  : formatBRL(c.preco)}
               </span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -113,6 +117,9 @@ export function AbaCestas() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setEditando(c)}>
                     <Pencil className="mr-2 h-4 w-4" /> Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => duplicateCesta(c.id)}>
+                    <Copy className="mr-2 h-4 w-4" /> Duplicar
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => arquivarCesta(c.id, !c.arquivado)}

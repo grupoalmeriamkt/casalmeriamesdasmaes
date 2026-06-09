@@ -1,3 +1,12 @@
+export type TamanhoVariante = {
+  id: string;
+  label: string;
+  diametro?: string;
+  fatias?: number;
+  peso?: string;
+  preco: number;
+};
+
 export type Cesta = {
   id: string;
   nome: string;
@@ -6,6 +15,7 @@ export type Cesta = {
   descricao: string;
   itens: string[];
   imagem: string;
+  tamanhos?: TamanhoVariante[];
 };
 
 export type Sobremesa = {

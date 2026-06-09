@@ -156,6 +156,9 @@ export type CampanhaTextos = {
   boasVindas: string;
   confirmacao: string;
   eyebrow?: string;
+  passo1Eyebrow?: string;
+  passo1Titulo?: string;
+  passo1Badge?: string;
 };
 
 export type UpsellItem =
@@ -281,6 +284,7 @@ type AdminState = {
 
   setCesta: (id: string, patch: Partial<CestaAdmin>) => void;
   addCesta: () => void;
+  duplicateCesta: (id: string) => void;
   removeCesta: (id: string) => void;
   arquivarCesta: (id: string, arquivado: boolean) => void;
 
@@ -558,6 +562,21 @@ export const useAdmin = create<AdminState>()(
             },
           ],
         })),
+      duplicateCesta: (id) =>
+        set((s) => {
+          const original = s.cestas.find((c) => c.id === id);
+          if (!original) return {};
+          const copia: CestaAdmin = {
+            ...original,
+            id: `cesta-${Date.now()}`,
+            nome: `Cópia de ${original.nome}`,
+            ativo: false,
+          };
+          const idx = s.cestas.findIndex((c) => c.id === id);
+          const next = [...s.cestas];
+          next.splice(idx + 1, 0, copia);
+          return { cestas: next };
+        }),
       removeCesta: (id) =>
         set((s) => ({ cestas: s.cestas.filter((c) => c.id !== id) })),
       arquivarCesta: (id, arquivado) =>
