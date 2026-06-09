@@ -17,7 +17,8 @@ import {
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
-import { parseDateId } from "@/lib/dateUtils";
+import { parseDateId, toISODateString } from "@/lib/dateUtils";
+import { Calendar } from "@/components/ui/calendar";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 import { useIsPreview } from "@/components/admin/PreviewContext";
@@ -937,49 +938,91 @@ export function Quiz({
               <p className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-charcoal/70">
                 Dia da entrega
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                {datas.map((d) => {
-                  const sel = data === d.label;
-                  const parsed = parseDateId(d.id);
-                  const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
-                  const numero = parsed?.dia ?? (d.label.split(",")[1]?.trim().split(" ")?.[0] || "•");
-                  const mesAno = parsed?.mesAno ?? "";
+              {datas.length > 4 ? (
+                /* ── Calendário para muitas datas ── */
+                (() => {
+                  const datasIds = new Set(
+                    datas.map((d) => d.id).filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
+                  );
+                  const selectedDatum = datas.find((d) => d.label === data);
+                  const selectedDate = selectedDatum?.id && /^\d{4}-\d{2}-\d{2}$/.test(selectedDatum.id)
+                    ? (() => {
+                        const [y, m, day] = selectedDatum.id.split("-").map(Number);
+                        return new Date(y, m - 1, day, 12);
+                      })()
+                    : undefined;
+                  const sortedIds = [...datasIds].sort();
+                  const fromParts = sortedIds[0]?.split("-").map(Number);
+                  const toParts = sortedIds[sortedIds.length - 1]?.split("-").map(Number);
+                  const fromMonth = fromParts ? new Date(fromParts[0], fromParts[1] - 1, 1) : undefined;
+                  const toMonth = toParts ? new Date(toParts[0], toParts[1] - 1, 1) : undefined;
                   return (
-                    <button
-                      key={d.id}
-                      onClick={() => {
-                        setData(d.label);
-                        setHorario("");
-                      }}
-                      className={`rounded-2xl border-2 p-4 text-center transition-all ${
-                        sel
-                          ? "border-charcoal bg-charcoal text-linen"
-                          : "border-sand/70 bg-white text-charcoal hover:border-charcoal/50"
-                      }`}
-                    >
-                      <div
-                        className={`font-serif text-3xl font-bold leading-none ${
-                          sel ? "text-terracotta" : "text-charcoal"
+                    <div className="flex justify-center">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        disabled={(date) => !datasIds.has(toISODateString(date))}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          const iso = toISODateString(date);
+                          const found = datas.find((d) => d.id === iso);
+                          if (found) {
+                            setData(found.label);
+                            setHorario("");
+                          }
+                        }}
+                        fromMonth={fromMonth}
+                        toMonth={toMonth}
+                      />
+                    </div>
+                  );
+                })()
+              ) : (
+                /* ── Cards para até 4 datas ── */
+                <div
+                  className={`grid gap-3 ${
+                    datas.length === 3 ? "grid-cols-3" : "grid-cols-2"
+                  }`}
+                >
+                  {datas.map((d) => {
+                    const sel = data === d.label;
+                    const parsed = parseDateId(d.id);
+                    const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
+                    const numero = parsed?.dia ?? (d.label.split(",")[1]?.trim().split(" ")?.[0] || "•");
+                    const mesAno = parsed?.mesAno ?? "";
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => {
+                          setData(d.label);
+                          setHorario("");
+                        }}
+                        className={`min-h-[72px] rounded-2xl border-2 p-4 text-center transition-all active:scale-[0.97] ${
+                          sel
+                            ? "border-charcoal bg-charcoal text-linen"
+                            : "border-sand/70 bg-white text-charcoal hover:border-charcoal/50"
                         }`}
                       >
-                        {numero}
-                      </div>
-                      <div
-                        className={`mt-1 text-sm font-medium ${sel ? "text-white" : "text-ink"}`}
-                      >
-                        {semana}
-                      </div>
-                      {mesAno && (
                         <div
-                          className={`mt-0.5 text-xs ${sel ? "text-linen/70" : "text-charcoal/50"}`}
+                          className={`font-serif text-3xl font-bold leading-none ${
+                            sel ? "text-terracotta" : "text-charcoal"
+                          }`}
                         >
-                          {mesAno}
+                          {numero}
                         </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                        <div className={`mt-1 text-sm font-medium ${sel ? "text-white" : "text-ink"}`}>
+                          {semana}
+                        </div>
+                        {mesAno && (
+                          <div className={`mt-0.5 text-xs ${sel ? "text-linen/70" : "text-charcoal/50"}`}>
+                            {mesAno}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {data && (
@@ -987,14 +1030,14 @@ export function Quiz({
                 <p className="mb-3 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-charcoal/70">
                   Janela de horário
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {horarios.map((h) => {
                     const sel = horario === h.label;
                     return (
                       <button
                         key={h.label}
                         onClick={() => setHorario(h.label)}
-                        className={`flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all sm:text-sm ${
+                        className={`flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all active:scale-[0.97] sm:text-sm ${
                           sel
                             ? "border-terracotta bg-terracotta text-white"
                             : "border-sand/70 bg-white text-charcoal hover:border-charcoal/40"

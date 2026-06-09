@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   useAdmin,
   useCategorias,
@@ -950,22 +951,26 @@ function ToggleLinha({
   );
 }
 
-function parseHoraLabel(label: string): { inicio: string; fim: string } {
-  const match = label.match(/Entre (\d{1,2})h e (\d{1,2})h/);
-  if (match) {
-    return {
-      inicio: match[1].padStart(2, "0"),
-      fim: match[2].padStart(2, "0"),
-    };
-  }
-  return { inicio: "06", fim: "07" };
-}
-
 function gerarLabelHora(inicio: string, fim: string): string {
   return `Entre ${inicio.padStart(2, "0")}h e ${fim.padStart(2, "0")}h`;
 }
 
 const HORAS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+
+const BLOCOS_PADRAO = [
+  { inicio: "06", fim: "08" },
+  { inicio: "08", fim: "10" },
+  { inicio: "10", fim: "12" },
+  { inicio: "12", fim: "14" },
+  { inicio: "14", fim: "16" },
+  { inicio: "16", fim: "18" },
+  { inicio: "18", fim: "20" },
+  { inicio: "20", fim: "22" },
+];
+
+const LABELS_BLOCOS_PADRAO = new Set(
+  BLOCOS_PADRAO.map((b) => `Entre ${b.inicio}h e ${b.fim}h`),
+);
 
 function DatasHorarios({
   datas,
@@ -978,183 +983,119 @@ function DatasHorarios({
   onDatas: (d: { id: string; label: string; ativa: boolean }[]) => void;
   onHorarios: (h: { label: string; ativo: boolean }[]) => void;
 }) {
-  const [mostrarIntervalo, setMostrarIntervalo] = useState(false);
-  const [intervaloInicio, setIntervaloInicio] = useState("");
-  const [intervaloFim, setIntervaloFim] = useState("");
+  const [mostrarCustom, setMostrarCustom] = useState(false);
+  const [customInicio, setCustomInicio] = useState("06");
+  const [customFim, setCustomFim] = useState("08");
 
-  function atualizarData(i: number, isoDate: string) {
-    if (!isoDate) return;
-    const [y, m, d] = isoDate.split("-").map(Number);
-    const date = new Date(y, m - 1, d, 12);
-    onDatas(
-      datas.map((x, idx) =>
-        idx === i ? { ...x, id: isoDate, label: formatDatePtBR(date) } : x,
-      ),
-    );
-  }
+  const isIso = (id: string) => /^\d{4}-\d{2}-\d{2}$/.test(id);
 
-  function adicionarDataUnica() {
-    const amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
-    amanha.setHours(12, 0, 0, 0);
-    const iso = toISODateString(amanha);
-    onDatas([...datas, { id: iso, label: formatDatePtBR(amanha), ativa: true }]);
-  }
+  // Calendar selected dates as Date[]
+  const datasIso = datas
+    .filter((d) => isIso(d.id))
+    .map((d) => {
+      const [y, m, day] = d.id.split("-").map(Number);
+      return new Date(y, m - 1, day, 12);
+    });
 
-  function adicionarIntervalo() {
-    if (!intervaloInicio || !intervaloFim) return;
-    const [y1, m1, d1] = intervaloInicio.split("-").map(Number);
-    const [y2, m2, d2] = intervaloFim.split("-").map(Number);
-    const inicio = new Date(y1, m1 - 1, d1, 12);
-    const fim = new Date(y2, m2 - 1, d2, 12);
-    if (inicio > fim) return;
-    const existingIds = new Set(datas.map((d) => d.id));
-    const novas = dateRange(inicio, fim)
-      .map((date) => ({
-        id: toISODateString(date),
-        label: formatDatePtBR(date),
-        ativa: true,
-      }))
-      .filter((d) => !existingIds.has(d.id));
-    onDatas([...datas, ...novas]);
-    setMostrarIntervalo(false);
-    setIntervaloInicio("");
-    setIntervaloFim("");
-  }
-
-  function adicionarJanela() {
-    const ultimo = horarios[horarios.length - 1];
-    let nextHour = 6;
-    if (ultimo) {
-      const { fim } = parseHoraLabel(ultimo.label);
-      nextHour = Math.min(parseInt(fim, 10), 22);
+  const today = new Date();
+  const fromMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const toMonth = (() => {
+    const isoIds = datas.filter((d) => isIso(d.id)).map((d) => d.id).sort();
+    if (isoIds.length > 0) {
+      const last = isoIds[isoIds.length - 1];
+      const [y, m] = last.split("-").map(Number);
+      return new Date(y, m + 1, 1);
     }
-    const inicio = String(nextHour).padStart(2, "0");
-    const fim = String(nextHour + 1).padStart(2, "0");
-    onHorarios([...horarios, { label: gerarLabelHora(inicio, fim), ativo: true }]);
+    return new Date(today.getFullYear(), today.getMonth() + 6, 1);
+  })();
+
+  function handleCalendarSelect(dates?: Date[]) {
+    const newDates = dates ?? [];
+    const newIsoIds = new Set(newDates.map(toISODateString));
+    const kept = datas.filter((d) => !isIso(d.id) || newIsoIds.has(d.id));
+    const existingIds = new Set(datas.map((d) => d.id));
+    const added: typeof datas = [];
+    for (const date of newDates) {
+      const iso = toISODateString(date);
+      if (!existingIds.has(iso)) {
+        added.push({ id: iso, label: formatDatePtBR(date), ativa: true });
+      }
+    }
+    const merged = [...kept, ...added];
+    merged.sort((a, b) => a.id.localeCompare(b.id));
+    onDatas(merged);
   }
 
-  const inputDateClass =
-    "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring";
+  // Horários helpers
+  function labelBloco(b: { inicio: string; fim: string }) {
+    return `Entre ${b.inicio}h e ${b.fim}h`;
+  }
+
+  function isBlocoAtivo(b: { inicio: string; fim: string }) {
+    return horarios.some((h) => h.label === labelBloco(b) && h.ativo);
+  }
+
+  function toggleBloco(b: { inicio: string; fim: string }) {
+    const lbl = labelBloco(b);
+    const exists = horarios.find((h) => h.label === lbl);
+    if (exists) {
+      onHorarios(horarios.map((h) => (h.label === lbl ? { ...h, ativo: !h.ativo } : h)));
+    } else {
+      onHorarios([...horarios, { label: lbl, ativo: true }]);
+    }
+  }
+
+  const horariosCustom = horarios.filter((h) => !LABELS_BLOCOS_PADRAO.has(h.label));
+
   const selectClass =
     "h-9 flex-1 rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring";
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-6 md:grid-cols-2">
       {/* ── Datas ── */}
       <div>
         <p className="mb-2 text-xs font-semibold text-charcoal">Datas</p>
-        <div className="space-y-1.5">
-          {datas.map((d, i) => {
-            const isIso = /^\d{4}-\d{2}-\d{2}$/.test(d.id);
-            return (
+        <div className="overflow-hidden rounded-lg border border-border bg-background/40">
+          <Calendar
+            mode="multiple"
+            selected={datasIso}
+            onSelect={handleCalendarSelect}
+            fromMonth={fromMonth}
+            toMonth={toMonth}
+            locale={ptBR}
+          />
+        </div>
+        {datas.length === 0 && (
+          <p className="mt-2 text-xs text-charcoal/50">
+            Clique nos dias do calendário para adicionar datas disponíveis.
+          </p>
+        )}
+        {datas.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {datas.map((d, i) => (
               <div
                 key={d.id}
-                className="rounded-md border border-border bg-background/40 p-2 space-y-1"
+                className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5"
               >
-                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
-                  <Switch
-                    checked={d.ativa}
-                    onCheckedChange={(v) =>
-                      onDatas(
-                        datas.map((x, idx) => (idx === i ? { ...x, ativa: v } : x)),
-                      )
-                    }
-                  />
-                  {isIso ? (
-                    <input
-                      type="date"
-                      value={d.id}
-                      onChange={(e) => atualizarData(i, e.target.value)}
-                      className={inputDateClass}
-                    />
-                  ) : (
-                    <Input
-                      value={d.label}
-                      onChange={(e) =>
-                        onDatas(
-                          datas.map((x, idx) =>
-                            idx === i ? { ...x, label: e.target.value } : x,
-                          ),
-                        )
-                      }
-                      placeholder="Texto da data"
-                    />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-terracotta hover:bg-terracotta/10"
-                    onClick={() => onDatas(datas.filter((_, idx) => idx !== i))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                {isIso && (
-                  <p className="pl-10 text-xs text-charcoal/60">{d.label}</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {mostrarIntervalo ? (
-          <div className="mt-2 rounded-md border border-dashed border-border bg-background/30 p-3 space-y-2">
-            <p className="text-xs font-medium text-charcoal">Selecionar intervalo</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-charcoal/60">De</label>
-                <input
-                  type="date"
-                  value={intervaloInicio}
-                  onChange={(e) => setIntervaloInicio(e.target.value)}
-                  className={cn("mt-0.5", inputDateClass)}
+                <Switch
+                  checked={d.ativa}
+                  onCheckedChange={(v) =>
+                    onDatas(datas.map((x, idx) => (idx === i ? { ...x, ativa: v } : x)))
+                  }
                 />
+                <span className={cn("flex-1 truncate text-xs", !d.ativa && "opacity-50")}>
+                  {d.label}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-terracotta hover:bg-terracotta/10"
+                  onClick={() => onDatas(datas.filter((_, idx) => idx !== i))}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
               </div>
-              <div>
-                <label className="text-xs text-charcoal/60">Até</label>
-                <input
-                  type="date"
-                  value={intervaloFim}
-                  min={intervaloInicio}
-                  onChange={(e) => setIntervaloFim(e.target.value)}
-                  className={cn("mt-0.5", inputDateClass)}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={adicionarIntervalo}
-                disabled={!intervaloInicio || !intervaloFim}
-              >
-                Adicionar datas
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setMostrarIntervalo(false);
-                  setIntervaloInicio("");
-                  setIntervaloFim("");
-                }}
-              >
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button variant="outline" className="border-dashed" onClick={adicionarDataUnica}>
-              <Plus className="mr-2 h-4 w-4" /> Adicionar data
-            </Button>
-            <Button
-              variant="outline"
-              className="border-dashed"
-              onClick={() => setMostrarIntervalo(true)}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" /> Intervalo
-            </Button>
+            ))}
           </div>
         )}
       </div>
@@ -1162,74 +1103,106 @@ function DatasHorarios({
       {/* ── Horários ── */}
       <div>
         <p className="mb-2 text-xs font-semibold text-charcoal">Janelas de horário</p>
-        <div className="space-y-1.5">
-          {horarios.map((h, i) => {
-            const { inicio, fim } = parseHoraLabel(h.label);
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {BLOCOS_PADRAO.map((b) => {
+            const ativo = isBlocoAtivo(b);
             return (
+              <button
+                key={`${b.inicio}-${b.fim}`}
+                type="button"
+                onClick={() => toggleBloco(b)}
+                className={cn(
+                  "rounded-lg px-2 py-2 text-xs font-medium transition-colors",
+                  ativo
+                    ? "bg-charcoal text-white"
+                    : "border border-sand/70 bg-background text-charcoal hover:border-charcoal/40",
+                )}
+              >
+                {b.inicio}h–{b.fim}h
+              </button>
+            );
+          })}
+        </div>
+
+        {horariosCustom.length > 0 && (
+          <div className="mt-3 space-y-1">
+            <p className="text-[11px] text-charcoal/50">Janelas personalizadas</p>
+            {horariosCustom.map((h) => (
               <div
-                key={i}
-                className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-md border border-border bg-background/40 p-2"
+                key={h.label}
+                className="flex items-center gap-2 rounded-md border border-border bg-background/40 px-2 py-1.5"
               >
                 <Switch
                   checked={h.ativo}
                   onCheckedChange={(v) =>
-                    onHorarios(
-                      horarios.map((x, idx) => (idx === i ? { ...x, ativo: v } : x)),
-                    )
+                    onHorarios(horarios.map((x) => (x.label === h.label ? { ...x, ativo: v } : x)))
                   }
                 />
-                <div className="flex items-center gap-1.5">
-                  <select
-                    value={inicio}
-                    onChange={(e) =>
-                      onHorarios(
-                        horarios.map((x, idx) =>
-                          idx === i
-                            ? { ...x, label: gerarLabelHora(e.target.value, fim) }
-                            : x,
-                        ),
-                      )
-                    }
-                    className={selectClass}
-                  >
-                    {HORAS.map((h) => (
-                      <option key={h} value={h}>{h}h</option>
-                    ))}
-                  </select>
-                  <span className="text-xs text-charcoal/50 shrink-0">às</span>
-                  <select
-                    value={fim}
-                    onChange={(e) =>
-                      onHorarios(
-                        horarios.map((x, idx) =>
-                          idx === i
-                            ? { ...x, label: gerarLabelHora(inicio, e.target.value) }
-                            : x,
-                        ),
-                      )
-                    }
-                    className={selectClass}
-                  >
-                    {HORAS.map((h) => (
-                      <option key={h} value={h}>{h}h</option>
-                    ))}
-                  </select>
-                </div>
+                <span className="flex-1 text-xs">{h.label}</span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-terracotta hover:bg-terracotta/10"
-                  onClick={() => onHorarios(horarios.filter((_, idx) => idx !== i))}
+                  className="h-6 w-6 text-terracotta hover:bg-terracotta/10"
+                  onClick={() => onHorarios(horarios.filter((x) => x.label !== h.label))}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </Button>
               </div>
-            );
-          })}
-        </div>
-        <Button variant="outline" className="mt-2 border-dashed" onClick={adicionarJanela}>
-          <Plus className="mr-2 h-4 w-4" /> Adicionar janela
-        </Button>
+            ))}
+          </div>
+        )}
+
+        {mostrarCustom ? (
+          <div className="mt-3 space-y-2 rounded-md border border-dashed border-border bg-background/30 p-3">
+            <p className="text-xs font-medium text-charcoal">Janela personalizada</p>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={customInicio}
+                onChange={(e) => setCustomInicio(e.target.value)}
+                className={selectClass}
+              >
+                {HORAS.map((h) => (
+                  <option key={h} value={h}>{h}h</option>
+                ))}
+              </select>
+              <span className="shrink-0 text-xs text-charcoal/50">às</span>
+              <select
+                value={customFim}
+                onChange={(e) => setCustomFim(e.target.value)}
+                className={selectClass}
+              >
+                {HORAS.map((h) => (
+                  <option key={h} value={h}>{h}h</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const lbl = gerarLabelHora(customInicio, customFim);
+                  if (!horarios.find((h) => h.label === lbl)) {
+                    onHorarios([...horarios, { label: lbl, ativo: true }]);
+                  }
+                  setMostrarCustom(false);
+                }}
+              >
+                Adicionar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setMostrarCustom(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMostrarCustom(true)}
+            className="mt-3 text-[11px] text-charcoal/50 underline-offset-2 hover:text-charcoal hover:underline"
+          >
+            + janela personalizada
+          </button>
+        )}
       </div>
     </div>
   );
