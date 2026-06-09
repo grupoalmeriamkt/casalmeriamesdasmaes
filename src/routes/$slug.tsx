@@ -57,14 +57,34 @@ export const Route = createFileRoute("/$slug")({
 
 function CampanhaPage() {
   const { slug } = useParams({ from: "/$slug" });
+  const { campanha: campanhaCloud } = Route.useLoaderData();
   const campanhas = useAdmin((s) => s.campanhas);
   const setCampanhaAtivaId = useAdmin((s) => s.setCampanhaAtivaId);
+  const setCampanha = useAdmin((s) => s.setCampanha);
   const reset = usePedido((s) => s.reset);
   const [concluido, setConcluido] = useState(false);
   const [slugResolvido, setSlugResolvido] = useState(false);
 
   const reservado = RESERVED_SLUGS.has(slug);
   const campanha = reservado ? undefined : campanhas.find((c) => c.slug === slug);
+
+  // Sincroniza dados publicados (Supabase) para o store local ao carregar o quiz.
+  // Isso garante que a versão publicada seja sempre exibida no link público.
+  // O admin usa QuizPreviewMobile para testar sem publicar.
+  useEffect(() => {
+    if (!campanhaCloud) return;
+    const local = useAdmin.getState().campanhas.find((c) => c.id === campanhaCloud.id);
+    if (local) {
+      // Mescla: mantém campos do local que não vieram do cloud (ex.: campanhas locais)
+      setCampanha(campanhaCloud.id, campanhaCloud as Partial<Campanha>);
+    } else {
+      // Campanha ainda não existe localmente — adiciona ao store
+      useAdmin.setState((s) => ({
+        campanhas: [...s.campanhas, campanhaCloud as Campanha],
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campanhaCloud?.id]);
 
   // Hook SEMPRE chamado antes de qualquer return — evita "rendered fewer hooks"
   useEffect(() => {

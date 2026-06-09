@@ -128,7 +128,15 @@ export function Quiz({
   const datasDisponiveis = datas.filter(
     (d) => !/^\d{4}-\d{2}-\d{2}$/.test(d.id) || d.id >= agoraISO,
   );
-  const dataSelecionadaId = datasDisponiveis.find((d) => d.label === data)?.id;
+  // Em modo todosDias o calendário livre não popula datasDisponiveis,
+  // então comparamos o label selecionado com o label de hoje para saber se é hoje.
+  const hoje = new Date();
+  const hojeLabel = formatDatePtBR(
+    new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 12),
+  );
+  const dataSelecionadaId =
+    datasDisponiveis.find((d) => d.label === data)?.id ??
+    (data === hojeLabel ? agoraISO : undefined);
   const horariosDisponiveis =
     dataSelecionadaId === agoraISO
       ? horarios.filter((h) => {

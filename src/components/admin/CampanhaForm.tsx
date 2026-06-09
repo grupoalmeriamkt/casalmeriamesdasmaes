@@ -717,6 +717,17 @@ function RetiradaTab({
   onPatch: (p: Partial<CampanhaRetirada>) => void;
 }) {
   const r = campanha.retirada;
+  const todasUnidades = useAdmin((s) => s.unidades);
+  const setQuiz = useAdmin((s) => s.setCampanhaQuiz);
+
+  const unidadesAtivas = todasUnidades.filter((u) => u.status === "ativa");
+  const unidadesSelecionadas = new Set(campanha.quiz.unidadeIds ?? []);
+
+  const toggleUnidade = (uid: string) => {
+    const ids = campanha.quiz.unidadeIds ?? [];
+    const next = ids.includes(uid) ? ids.filter((x) => x !== uid) : [...ids, uid];
+    setQuiz(campanha.id, { unidadeIds: next });
+  };
 
   return (
     <div className="space-y-5">
@@ -766,12 +777,53 @@ function RetiradaTab({
       </Bloco>
 
       <Bloco titulo="Local de retirada">
-        <Field label="Endereço de retirada">
+        <p className="text-xs text-muted-foreground">
+          Selecione quais unidades ficam disponíveis para retirada no formulário desta campanha.
+        </p>
+
+        {unidadesAtivas.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border px-4 py-3 text-xs text-charcoal/50">
+            Nenhuma unidade ativa cadastrada. Vá em{" "}
+            <strong>Configurações → Unidades</strong> para adicionar.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {unidadesAtivas.map((u) => {
+              const sel = unidadesSelecionadas.has(u.id);
+              return (
+                <div
+                  key={u.id}
+                  onClick={() => toggleUnidade(u.id)}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                    sel
+                      ? "border-charcoal/30 bg-charcoal/5"
+                      : "border-border bg-background/40 hover:border-charcoal/20",
+                  )}
+                >
+                  <Switch
+                    checked={sel}
+                    onCheckedChange={() => toggleUnidade(u.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-charcoal">{u.nome}</p>
+                    {u.endereco && (
+                      <p className="truncate text-xs text-charcoal/50">{u.endereco}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <Field label="Observação de retirada (opcional)">
           <Textarea
             rows={2}
             value={r.enderecoRetirada}
             onChange={(e) => onPatch({ enderecoRetirada: e.target.value })}
-            placeholder="Endereço completo onde o cliente retira o pedido"
+            placeholder="Informação adicional exibida ao cliente (ex.: instruções de acesso)"
           />
         </Field>
       </Bloco>

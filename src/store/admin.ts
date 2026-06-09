@@ -727,7 +727,14 @@ export const useAdmin = create<AdminState>()(
           const campanhas = s.campanhas.map((c) => {
             if (c.id !== id) return c;
             const retirada = { ...c.retirada, ...patch };
-            const quiz = { ...c.quiz, retirada: retirada.ativo };
+            const quiz = {
+              ...c.quiz,
+              retirada: retirada.ativo,
+              // Sincroniza quiz.datas e quiz.horarios com retirada quando não há delivery ativo
+              ...(c.delivery?.ativo
+                ? {}
+                : { datas: retirada.datas, horarios: retirada.horarios }),
+            };
             return { ...c, retirada, quiz };
           });
           const next = { ...s, campanhas };
@@ -829,7 +836,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 12,
+      version: 13,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -1095,6 +1102,33 @@ export const useAdmin = create<AdminState>()(
         }
         if (!state.campanhaAtivaId) {
           state.campanhaAtivaId = state.campanhas[0].id;
+        }
+
+        // v13: normaliza horários legados de 1h para o novo formato de 2h
+        {
+          const legados = new Set([
+            "Entre 06h e 07h", "Entre 07h e 08h", "Entre 08h e 09h", "Entre 09h e 10h",
+          ]);
+          const novos2h = [
+            "Entre 06h e 08h", "Entre 08h e 10h", "Entre 10h e 12h", "Entre 12h e 14h",
+            "Entre 14h e 16h", "Entre 16h e 18h", "Entre 18h e 20h", "Entre 20h e 22h",
+          ].map((label) => ({ label, ativo: true }));
+          const normalizar = (hs: any[]) => {
+            if (!Array.isArray(hs) || hs.length === 0) return novos2h;
+            return hs.every((h: any) => legados.has(h?.label)) ? novos2h : hs;
+          };
+          state.campanhas = state.campanhas.map((c: any) => ({
+            ...c,
+            delivery: c.delivery
+              ? { ...c.delivery, horarios: normalizar(c.delivery.horarios ?? []) }
+              : c.delivery,
+            retirada: c.retirada
+              ? { ...c.retirada, horarios: normalizar(c.retirada.horarios ?? []) }
+              : c.retirada,
+            quiz: c.quiz
+              ? { ...c.quiz, horarios: normalizar(c.quiz.horarios ?? []) }
+              : c.quiz,
+          }));
         }
 
         if (state.pagamento && typeof state.pagamento === "object") {
