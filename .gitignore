@@ -36,3 +36,6 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Claude Code
+.claude/settings.local.json

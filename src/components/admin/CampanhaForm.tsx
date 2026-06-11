@@ -63,6 +63,7 @@ import {
   Loader2,
   Check,
   Link2,
+  ChevronDown,
 } from "lucide-react";
 import {
   listarTokensDaCampanha,
@@ -355,7 +356,7 @@ function InfoGeralTab({
         </div>
       </Bloco>
 
-      <Bloco titulo="Textos">
+      <Bloco titulo="Textos" collapsible>
         <div className="grid gap-4">
           <Field label="Título da campanha (página pública)">
             <Input
@@ -427,6 +428,174 @@ function InfoGeralTab({
               }
             />
           </Field>
+
+          <SubSecao titulo="Indicador de progresso (barra do topo)">
+            <Field label="Passo 1 (deixe vazio para 'ESCOLHA SUA CESTA')">
+              <Input
+                value={textos.passo1Label ?? ""}
+                placeholder="ESCOLHA SUA CESTA"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo1Label: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Passo 2 (deixe vazio para 'SEUS DADOS')">
+              <Input
+                value={textos.passo2Label ?? ""}
+                placeholder="SEUS DADOS"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo2Label: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Passo 3 (deixe vazio para 'ENTREGA')">
+              <Input
+                value={textos.passo3Label ?? ""}
+                placeholder="ENTREGA"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo3Label: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Passo 4 (deixe vazio para 'DATA E HORÁRIO')">
+              <Input
+                value={textos.passo4Label ?? ""}
+                placeholder="DATA E HORÁRIO"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo4Label: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Passo 5 (deixe vazio para 'REVISÃO E ENVIO')">
+              <Input
+                value={textos.passo5Label ?? ""}
+                placeholder="REVISÃO E ENVIO"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo5Label: e.target.value || undefined } })
+                }
+              />
+            </Field>
+          </SubSecao>
+
+          <SubSecao titulo="Passo 2 — Seus Dados">
+            <Field label="Eyebrow (deixe vazio para 'Identificação')">
+              <Input
+                value={textos.passo2Eyebrow ?? ""}
+                placeholder="Identificação"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo2Eyebrow: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Título (deixe vazio para 'Quem está pedindo?')">
+              <Input
+                value={textos.passo2Titulo ?? ""}
+                placeholder="Quem está pedindo?"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo2Titulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Subtítulo (deixe vazio para padrão)">
+              <Input
+                value={textos.passo2Subtitulo ?? ""}
+                placeholder="Para confirmarmos seu pedido pelo WhatsApp"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo2Subtitulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Label da seção destinatário (deixe vazio para 'Destinatário')">
+              <Input
+                value={textos.passo2DestinatarioLabel ?? ""}
+                placeholder="Destinatário"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo2DestinatarioLabel: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Pergunta do destinatário (deixe vazio para padrão)">
+              <Input
+                value={textos.passo2DestinatarioTitulo ?? ""}
+                placeholder="Quem irá receber o pedido? 🎁"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo2DestinatarioTitulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+          </SubSecao>
+
+          <SubSecao titulo="Passo 3 — Entrega">
+            <Field label="Eyebrow (deixe vazio para 'Logística')">
+              <Input
+                value={textos.passo3Eyebrow ?? ""}
+                placeholder="Logística"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo3Eyebrow: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Título (deixe vazio para 'Como prefere receber?')">
+              <Input
+                value={textos.passo3Titulo ?? ""}
+                placeholder="Como prefere receber?"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo3Titulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Subtítulo (deixe vazio para padrão)">
+              <Input
+                value={textos.passo3Subtitulo ?? ""}
+                placeholder="Entregas e retiradas conforme disponibilidade"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo3Subtitulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+          </SubSecao>
+
+          <SubSecao titulo="Passo 4 — Data e Horário">
+            <Field label="Eyebrow (deixe vazio para 'Agendamento')">
+              <Input
+                value={textos.passo4Eyebrow ?? ""}
+                placeholder="Agendamento"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo4Eyebrow: e.target.value || undefined } })
+                }
+              />
+            </Field>
+          </SubSecao>
+
+          <SubSecao titulo="Passo 5 — Revisão e Envio">
+            <Field label="Eyebrow (deixe vazio para 'Quase lá!')">
+              <Input
+                value={textos.passo5Eyebrow ?? ""}
+                placeholder="Quase lá!"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo5Eyebrow: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Título (deixe vazio para 'Seu pedido')">
+              <Input
+                value={textos.passo5Titulo ?? ""}
+                placeholder="Seu pedido"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo5Titulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+            <Field label="Subtítulo (deixe vazio para padrão)">
+              <Input
+                value={textos.passo5Subtitulo ?? ""}
+                placeholder="Revise e escolha como pagar"
+                onChange={(e) =>
+                  onPatch({ textos: { ...textos, passo5Subtitulo: e.target.value || undefined } })
+                }
+              />
+            </Field>
+          </SubSecao>
         </div>
       </Bloco>
     </div>
@@ -959,18 +1128,58 @@ function LinksTab({ campanhaId, campanhaNome }: { campanhaId: string; campanhaNo
 function Bloco({
   titulo,
   children,
+  collapsible = false,
+  defaultCollapsed = false,
 }: {
   titulo?: string;
   children: React.ReactNode;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-3">
       {titulo && (
-        <h4 className="text-xs font-bold uppercase tracking-widest text-charcoal">
-          {titulo}
-        </h4>
+        <div
+          className={collapsible ? "flex cursor-pointer items-center justify-between" : undefined}
+          onClick={collapsible ? () => setCollapsed((v) => !v) : undefined}
+        >
+          <h4 className="text-xs font-bold uppercase tracking-widest text-charcoal">{titulo}</h4>
+          {collapsible && (
+            <ChevronDown
+              className={`h-4 w-4 text-ink/40 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+            />
+          )}
+        </div>
       )}
-      {children}
+      {(!collapsible || !collapsed) && children}
+    </div>
+  );
+}
+
+function SubSecao({
+  titulo,
+  children,
+  defaultCollapsed = true,
+}: {
+  titulo: string;
+  children: React.ReactNode;
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  return (
+    <div className="border-t border-sand/50 pt-4">
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="mb-3 flex w-full items-center justify-between"
+      >
+        <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-ink/40">{titulo}</p>
+        <ChevronDown
+          className={`h-3.5 w-3.5 text-ink/30 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+        />
+      </button>
+      {!collapsed && <div className="grid gap-4">{children}</div>}
     </div>
   );
 }

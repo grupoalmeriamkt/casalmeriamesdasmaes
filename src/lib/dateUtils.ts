@@ -37,6 +37,22 @@ export function toISODateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+const MONTHS_PT = [
+  "janeiro","fevereiro","março","abril","maio","junho",
+  "julho","agosto","setembro","outubro","novembro","dezembro",
+];
+
+// Reverte formatDatePtBR("Domingo, 10 de Junho de 2026") → Date
+export function parseDatePtBRToDate(s: string): Date | undefined {
+  const match = s.match(/,\s*(\d+)\s+de\s+(\w+)\s+de\s+(\d{4})/i);
+  if (!match) return undefined;
+  const day = parseInt(match[1]);
+  const month = MONTHS_PT.indexOf(match[2].toLowerCase());
+  const year = parseInt(match[3]);
+  if (month === -1) return undefined;
+  return new Date(year, month, day, 12);
+}
+
 // Parse ISO date id "YYYY-MM-DD" → card display parts, null for legacy ids
 export function parseDateId(id: string): { dia: string; semana: string; mesAno: string } | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(id)) return null;

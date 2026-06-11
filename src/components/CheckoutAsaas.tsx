@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2, Tag, Lock, CheckCircle2, Zap, CreditCard } from "lucide-react";
+import { Loader2, Tag, Lock, CheckCircle2, Zap, CreditCard, Store, MapPin, CalendarDays, Clock, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
+import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { useCampanhaAtiva, calcTaxaEntrega } from "@/store/admin";
 import { finalizarPedido } from "@/lib/pedidos";
 
@@ -63,6 +63,10 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
   const navigate = useNavigate();
   const pedidoState = usePedido((s) => s);
   const subtotal = usePedido(selectTotal);
+  const precoEfetivo = usePedido(selectPrecoEfetivo);
+  const tamanhoSelecionado = pedidoState.tamanhoId && pedidoState.cesta
+    ? pedidoState.cesta.cesta.tamanhos?.find((t) => t.id === pedidoState.tamanhoId)
+    : undefined;
   const campanhaAtiva = useCampanhaAtiva();
   const taxaEntregaFallback = pedidoState.entregaTipo === "delivery"
     ? calcTaxaEntrega(campanhaAtiva?.delivery?.taxa)
@@ -212,9 +216,9 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         ...(pedidoState.cesta
           ? [
               {
-                nome: pedidoState.cesta.cesta.nome,
+                nome: pedidoState.cesta.cesta.nome + (tamanhoSelecionado ? ` · Tam. ${tamanhoSelecionado.label}` : ""),
                 quantidade: pedidoState.cesta.quantidade,
-                preco: pedidoState.cesta.cesta.preco,
+                preco: precoEfetivo,
               },
             ]
           : []),
@@ -246,9 +250,9 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           destinatario: pedidoState.destinatario,
           cesta: pedidoState.cesta
             ? {
-                nome: pedidoState.cesta.cesta.nome,
+                nome: pedidoState.cesta.cesta.nome + (tamanhoSelecionado ? ` · Tam. ${tamanhoSelecionado.label}` : ""),
                 quantidade: pedidoState.cesta.quantidade,
-                preco: pedidoState.cesta.cesta.preco,
+                preco: precoEfetivo,
               }
             : undefined,
           sobremesas: Object.values(pedidoState.sobremesas).map((s) => ({
@@ -338,10 +342,12 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           {pedidoState.cesta && (
             <li className="flex justify-between">
               <span className="text-charcoal">
-                {pedidoState.cesta.cesta.nome} × {pedidoState.cesta.quantidade}
+                {pedidoState.cesta.cesta.nome}
+                {tamanhoSelecionado ? ` · Tam. ${tamanhoSelecionado.label}` : ""}
+                {" "}× {pedidoState.cesta.quantidade}
               </span>
               <span className="font-semibold text-charcoal">
-                {formatBRL(pedidoState.cesta.cesta.preco * pedidoState.cesta.quantidade)}
+                {formatBRL(precoEfetivo * pedidoState.cesta.quantidade)}
               </span>
             </li>
           )}
@@ -373,10 +379,12 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
             <span>Subtotal</span>
             <span>{formatBRL(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-ink/70">
-            <span>Taxa de entrega</span>
-            <span>{pedidoState.entregaTipo === "delivery" ? formatBRL(taxaEntrega) : "Grátis"}</span>
-          </div>
+          {pedidoState.entregaTipo === "delivery" && (
+            <div className="flex justify-between text-ink/70">
+              <span>Taxa de entrega</span>
+              <span>{taxaEntrega > 0 ? formatBRL(taxaEntrega) : "Grátis"}</span>
+            </div>
+          )}
           {cupomAplicado && (
             <div className="flex justify-between text-emerald-700">
               <span className="inline-flex items-center gap-1">
@@ -393,6 +401,60 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           </div>
         </div>
       </div>
+
+      {/* Retirada — local, dia e horário */}
+      {pedidoState.entregaTipo === "retirada" && (
+        <div className="rounded-2xl bg-linen/70 p-4 ring-1 ring-sand/60 sm:p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Store className="h-4 w-4 text-terracotta" />
+            <h3 className="text-sm font-semibold text-charcoal">Retirada</h3>
+          </div>
+          <div className="grid gap-4">
+            {pedidoState.unidade && (
+              <div className="flex gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 flex-none text-terracotta" />
+                <div>
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-ink/40">Local</p>
+                  <p className="mt-0.5 text-sm font-medium text-charcoal">{pedidoState.unidade.nome}</p>
+                  {pedidoState.unidade.endereco && (
+                    <p className="text-xs text-ink/60">{pedidoState.unidade.endereco}</p>
+                  )}
+                </div>
+              </div>
+            )}
+            {(pedidoState.data || pedidoState.horario) && (
+              <div className="flex gap-4">
+                {pedidoState.data && (
+                  <div className="flex gap-2">
+                    <CalendarDays className="mt-0.5 h-4 w-4 flex-none text-terracotta" />
+                    <div>
+                      <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-ink/40">Data</p>
+                      <p className="mt-0.5 text-sm font-medium text-charcoal">{pedidoState.data}</p>
+                    </div>
+                  </div>
+                )}
+                {pedidoState.horario && (
+                  <div className="flex gap-2">
+                    <Clock className="mt-0.5 h-4 w-4 flex-none text-terracotta" />
+                    <div>
+                      <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-ink/40">Horário</p>
+                      <p className="mt-0.5 text-sm font-medium text-charcoal">{pedidoState.horario}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {campanhaAtiva?.retirada?.enderecoRetirada && (
+              <div className="flex gap-2 rounded-xl bg-white/60 p-3">
+                <Info className="mt-0.5 h-4 w-4 flex-none text-ink/40" />
+                <p className="text-xs leading-relaxed text-ink/70">
+                  {campanhaAtiva.retirada.enderecoRetirada}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Cupom */}
       <div className="rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">

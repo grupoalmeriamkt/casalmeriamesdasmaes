@@ -75,16 +75,16 @@ function CampanhaPage() {
     if (!campanhaCloud) return;
     const local = useAdmin.getState().campanhas.find((c) => c.id === campanhaCloud.id);
     if (local) {
-      // Mescla: mantém campos do local que não vieram do cloud (ex.: campanhas locais)
       setCampanha(campanhaCloud.id, campanhaCloud as Partial<Campanha>);
     } else {
-      // Campanha ainda não existe localmente — adiciona ao store
       useAdmin.setState((s) => ({
         campanhas: [...s.campanhas, campanhaCloud as Campanha],
       }));
     }
+  // campanhaCloud muda referência a cada loader (navegação SPA), garantindo que
+  // dados publicados novos sejam sempre aplicados mesmo sem mudança de ID.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campanhaCloud?.id]);
+  }, [campanhaCloud]);
 
   // Hook SEMPRE chamado antes de qualquer return — evita "rendered fewer hooks"
   useEffect(() => {

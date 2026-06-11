@@ -161,6 +161,28 @@ export type CampanhaTextos = {
   passo1Eyebrow?: string;
   passo1Titulo?: string;
   passo1Badge?: string;
+  // Passo 2
+  passo2Eyebrow?: string;
+  passo2Titulo?: string;
+  passo2Subtitulo?: string;
+  passo2DestinatarioLabel?: string;
+  passo2DestinatarioTitulo?: string;
+  // Passo 3
+  passo3Eyebrow?: string;
+  passo3Titulo?: string;
+  passo3Subtitulo?: string;
+  // Passo 4
+  passo4Eyebrow?: string;
+  // Passo 5
+  passo5Eyebrow?: string;
+  passo5Titulo?: string;
+  passo5Subtitulo?: string;
+  // Labels do indicador de progresso
+  passo1Label?: string;
+  passo2Label?: string;
+  passo3Label?: string;
+  passo4Label?: string;
+  passo5Label?: string;
 };
 
 export type UpsellItem =
@@ -1090,6 +1112,7 @@ export const useAdmin = create<AdminState>()(
               textos:
                 c.textos && typeof c.textos === "object"
                   ? {
+                      ...c.textos,
                       titulo: c.textos.titulo ?? c.nome ?? "",
                       subtitulo: c.textos.subtitulo ?? "",
                       boasVindas: c.textos.boasVindas ?? "",

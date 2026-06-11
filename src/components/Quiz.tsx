@@ -18,7 +18,7 @@ import {
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
-import { parseDateId, toISODateString, formatDatePtBR } from "@/lib/dateUtils";
+import { parseDateId, toISODateString, formatDatePtBR, parseDatePtBRToDate } from "@/lib/dateUtils";
 import { Calendar } from "@/components/ui/calendar";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -162,6 +162,13 @@ export function Quiz({
     : 0;
   const total = subtotal + taxaEntrega;
   const textosCampanha = campanhaAtiva?.textos;
+  const titulosPasso = [
+    textosCampanha?.passo1Label || TITULOS[0],
+    textosCampanha?.passo2Label || TITULOS[1],
+    textosCampanha?.passo3Label || TITULOS[2],
+    textosCampanha?.passo4Label || TITULOS[3],
+    textosCampanha?.passo5Label || TITULOS[4],
+  ];
   // Mantém compat com `textos.badgePrazo` (texto global).
   const textos = textosGlobais;
 
@@ -187,6 +194,15 @@ export function Quiz({
   useEffect(() => {
     if (entregaTipo !== "delivery") setZonaEntregaAtual(null);
   }, [entregaTipo]);
+
+  useEffect(() => {
+    if (entregaTipo === "delivery" && !entregaConfig.delivery) {
+      usePedido.setState({ entregaTipo: entregaConfig.retirada ? "retirada" : null });
+    }
+    if (entregaTipo === "retirada" && !entregaConfig.retirada) {
+      usePedido.setState({ entregaTipo: entregaConfig.delivery ? "delivery" : null });
+    }
+  }, [entregaConfig.delivery, entregaConfig.retirada]);
   const [detalhe, setDetalhe] = useState<Cesta | null>(null);
   const [modalTamanhoId, setModalTamanhoId] = useState<string | undefined>(undefined);
   const [modalQuantidade, setModalQuantidade] = useState(1);
@@ -501,7 +517,7 @@ export function Quiz({
         </div>
         <div className="mx-auto w-full max-w-2xl px-4 pb-4 sm:px-6 md:px-8">
           <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-[0.18em] text-linen/55">
-            Passo {step} de 5 — {TITULOS[step - 1]}
+            Passo {step} de 5 — {titulosPasso[step - 1]}
           </p>
           <div className="h-[3px] w-full overflow-hidden rounded-full bg-linen/15">
             <div
@@ -651,11 +667,13 @@ export function Quiz({
         {step === 2 && (
           <section className="animate-fade-up space-y-5">
             <div>
-              <p className="eyebrow-gold mb-2">Identificação</p>
+              <p className="eyebrow-gold mb-2">{textosCampanha?.passo2Eyebrow || "Identificação"}</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
-                Quem está <em className="italic text-terracotta">pedindo?</em>
+                {textosCampanha?.passo2Titulo || (
+                  <>Quem está <em className="italic text-terracotta">pedindo?</em></>
+                )}
               </h1>
-              <p className="mt-2 text-sm text-ink/65">Para confirmarmos seu pedido pelo WhatsApp</p>
+              <p className="mt-2 text-sm text-ink/65">{textosCampanha?.passo2Subtitulo || "Para confirmarmos seu pedido pelo WhatsApp"}</p>
             </div>
 
             {cesta && (
@@ -693,9 +711,9 @@ export function Quiz({
             {/* Destinatário */}
             <div className="space-y-3">
               <div>
-                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-terracotta">Destinatário</p>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-terracotta">{textosCampanha?.passo2DestinatarioLabel || "Destinatário"}</p>
                 <p className="font-serif text-lg font-semibold leading-tight text-charcoal">
-                  Quem irá receber o pedido? 🎁
+                  {textosCampanha?.passo2DestinatarioTitulo || "Quem irá receber o pedido? 🎁"}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -749,12 +767,14 @@ export function Quiz({
         {step === 3 && (
           <section className="animate-fade-up space-y-5">
             <div>
-              <p className="eyebrow-gold mb-2">Logística</p>
+              <p className="eyebrow-gold mb-2">{textosCampanha?.passo3Eyebrow || "Logística"}</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
-                Como prefere <em className="italic text-terracotta">receber?</em>
+                {textosCampanha?.passo3Titulo || (
+                  <>Como prefere <em className="italic text-terracotta">receber?</em></>
+                )}
               </h1>
               <p className="mt-2 text-sm text-ink/65">
-                Entregas e retiradas conforme disponibilidade
+                {textosCampanha?.passo3Subtitulo || "Entregas e retiradas conforme disponibilidade"}
               </p>
             </div>
 
@@ -784,7 +804,7 @@ export function Quiz({
               </button>
             )}
 
-            {entregaTipo === "delivery" && (
+            {entregaTipo === "delivery" && entregaConfig.delivery && (
               <div className="animate-fade-up space-y-4 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
@@ -940,7 +960,7 @@ export function Quiz({
         {step === 4 && !mostrarPersonalizacao && (
           <section className="animate-fade-up space-y-6">
             <div>
-              <p className="eyebrow-gold mb-2">Agendamento</p>
+              <p className="eyebrow-gold mb-2">{textosCampanha?.passo4Eyebrow || "Agendamento"}</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 {entregaTipo === "retirada" ? (
                   <>
@@ -968,10 +988,12 @@ export function Quiz({
                 (() => {
                   const hoje = new Date();
                   hoje.setHours(0, 0, 0, 0);
+                  const selectedDate = parseDatePtBRToDate(data ?? "");
                   return (
                     <div className="flex justify-center">
                       <Calendar
                         mode="single"
+                        selected={selectedDate}
                         disabled={(date) => {
                           const d = new Date(date);
                           d.setHours(0, 0, 0, 0);
@@ -1269,11 +1291,13 @@ export function Quiz({
         {step === 5 && !pagamento.checkoutAtivo && (
           <section className="animate-fade-up space-y-5">
             <div>
-              <p className="eyebrow-gold mb-2">Quase lá!</p>
+              <p className="eyebrow-gold mb-2">{textosCampanha?.passo5Eyebrow || "Quase lá!"}</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
-                Seu <em className="italic text-terracotta">pedido</em>
+                {textosCampanha?.passo5Titulo || (
+                  <>Seu <em className="italic text-terracotta">pedido</em></>
+                )}
               </h1>
-              <p className="mt-2 text-sm text-ink/65">Revise e escolha como pagar</p>
+              <p className="mt-2 text-sm text-ink/65">{textosCampanha?.passo5Subtitulo || "Revise e escolha como pagar"}</p>
             </div>
 
             {/* Itens e valores */}
@@ -1283,7 +1307,14 @@ export function Quiz({
                 {cesta && (
                   <li className="flex justify-between">
                     <span className="text-charcoal">
-                      {cesta.cesta.nome} × {cesta.quantidade}
+                      {cesta.cesta.nome}
+                      {tamanhoId
+                        ? (() => {
+                            const t = cesta.cesta.tamanhos?.find((t) => t.id === tamanhoId);
+                            return t ? ` · Tam. ${t.label}` : "";
+                          })()
+                        : ""}
+                      {" "}× {cesta.quantidade}
                     </span>
                     <span className="font-semibold text-charcoal">
                       {formatBRL(precoEfetivo * cesta.quantidade)}
@@ -1318,16 +1349,12 @@ export function Quiz({
                   <span>Subtotal</span>
                   <span>{formatBRL(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-ink/70">
-                  <span>Taxa de entrega</span>
-                  <span>
-                    {entregaTipo === "delivery"
-                      ? taxaEntrega > 0
-                        ? formatBRL(taxaEntrega)
-                        : "Grátis"
-                      : "Grátis"}
-                  </span>
-                </div>
+                {entregaTipo === "delivery" && (
+                  <div className="flex justify-between text-ink/70">
+                    <span>Taxa de entrega</span>
+                    <span>{taxaEntrega > 0 ? formatBRL(taxaEntrega) : "Grátis"}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between border-t border-sand/60 pt-2">
                   <span className="text-sm font-medium text-charcoal">Total</span>
                   <span className="font-serif text-2xl font-bold text-terracotta">
@@ -1360,6 +1387,12 @@ export function Quiz({
                 <ResumoLinha
                   label="Quem recebe"
                   valor={`${destinatario.nome} · ${destinatario.whatsapp}`}
+                />
+              )}
+              {entregaTipo === "retirada" && campanhaAtiva?.retirada?.enderecoRetirada && (
+                <ResumoLinha
+                  label="Observação de retirada"
+                  valor={campanhaAtiva.retirada.enderecoRetirada}
                 />
               )}
             </div>
@@ -1505,7 +1538,20 @@ export function Quiz({
                 const mensagem = montarMensagemWhats({
                   cliente,
                   destinatario: st.destinatario,
-                  cesta,
+                  cesta: st.cesta
+                    ? (() => {
+                        const tam = st.tamanhoId
+                          ? st.cesta.cesta.tamanhos?.find((t) => t.id === st.tamanhoId)
+                          : undefined;
+                        return {
+                          cesta: {
+                            nome: st.cesta.cesta.nome + (tam ? ` · Tam. ${tam.label}` : ""),
+                            preco: selectPrecoEfetivo(st),
+                          },
+                          quantidade: st.cesta.quantidade,
+                        };
+                      })()
+                    : undefined,
                   sobremesas,
                   entregaTipo,
                   endereco,
