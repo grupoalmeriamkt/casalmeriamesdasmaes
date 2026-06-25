@@ -153,11 +153,22 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
 
           if (pagamento?.pedido_id) {
             const novoStatusPedido = pedidoStatusFromAsaas(newStatus);
+
+            // Busca dados existentes para preservar metodo, cupom, desconto, extras, etc.
+            const { data: pedidoRow } = await admin
+              .from("pedidos")
+              .select("pagamento")
+              .eq("id", pagamento.pedido_id)
+              .maybeSingle();
+            const existingPag =
+              (pedidoRow?.pagamento as Record<string, unknown>) ?? {};
+
             await admin
               .from("pedidos")
               .update({
                 status: novoStatusPedido,
                 pagamento: {
+                  ...existingPag,
                   status: newStatus,
                   asaas_payment_id: event.payment.id,
                   pagamento_id: pagamento.id,
