@@ -4,6 +4,8 @@ import {
   listarPedidosPorToken,
   editarPedidoPorToken,
   rowToPedidoSalvo,
+  rowToPedidoOperacional,
+  conciliarPagamentosAsaas,
   type PedidoRow,
 } from "@/lib/pedidos";
 import { buscarInfoToken } from "@/lib/shareToken";
@@ -34,6 +36,22 @@ import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { labelStatusPagamento, labelTipoPedido } from "@/lib/asaasStatus";
+import { isOperacaoPedidosEnabled } from "@/lib/featureFlags";
+import {
+  agruparPorExecucao,
+  contarAprovadosOperacionais,
+  filtrarPedidosOperacionais,
+  SETOR_LABEL,
+  type FiltrosOperacionais,
+  type PedidoOperacional,
+} from "@/lib/operacaoPedido";
+import { PAYMENT_STATUS_LABEL } from "@/lib/paymentStatus";
+import { OperacaoFiltrosBar } from "@/components/operacao/OperacaoFiltrosBar";
+import {
+  grupoLabelFromIso,
+  OperacaoGrupoExecucao,
+} from "@/components/operacao/OperacaoPedidoCard";
+import { useAdmin } from "@/store/admin";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -92,8 +110,11 @@ function horaNow() {
 function CozinhaPage() {
   const { token } = Route.useParams();
   const { user, loading: authLoading } = useAuth();
+  const operacaoEnabled = isOperacaoPedidosEnabled();
+  const unidades = useAdmin((s) => s.unidades);
 
   const [pedidos, setPedidos] = useState<PedidoSalvo[]>([]);
+  const [pedidosOps, setPedidosOps] = useState<PedidoOperacional[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
@@ -133,6 +154,25 @@ function CozinhaPage() {
   const [filtroFim, setFiltroFim] = useState("");
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [filtrosOps, setFiltrosOps] = useState<FiltrosOperacionais>(() =>
+    operacaoEnabled
+      ? {
+          status: ["aprovado"],
+          mostrarArquivados: false,
+          mostrarTestes: false,
+          ordenacao: "execution_asc",
+        }
+      : {},
+  );
+  const [pendencias, setPendencias] = useState<
+    {
+      id: string;
+      cliente_nome: string;
+      payment_status_raw: string | null;
+      payment_status_normalized: string | null;
+      payment_confirmed_at: string | null;
+    }[]
+  >([]);
 
   // login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -167,6 +207,19 @@ function CozinhaPage() {
   carregarRef.current = async () => {
     setCarregando(true);
     try {
+      if (operacaoEnabled) {
+        await conciliarPagamentosAsaas();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const res = await fetch("/api/admin/conciliacao-pendencias", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { pendencias?: typeof pendencias };
+            setPendencias(json.pendencias ?? []);
+          }
+        }
+      }
       const rows: PedidoRow[] = await listarPedidosPorToken(token);
       const prevIds = pedidosIdsRef.current;
       if (prevIds.size > 0 && somAtivoRef.current) {
@@ -176,6 +229,7 @@ function CozinhaPage() {
       pedidosIdsRef.current = new Set(rows.map((r) => r.id));
       setRawRows(rows);
       setPedidos(rows.map(rowToPedidoSalvo));
+      setPedidosOps(rows.map(rowToPedidoOperacional));
       setUltimaAtualizacao(horaNow());
     } catch {
       // token inválido ou sem permissão
@@ -215,7 +269,39 @@ function CozinhaPage() {
     };
   }, [user, token]);
 
+  useEffect(() => {
+    if (!user || !operacaoEnabled) return;
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      await fetch("/api/admin/arquivar-pedidos", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+    })();
+  }, [user, operacaoEnabled]);
+
   // ── Filtros aplicados ─────────────────────────────────────────────────────
+  const pedidosOpsFiltrados = useMemo(() => {
+    if (!operacaoEnabled) return [];
+    return filtrarPedidosOperacionais(pedidosOps, {
+      ...filtrosOps,
+      busca: filtroTexto || filtrosOps.busca,
+      criadoInicio: filtroInicio || filtrosOps.criadoInicio,
+      criadoFim: filtroFim || filtrosOps.criadoFim,
+    });
+  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim]);
+
+  const operacaoGrupos = useMemo(
+    () => (operacaoEnabled ? agruparPorExecucao(pedidosOpsFiltrados) : []),
+    [operacaoEnabled, pedidosOpsFiltrados],
+  );
+
+  const contagemAprovadosOps = useMemo(
+    () => (operacaoEnabled ? contarAprovadosOperacionais(pedidosOps) : 0),
+    [operacaoEnabled, pedidosOps],
+  );
+
   const pedidosFiltrados = useMemo(() => {
     return pedidos.filter((p) => {
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
@@ -397,6 +483,47 @@ function CozinhaPage() {
   const exportarCSV = (lista: PedidoSalvo[], nome = "pedidos-casa-almeria") => {
     if (lista.length === 0) { toast.error("Nenhum pedido para exportar."); return; }
     const rowMap = new Map(rawRows.map((r) => [r.id, r]));
+
+    if (operacaoEnabled) {
+      const ops = lista.map((p) => rowToPedidoOperacional(rowMap.get(p.id)!));
+      const head = [
+        "ID", "Data criação", "Data aprovação", "Data/hora execução",
+        "Status normalizado", "Status bruto", "Setor", "Tipo", "Unidade/endereço",
+        "Destinatário", "WhatsApp destinatário", "Comprador", "WhatsApp comprador",
+        "Cesta", "Sobremesas", "Total",
+      ];
+      const csvRows = ops.map((op) => [
+        op.id,
+        op.criadoEm,
+        op.paymentConfirmedAt ?? "",
+        op.executionAt ?? "",
+        op.paymentStatusNormalized ? PAYMENT_STATUS_LABEL[op.paymentStatusNormalized] : "",
+        op.paymentStatusRaw ?? "",
+        op.productionSector ? SETOR_LABEL[op.productionSector] : "",
+        labelTipoPedido(op.tipo),
+        op.enderecoOuUnidade,
+        op.recipientName,
+        op.recipientPhone,
+        op.cliente.nome,
+        op.cliente.whatsapp,
+        op.cesta ? `${op.cesta.nome} x${op.cesta.quantidade}` : "",
+        op.sobremesas.map((s) => `${s.nome} x${s.quantidade}`).join(" | "),
+        String(op.total),
+      ]);
+      const bom = "\uFEFF";
+      const csv = bom + [head, ...csvRows]
+        .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${nome}-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     const head = [
       "ID", "Data/Hora", "Nome", "CPF", "E-mail", "WhatsApp",
       "Destinatário", "Tel Destinatário", "Cesta", "Qtd Cesta",
@@ -528,8 +655,18 @@ function CozinhaPage() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => exportarCSV(pedidosFiltrados)}
-                disabled={pedidosFiltrados.length === 0}
+                onClick={() =>
+                  exportarCSV(
+                    operacaoEnabled
+                      ? pedidosOpsFiltrados
+                      : pedidosFiltrados,
+                  )
+                }
+                disabled={
+                  operacaoEnabled
+                    ? pedidosOpsFiltrados.length === 0
+                    : pedidosFiltrados.length === 0
+                }
                 className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
               >
                 ⬇ Exportar visíveis
@@ -550,6 +687,28 @@ function CozinhaPage() {
         {/* Filtros */}
         <div className="border-b border-border bg-white">
           <div className="mx-auto max-w-6xl space-y-2 px-4 py-3 sm:px-6">
+
+            {operacaoEnabled && pendencias.length > 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+                <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                  <AlertTriangle className="h-4 w-4" />
+                  Pendências de conciliação ({pendencias.length})
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-amber-950">
+                  {pendencias.map((p) => (
+                    <li key={p.id}>
+                      <span className="font-mono font-semibold">#{p.id.slice(-6).toUpperCase()}</span>
+                      {" · "}
+                      {p.cliente_nome}
+                      {" · "}
+                      bruto: {p.payment_status_raw ?? "—"}
+                      {" · "}
+                      normalizado: {p.payment_status_normalized ?? "—"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Linha 1: busca + data entrega + polaroid + contagem */}
             <div className="flex flex-wrap items-center gap-2">
@@ -642,6 +801,15 @@ function CozinhaPage() {
               </div>
             </div>
 
+            {operacaoEnabled && (
+              <OperacaoFiltrosBar
+                filtros={filtrosOps}
+                onChange={(patch) => setFiltrosOps((f) => ({ ...f, ...patch }))}
+                unidades={unidades.filter((u) => u.status === "ativa").map((u) => ({ id: u.id, nome: u.nome }))}
+                contagemAprovados={contagemAprovadosOps}
+              />
+            )}
+
             {/* Linha 3: período recebido */}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
@@ -690,6 +858,24 @@ function CozinhaPage() {
             <p className="py-16 text-center text-sm text-muted-foreground">
               {temFiltro ? "Nenhum pedido corresponde aos filtros." : "Nenhum pedido encontrado."}
             </p>
+          ) : operacaoEnabled && view === "lista" ? (
+            <div className="space-y-8">
+              {operacaoGrupos.length === 0 ? (
+                <p className="py-16 text-center text-sm text-muted-foreground">
+                  Nenhum pedido na fila operacional.
+                </p>
+              ) : (
+                operacaoGrupos.map(([iso, items]) => (
+                  <OperacaoGrupoExecucao
+                    key={iso}
+                    label={grupoLabelFromIso(iso)}
+                    pedidos={items}
+                    onDetalhe={setDetalhe}
+                    onImprimir={imprimirUm}
+                  />
+                ))
+              )}
+            </div>
           ) : view === "lista" ? (
             <ListView
               porStatus={porStatus}

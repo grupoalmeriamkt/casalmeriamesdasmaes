@@ -2,14 +2,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { makeAsaasClient } from "./client.server";
 import {
   ASAAS_FINAL_DONE,
+  ASAAS_FINAL_PAID,
   pagamentoRelevante,
-  pedidoStatusFromPagamentos,
 } from "@/lib/asaasStatus";
+import { isPagamentoAprovado, normalizePaymentStatus } from "@/lib/paymentStatus";
+import {
+  marcarConciliacaoPendente,
+  registrarConciliacaoEvento,
+  syncPedidoPaymentFields,
+} from "@/lib/pedidoSync";
 
 export type ConciliacaoResultado = {
   pagamentosVerificados: number;
   pagamentosAtualizados: number;
   pedidosAtualizados: number;
+  pendenciasCriadas: number;
   detalhes: {
     pagamentoId: string;
     pedidoId: string;
@@ -28,53 +35,45 @@ type PagamentoRow = {
   cupom_codigo: string | null;
 };
 
-async function atualizarPedidoAposConciliacao(
+async function reavaliarPedido(
   admin: SupabaseClient,
   pedidoId: string,
-): Promise<boolean> {
+  resultado: ConciliacaoResultado,
+): Promise<void> {
+  const ok = await syncPedidoPaymentFields(admin, pedidoId);
+  if (ok) resultado.pedidosAtualizados += 1;
+
   const [{ data: pagamentos }, { data: pedido }] = await Promise.all([
     admin
       .from("pagamentos")
       .select("id, asaas_payment_id, status, criado_em")
       .eq("pedido_id", pedidoId)
       .order("criado_em", { ascending: false }),
-    admin.from("pedidos").select("status, pagamento").eq("id", pedidoId).maybeSingle(),
+    admin
+      .from("pedidos")
+      .select("status, payment_status_normalized, conciliacao_pendente")
+      .eq("id", pedidoId)
+      .maybeSingle(),
   ]);
 
-  if (!pedido || pedido.status === "cancelado") return false;
-
+  if (!pedido) return;
   const rel = pagamentoRelevante(pagamentos ?? []);
-  const novoStatus = pedidoStatusFromPagamentos(pagamentos ?? [], pedido.status);
-  const existingPag = (pedido.pagamento as Record<string, unknown>) ?? {};
+  const asaasPago = rel && ASAAS_FINAL_PAID.has(rel.status);
+  const localAprovado = isPagamentoAprovado(
+    rel?.status,
+    pedido.payment_status_normalized ?? pedido.status,
+  );
 
-  const pagamentoPatch = rel
-    ? {
-        status: rel.status,
-        asaas_payment_id: rel.asaas_payment_id,
-        pagamento_id: rel.id,
-      }
-    : {};
-
-  const precisaAtualizar =
-    pedido.status !== novoStatus ||
-    (rel && existingPag.status !== rel.status) ||
-    (rel && existingPag.asaas_payment_id !== rel.asaas_payment_id);
-
-  if (!precisaAtualizar) return false;
-
-  const { error } = await admin
-    .from("pedidos")
-    .update({
-      status: novoStatus,
-      pagamento: { ...existingPag, ...pagamentoPatch },
-    })
-    .eq("id", pedidoId);
-
-  if (error) {
-    console.error("[conciliar-asaas] update pedido", pedidoId, error);
-    return false;
+  if (asaasPago && !localAprovado) {
+    await marcarConciliacaoPendente(admin, pedidoId, "pagamento_confirmado_status_local_divergente", {
+      asaas_status: rel?.status,
+      local_status: pedido.payment_status_normalized ?? pedido.status,
+    });
+    resultado.pendenciasCriadas += 1;
+  } else if (pedido.conciliacao_pendente && localAprovado) {
+    await admin.from("pedidos").update({ conciliacao_pendente: false }).eq("id", pedidoId);
+    await registrarConciliacaoEvento(admin, pedidoId, "pendencia_resolvida", {});
   }
-  return true;
 }
 
 export async function conciliarPagamentosAsaas(
@@ -86,6 +85,7 @@ export async function conciliarPagamentosAsaas(
     pagamentosVerificados: 0,
     pagamentosAtualizados: 0,
     pedidosAtualizados: 0,
+    pendenciasCriadas: 0,
     detalhes: [],
     erros: [],
   };
@@ -147,15 +147,19 @@ export async function conciliarPagamentosAsaas(
     }
   }
 
-  // Reavalia pedidos com pendência no Asaas ou status local desatualizado.
-  const [{ data: pedidosComPendencia }, { data: pedidosAguardando }] = await Promise.all([
-    admin
-      .from("pagamentos")
-      .select("pedido_id")
-      .in("status", ["PENDING", "AWAITING_RISK_ANALYSIS"])
-      .not("asaas_payment_id", "is", null),
-    admin.from("pedidos").select("id").eq("status", "aguardando_pagamento"),
-  ]);
+  const [{ data: pedidosComPendencia }, { data: pedidosAguardando }, { data: pedidosDivergentes }] =
+    await Promise.all([
+      admin
+        .from("pagamentos")
+        .select("pedido_id")
+        .in("status", ["PENDING", "AWAITING_RISK_ANALYSIS"])
+        .not("asaas_payment_id", "is", null),
+      admin.from("pedidos").select("id").eq("status", "aguardando_pagamento"),
+      admin
+        .from("pedidos")
+        .select("id")
+        .eq("conciliacao_pendente", true),
+    ]);
 
   for (const p of pedidosComPendencia ?? []) {
     if (p.pedido_id) pedidosAfetados.add(p.pedido_id as string);
@@ -163,11 +167,55 @@ export async function conciliarPagamentosAsaas(
   for (const p of pedidosAguardando ?? []) {
     if (p.id) pedidosAfetados.add(p.id as string);
   }
+  for (const p of pedidosDivergentes ?? []) {
+    if (p.id) pedidosAfetados.add(p.id as string);
+  }
+
+  // Pedidos com pagamento pago no banco mas status local não aprovado
+  const { data: pagosConfirmados } = await admin
+    .from("pagamentos")
+    .select("pedido_id, status")
+    .in("status", ["CONFIRMED", "RECEIVED"]);
+
+  for (const pg of pagosConfirmados ?? []) {
+    if (pg.pedido_id) pedidosAfetados.add(pg.pedido_id as string);
+  }
 
   for (const pedidoId of pedidosAfetados) {
-    const ok = await atualizarPedidoAposConciliacao(admin, pedidoId);
-    if (ok) resultado.pedidosAtualizados += 1;
+    await reavaliarPedido(admin, pedidoId, resultado);
   }
 
   return resultado;
+}
+
+export async function detectarDivergenciasPagamento(
+  admin: SupabaseClient,
+): Promise<number> {
+  const { data: pedidos } = await admin
+    .from("pedidos")
+    .select("id, status, payment_status_normalized")
+    .neq("status", "cancelado")
+    .limit(500);
+
+  let count = 0;
+  for (const pedido of pedidos ?? []) {
+    const { data: pagamentos } = await admin
+      .from("pagamentos")
+      .select("status, criado_em")
+      .eq("pedido_id", pedido.id);
+    const rel = pagamentoRelevante(pagamentos ?? []);
+    if (!rel || !ASAAS_FINAL_PAID.has(rel.status)) continue;
+    const normalized = normalizePaymentStatus(
+      rel.status,
+      pedido.payment_status_normalized ?? pedido.status,
+    );
+    if (!isPagamentoAprovado(rel.status, normalized)) {
+      await marcarConciliacaoPendente(admin, pedido.id, "divergencia_detectada", {
+        asaas_status: rel.status,
+        normalized,
+      });
+      count += 1;
+    }
+  }
+  return count;
 }

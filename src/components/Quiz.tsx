@@ -176,7 +176,7 @@ export function Quiz({
   const [nome, setNome] = useState(cliente.nome);
   const [whats, setWhats] = useState(cliente.whatsapp);
   const [emailInput, setEmailInput] = useState(email);
-  const [outraPessoa, setOutraPessoa] = useState(true);
+  const [outraPessoa, setOutraPessoa] = useState(!!destinatario);
   const [destNome, setDestNome] = useState(destinatario?.nome ?? "");
   const [destWhats, setDestWhats] = useState(destinatario?.whatsapp ?? "");
   const [cep, setCep] = useState(endereco?.cep ?? "");
@@ -406,7 +406,7 @@ export function Quiz({
         if (destWhats.replace(/\D/g, "").length < 10) return toast.error("Informe o WhatsApp de quem vai receber.");
         setDestinatario({ nome: destNome.trim(), whatsapp: destWhats });
       } else {
-        setDestinatario(null);
+        setDestinatario({ nome: nome.trim(), whatsapp: whats });
       }
       setCliente({ nome, whatsapp: whats });
       setEmail(emailInput.trim());

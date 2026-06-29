@@ -16,6 +16,7 @@ import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SucessoIdRouteImport } from './routes/sucesso.$id'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
+import { Route as ApiDisponibilidadeRouteImport } from './routes/api/disponibilidade'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
 import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
@@ -23,6 +24,8 @@ import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-
 import { Route as ApiAdminPedidosRouteImport } from './routes/api/admin/pedidos'
 import { Route as ApiAdminCuponsRouteImport } from './routes/api/admin/cupons'
 import { Route as ApiAdminConciliarAsaasRouteImport } from './routes/api/admin/conciliar-asaas'
+import { Route as ApiAdminConciliacaoPendenciasRouteImport } from './routes/api/admin/conciliacao-pendencias'
+import { Route as ApiAdminArquivarPedidosRouteImport } from './routes/api/admin/arquivar-pedidos'
 import { Route as ApiPublicPagamentoIdRouteImport } from './routes/api/public/pagamento.$id'
 import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas/webhook'
@@ -65,6 +68,11 @@ const PedidosTokenRoute = PedidosTokenRouteImport.update({
   path: '/pedidos/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDisponibilidadeRoute = ApiDisponibilidadeRouteImport.update({
+  id: '/api/disponibilidade',
+  path: '/api/disponibilidade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicMpPreferenceRoute = ApiPublicMpPreferenceRouteImport.update({
   id: '/api/public/mp-preference',
   path: '/api/public/mp-preference',
@@ -99,6 +107,17 @@ const ApiAdminCuponsRoute = ApiAdminCuponsRouteImport.update({
 const ApiAdminConciliarAsaasRoute = ApiAdminConciliarAsaasRouteImport.update({
   id: '/api/admin/conciliar-asaas',
   path: '/api/admin/conciliar-asaas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminConciliacaoPendenciasRoute =
+  ApiAdminConciliacaoPendenciasRouteImport.update({
+    id: '/api/admin/conciliacao-pendencias',
+    path: '/api/admin/conciliacao-pendencias',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAdminArquivarPedidosRoute = ApiAdminArquivarPedidosRouteImport.update({
+  id: '/api/admin/arquivar-pedidos',
+  path: '/api/admin/arquivar-pedidos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicPagamentoIdRoute = ApiPublicPagamentoIdRouteImport.update({
@@ -138,8 +157,11 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
   '/pedido': typeof PedidoRoute
+  '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/sucesso/$id': typeof SucessoIdRoute
+  '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
+  '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
   '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
@@ -160,8 +182,11 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
   '/pedido': typeof PedidoRoute
+  '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/sucesso/$id': typeof SucessoIdRoute
+  '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
+  '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
   '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
@@ -183,8 +208,11 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
   '/pedido': typeof PedidoRoute
+  '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/sucesso/$id': typeof SucessoIdRoute
+  '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
+  '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
   '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
@@ -207,8 +235,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/checkout'
     | '/pedido'
+    | '/api/disponibilidade'
     | '/pedidos/$token'
     | '/sucesso/$id'
+    | '/api/admin/arquivar-pedidos'
+    | '/api/admin/conciliacao-pendencias'
     | '/api/admin/conciliar-asaas'
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
@@ -229,8 +260,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/checkout'
     | '/pedido'
+    | '/api/disponibilidade'
     | '/pedidos/$token'
     | '/sucesso/$id'
+    | '/api/admin/arquivar-pedidos'
+    | '/api/admin/conciliacao-pendencias'
     | '/api/admin/conciliar-asaas'
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
@@ -251,8 +285,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/checkout'
     | '/pedido'
+    | '/api/disponibilidade'
     | '/pedidos/$token'
     | '/sucesso/$id'
+    | '/api/admin/arquivar-pedidos'
+    | '/api/admin/conciliacao-pendencias'
     | '/api/admin/conciliar-asaas'
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
@@ -274,8 +311,11 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   CheckoutRoute: typeof CheckoutRoute
   PedidoRoute: typeof PedidoRoute
+  ApiDisponibilidadeRoute: typeof ApiDisponibilidadeRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
   SucessoIdRoute: typeof SucessoIdRoute
+  ApiAdminArquivarPedidosRoute: typeof ApiAdminArquivarPedidosRoute
+  ApiAdminConciliacaoPendenciasRoute: typeof ApiAdminConciliacaoPendenciasRoute
   ApiAdminConciliarAsaasRoute: typeof ApiAdminConciliarAsaasRoute
   ApiAdminCuponsRoute: typeof ApiAdminCuponsRoute
   ApiAdminPedidosRoute: typeof ApiAdminPedidosRoute
@@ -342,6 +382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PedidosTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/disponibilidade': {
+      id: '/api/disponibilidade'
+      path: '/api/disponibilidade'
+      fullPath: '/api/disponibilidade'
+      preLoaderRoute: typeof ApiDisponibilidadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/mp-preference': {
       id: '/api/public/mp-preference'
       path: '/api/public/mp-preference'
@@ -389,6 +436,20 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/conciliar-asaas'
       fullPath: '/api/admin/conciliar-asaas'
       preLoaderRoute: typeof ApiAdminConciliarAsaasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/conciliacao-pendencias': {
+      id: '/api/admin/conciliacao-pendencias'
+      path: '/api/admin/conciliacao-pendencias'
+      fullPath: '/api/admin/conciliacao-pendencias'
+      preLoaderRoute: typeof ApiAdminConciliacaoPendenciasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/arquivar-pedidos': {
+      id: '/api/admin/arquivar-pedidos'
+      path: '/api/admin/arquivar-pedidos'
+      fullPath: '/api/admin/arquivar-pedidos'
+      preLoaderRoute: typeof ApiAdminArquivarPedidosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/pagamento/$id': {
@@ -442,8 +503,11 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   CheckoutRoute: CheckoutRoute,
   PedidoRoute: PedidoRoute,
+  ApiDisponibilidadeRoute: ApiDisponibilidadeRoute,
   PedidosTokenRoute: PedidosTokenRoute,
   SucessoIdRoute: SucessoIdRoute,
+  ApiAdminArquivarPedidosRoute: ApiAdminArquivarPedidosRoute,
+  ApiAdminConciliacaoPendenciasRoute: ApiAdminConciliacaoPendenciasRoute,
   ApiAdminConciliarAsaasRoute: ApiAdminConciliarAsaasRoute,
   ApiAdminCuponsRoute: ApiAdminCuponsRoute,
   ApiAdminPedidosRoute: ApiAdminPedidosRoute,

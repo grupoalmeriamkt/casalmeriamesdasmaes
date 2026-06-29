@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
 import { pagamentoRelevante } from "@/lib/asaasStatus";
+import { computeExecutionAt } from "@/lib/executionAt";
 
 export type PagamentoAsaasRow = {
   id: string;
@@ -42,6 +43,19 @@ export type PedidoRow = {
   total: number;
   status: string;
   campanha_id?: string | null;
+  recipient_name?: string | null;
+  recipient_phone?: string | null;
+  recipient_is_buyer?: boolean | null;
+  unidade_id?: string | null;
+  production_sector?: string | null;
+  execution_at?: string | null;
+  payment_status_raw?: string | null;
+  payment_status_normalized?: string | null;
+  payment_confirmed_at?: string | null;
+  is_test?: boolean | null;
+  archived_at?: string | null;
+  archived_by?: string | null;
+  conciliacao_pendente?: boolean | null;
   pagamentos?: PagamentoAsaasRow[];
 };
 
@@ -50,6 +64,9 @@ type PedidoParcial = Partial<Omit<PedidoSalvo, "id" | "criadoEm">> & {
 };
 
 function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: string) {
+  const recipientIsBuyer = !p.destinatario;
+  const recipientName = p.destinatario?.nome ?? p.cliente.nome;
+  const recipientPhone = p.destinatario?.whatsapp ?? p.cliente.whatsapp;
   return {
     cliente_nome: p.cliente.nome,
     cliente_whatsapp: p.cliente.whatsapp,
@@ -66,6 +83,12 @@ function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: strin
     total: p.total ?? 0,
     status: statusOverride ?? p.pagamento?.status ?? "rascunho",
     campanha_id: campanhaId ?? null,
+    recipient_name: recipientName,
+    recipient_phone: recipientPhone,
+    recipient_is_buyer: recipientIsBuyer,
+    unidade_id: (p as { unidadeId?: string }).unidadeId ?? null,
+    production_sector: (p as { productionSector?: string }).productionSector ?? null,
+    execution_at: computeExecutionAt(p.data ?? null, p.horario ?? null),
   };
 }
 
@@ -236,11 +259,18 @@ export async function editarPedidoPorToken(
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
   const rel = pagamentoRelevante(r.pagamentos ?? []);
+  const destinatario =
+    r.recipient_is_buyer === false && r.pagamento?.destinatario
+      ? r.pagamento.destinatario
+      : r.pagamento?.destinatario ??
+        (r.recipient_name
+          ? { nome: r.recipient_name, whatsapp: r.recipient_phone ?? "" }
+          : null);
   return {
     id: r.id,
     criadoEm: r.criado_em,
     cliente: { nome: r.cliente_nome, whatsapp: r.cliente_whatsapp },
-    destinatario: r.pagamento?.destinatario ?? null,
+    destinatario,
     cesta: r.cesta ?? undefined,
     sobremesas: r.sobremesas ?? [],
     tipo: r.tipo,
@@ -254,3 +284,5 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     total: Number(r.total),
   };
 }
+
+export { rowToPedidoOperacional } from "@/lib/operacaoPedido";

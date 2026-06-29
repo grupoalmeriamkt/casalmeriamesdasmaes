@@ -1,0 +1,193 @@
+import type { PedidoRow } from "@/lib/pedidos";
+import type { PedidoSalvo } from "@/store/admin";
+import { pagamentoRelevante } from "@/lib/asaasStatus";
+import {
+  normalizePaymentStatus,
+  type PaymentStatusNormalized,
+} from "@/lib/paymentStatus";
+import { isBeforeTodaySP, todayISOSP } from "@/lib/timezone";
+import type { ProductionSector } from "@/lib/availability/types";
+
+export type PedidoOperacional = PedidoSalvo & {
+  recipientName: string;
+  recipientPhone: string;
+  recipientIsBuyer: boolean;
+  unidadeId?: string | null;
+  productionSector?: ProductionSector | null;
+  executionAt?: string | null;
+  paymentStatusRaw?: string | null;
+  paymentStatusNormalized?: PaymentStatusNormalized;
+  paymentConfirmedAt?: string | null;
+  isTest: boolean;
+  archivedAt?: string | null;
+  conciliacaoPendente: boolean;
+};
+
+export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
+  const base = {
+    id: r.id,
+    criadoEm: r.criado_em,
+    cliente: { nome: r.cliente_nome, whatsapp: r.cliente_whatsapp },
+    destinatario: r.pagamento?.destinatario ?? null,
+    cesta: r.cesta ?? undefined,
+    sobremesas: r.sobremesas ?? [],
+    tipo: r.tipo,
+    enderecoOuUnidade: r.endereco_ou_unidade,
+    data: r.data_entrega ?? undefined,
+    horario: r.horario ?? undefined,
+    pagamento: {
+      ...r.pagamento,
+      status: pagamentoRelevante(r.pagamentos ?? [])?.status ?? r.pagamento?.status ?? r.status ?? "",
+    },
+    total: Number(r.total),
+  } satisfies PedidoSalvo;
+
+  const rel = pagamentoRelevante(r.pagamentos ?? []);
+  const raw = rel?.status ?? r.payment_status_raw ?? r.pagamento?.status ?? r.status;
+  const normalized =
+    (r.payment_status_normalized as PaymentStatusNormalized | null) ??
+    normalizePaymentStatus(raw, r.status);
+
+  const recipientName =
+    r.recipient_name ?? r.pagamento?.destinatario?.nome ?? r.cliente_nome;
+  const recipientPhone =
+    r.recipient_phone ?? r.pagamento?.destinatario?.whatsapp ?? r.cliente_whatsapp;
+
+  return {
+    ...base,
+    destinatario:
+      r.recipient_is_buyer === false && r.pagamento?.destinatario
+        ? r.pagamento.destinatario
+        : { nome: recipientName, whatsapp: recipientPhone },
+    recipientName,
+    recipientPhone,
+    recipientIsBuyer: r.recipient_is_buyer ?? !r.pagamento?.destinatario,
+    unidadeId: r.unidade_id ?? null,
+    productionSector: (r.production_sector as ProductionSector | null) ?? null,
+    executionAt: r.execution_at ?? null,
+    paymentStatusRaw: raw,
+    paymentStatusNormalized: normalized,
+    paymentConfirmedAt: r.payment_confirmed_at ?? null,
+    isTest: r.is_test ?? false,
+    archivedAt: r.archived_at ?? null,
+    conciliacaoPendente: r.conciliacao_pendente ?? false,
+  };
+}
+
+export type FiltrosOperacionais = {
+  status?: PaymentStatusNormalized[];
+  tipo?: "" | "delivery" | "retirada";
+  setor?: ProductionSector | "";
+  unidadeId?: string;
+  dataExecucao?: string;
+  criadoInicio?: string;
+  criadoFim?: string;
+  busca?: string;
+  mostrarArquivados?: boolean;
+  mostrarTestes?: boolean;
+  ordenacao?: "execution_asc" | "execution_desc" | "criado_desc" | "criado_asc";
+};
+
+export function filtrarPedidosOperacionais(
+  pedidos: PedidoOperacional[],
+  f: FiltrosOperacionais,
+): PedidoOperacional[] {
+  let list = [...pedidos];
+
+  if (!f.mostrarTestes) list = list.filter((p) => !p.isTest);
+  if (!f.mostrarArquivados) {
+    list = list.filter((p) => {
+      if (p.archivedAt) return false;
+      if (p.executionAt && isBeforeTodaySP(p.executionAt)) return false;
+      return true;
+    });
+  }
+
+  if (f.status?.length) {
+    list = list.filter((p) => f.status!.includes(p.paymentStatusNormalized ?? "aguardando"));
+  }
+
+  if (f.tipo) list = list.filter((p) => p.tipo === f.tipo);
+  if (f.setor) list = list.filter((p) => p.productionSector === f.setor);
+  if (f.unidadeId) list = list.filter((p) => p.unidadeId === f.unidadeId);
+
+  if (f.dataExecucao) {
+    list = list.filter((p) => {
+      if (!p.executionAt) return false;
+      const day = p.executionAt.slice(0, 10);
+      return day === f.dataExecucao;
+    });
+  }
+
+  if (f.criadoInicio) {
+    const t = new Date(f.criadoInicio).getTime();
+    list = list.filter((p) => new Date(p.criadoEm).getTime() >= t);
+  }
+  if (f.criadoFim) {
+    const t = new Date(f.criadoFim).getTime() + 86400000;
+    list = list.filter((p) => new Date(p.criadoEm).getTime() < t);
+  }
+
+  if (f.busca?.trim()) {
+    const q = f.busca.toLowerCase();
+    list = list.filter((p) => {
+      const hay = [
+        p.id,
+        p.cliente.nome,
+        p.cliente.whatsapp,
+        p.recipientName,
+        p.recipientPhone,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  const ord = f.ordenacao ?? "execution_asc";
+  list.sort((a, b) => {
+    if (ord === "execution_asc" || ord === "execution_desc") {
+      const ta = a.executionAt ? new Date(a.executionAt).getTime() : Infinity;
+      const tb = b.executionAt ? new Date(b.executionAt).getTime() : Infinity;
+      return ord === "execution_asc" ? ta - tb : tb - ta;
+    }
+    const ta = new Date(a.criadoEm).getTime();
+    const tb = new Date(b.criadoEm).getTime();
+    return ord === "criado_desc" ? tb - ta : ta - tb;
+  });
+
+  return list;
+}
+
+export function contarAprovadosOperacionais(pedidos: PedidoOperacional[]): number {
+  const hoje = todayISOSP();
+  return pedidos.filter(
+    (p) =>
+      !p.isTest &&
+      !p.archivedAt &&
+      p.paymentStatusNormalized === "aprovado" &&
+      (!p.executionAt || p.executionAt.slice(0, 10) >= hoje),
+  ).length;
+}
+
+export function agruparPorExecucao(pedidos: PedidoOperacional[]) {
+  const grupos = new Map<string, PedidoOperacional[]>();
+  for (const p of pedidos) {
+    const key = p.executionAt?.slice(0, 10) ?? "sem-data";
+    if (!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key)!.push(p);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+export const SETOR_LABEL: Record<ProductionSector, string> = {
+  CONFEITARIA: "Confeitaria",
+  PADARIA: "Padaria",
+  COZINHA: "Cozinha",
+};
+
+export const SETOR_BADGE: Record<ProductionSector, string> = {
+  CONFEITARIA: "bg-pink-100 text-pink-800",
+  PADARIA: "bg-amber-100 text-amber-900",
+  COZINHA: "bg-olive/20 text-olive",
+};

@@ -3,6 +3,9 @@ import { z } from "zod";
 import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
 import { makeAsaasClient, AsaasError } from "@/integrations/asaas/client.server";
 import type { AsaasCreatePayment, AsaasSplit } from "@/integrations/asaas/types";
+import { validateDisponibilidade, type CarrinhoItem } from "@/lib/availability";
+import type { ProdutoRegras } from "@/lib/availability/types";
+import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
 
 const ItemSchema = z.object({
   nome: z.string().min(1).max(200),
@@ -123,11 +126,56 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status, pagamento")
+          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, unidade_id")
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
           return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+        }
+
+        const carrinhoItens: CarrinhoItem[] = [];
+        const cesta = pedido.cesta as { nome: string } | null;
+        if (cesta?.nome) {
+          carrinhoItens.push({
+            produto_id: (pedido.cesta as { id?: string })?.id ?? "cesta",
+            produto_tipo: "cesta",
+            nome: cesta.nome,
+          });
+        }
+        for (const s of (pedido.sobremesas ?? []) as { nome: string; id?: string }[]) {
+          carrinhoItens.push({
+            produto_id: s.id ?? s.nome,
+            produto_tipo: "sobremesa",
+            nome: s.nome,
+          });
+        }
+
+        if (carrinhoItens.length > 0 && pedido.data_entrega) {
+          const ids = carrinhoItens.map((i) => i.produto_id);
+          const { data: regrasDb } = await admin
+            .from("produto_regras")
+            .select("*")
+            .in("produto_id", ids);
+          const dbMap = new Map<string, Partial<ProdutoRegras>>();
+          for (const row of regrasDb ?? []) {
+            dbMap.set(`${row.produto_tipo}:${row.produto_id}`, row as Partial<ProdutoRegras>);
+          }
+          const disp = validateDisponibilidade(
+            {
+              itens: carrinhoItens,
+              fulfillmentMode: (pedido.tipo as "delivery" | "retirada") ?? "retirada",
+              unidadeId: pedido.unidade_id ?? undefined,
+              candidateDate: String(pedido.data_entrega).slice(0, 10),
+              candidateHorario: pedido.horario ?? undefined,
+            },
+            dbMap,
+          );
+          if (!disp.valid) {
+            return Response.json(
+              { error: "disponibilidade_invalida", details: disp.errors },
+              { status: 400 },
+            );
+          }
         }
 
         // Asaas: customer + payment
@@ -236,6 +284,8 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
                   : "aguardando_pagamento",
             })
             .eq("id", body.pedidoId);
+
+          await syncPedidoPaymentFields(admin, body.pedidoId);
 
           return Response.json({
             ok: true,

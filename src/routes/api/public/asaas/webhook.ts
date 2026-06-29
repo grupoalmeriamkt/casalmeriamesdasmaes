@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
 import type { AsaasWebhookEvent } from "@/integrations/asaas/types";
 import { sendCapiEventServer } from "@/lib/metaCapiServer";
-import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID, pedidoStatusFromAsaas } from "@/lib/asaasStatus";
+import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID } from "@/lib/asaasStatus";
+import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
 
 async function dispatchPurchaseCapi(
   admin: ReturnType<typeof getAdminClient>,
@@ -136,30 +137,6 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
           }
 
           if (pagamento?.pedido_id) {
-            const novoStatusPedido = pedidoStatusFromAsaas(newStatus);
-
-            // Busca dados existentes para preservar metodo, cupom, desconto, extras, etc.
-            const { data: pedidoRow } = await admin
-              .from("pedidos")
-              .select("pagamento")
-              .eq("id", pagamento.pedido_id)
-              .maybeSingle();
-            const existingPag =
-              (pedidoRow?.pagamento as Record<string, unknown>) ?? {};
-
-            await admin
-              .from("pedidos")
-              .update({
-                status: novoStatusPedido,
-                pagamento: {
-                  ...existingPag,
-                  status: newStatus,
-                  asaas_payment_id: event.payment.id,
-                  pagamento_id: pagamento.id,
-                },
-              })
-              .eq("id", pagamento.pedido_id);
-
             // Incrementa uso do cupom apenas na primeira confirmação
             if (
               pagamento.cupom_codigo &&
@@ -170,6 +147,8 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
                 _codigo: pagamento.cupom_codigo,
               });
             }
+
+            await syncPedidoPaymentFields(admin, pagamento.pedido_id);
 
             // Dispara Purchase via CAPI na primeira confirmação de pagamento
             if (ASAAS_FINAL_PAID.has(newStatus) && !ASAAS_FINAL_PAID.has(pagamento.status ?? "")) {
