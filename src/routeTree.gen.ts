@@ -22,6 +22,7 @@ import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedid
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
 import { Route as ApiAdminPedidosRouteImport } from './routes/api/admin/pedidos'
 import { Route as ApiAdminCuponsRouteImport } from './routes/api/admin/cupons'
+import { Route as ApiAdminConciliarAsaasRouteImport } from './routes/api/admin/conciliar-asaas'
 import { Route as ApiPublicPagamentoIdRouteImport } from './routes/api/public/pagamento.$id'
 import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas/webhook'
@@ -95,6 +96,11 @@ const ApiAdminCuponsRoute = ApiAdminCuponsRouteImport.update({
   path: '/api/admin/cupons',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminConciliarAsaasRoute = ApiAdminConciliarAsaasRouteImport.update({
+  id: '/api/admin/conciliar-asaas',
+  path: '/api/admin/conciliar-asaas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPagamentoIdRoute = ApiPublicPagamentoIdRouteImport.update({
   id: '/api/public/pagamento/$id',
   path: '/api/public/pagamento/$id',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/sucesso/$id': typeof SucessoIdRoute
+  '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/sucesso/$id': typeof SucessoIdRoute
+  '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/pedido': typeof PedidoRoute
   '/pedidos/$token': typeof PedidosTokenRoute
   '/sucesso/$id': typeof SucessoIdRoute
+  '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/pedido'
     | '/pedidos/$token'
     | '/sucesso/$id'
+    | '/api/admin/conciliar-asaas'
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/pedido'
     | '/pedidos/$token'
     | '/sucesso/$id'
+    | '/api/admin/conciliar-asaas'
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/pedido'
     | '/pedidos/$token'
     | '/sucesso/$id'
+    | '/api/admin/conciliar-asaas'
     | '/api/admin/cupons'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
@@ -264,6 +276,7 @@ export interface RootRouteChildren {
   PedidoRoute: typeof PedidoRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
   SucessoIdRoute: typeof SucessoIdRoute
+  ApiAdminConciliarAsaasRoute: typeof ApiAdminConciliarAsaasRoute
   ApiAdminCuponsRoute: typeof ApiAdminCuponsRoute
   ApiAdminPedidosRoute: typeof ApiAdminPedidosRoute
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminCuponsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/conciliar-asaas': {
+      id: '/api/admin/conciliar-asaas'
+      path: '/api/admin/conciliar-asaas'
+      fullPath: '/api/admin/conciliar-asaas'
+      preLoaderRoute: typeof ApiAdminConciliarAsaasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/pagamento/$id': {
       id: '/api/public/pagamento/$id'
       path: '/api/public/pagamento/$id'
@@ -424,6 +444,7 @@ const rootRouteChildren: RootRouteChildren = {
   PedidoRoute: PedidoRoute,
   PedidosTokenRoute: PedidosTokenRoute,
   SucessoIdRoute: SucessoIdRoute,
+  ApiAdminConciliarAsaasRoute: ApiAdminConciliarAsaasRoute,
   ApiAdminCuponsRoute: ApiAdminCuponsRoute,
   ApiAdminPedidosRoute: ApiAdminPedidosRoute,
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,

@@ -10,6 +10,7 @@ import {
   listarPedidos,
   cancelarPedido,
   excluirPedido,
+  conciliarPagamentosAsaas,
   rowToPedidoSalvo,
   type PedidoRow,
   type PagamentoAsaasRow,
@@ -23,14 +24,13 @@ import {
 import { useAdmin } from "@/store/admin";
 import type { PedidoSalvo } from "@/store/admin";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
+import { pagamentoRelevante } from "@/lib/asaasStatus";
 
 const STATUSES = ["todos", "pago", "aguardando", "vencido", "cancelado"] as const;
 
-// Pega o pagamento Asaas mais recente do pedido
-function ultimoPagamento(p: PedidoRow): PagamentoAsaasRow | undefined {
-  const lista = p.pagamentos ?? [];
-  if (lista.length === 0) return undefined;
-  return [...lista].sort((a, b) => b.criado_em.localeCompare(a.criado_em))[0];
+// Pega o pagamento Asaas mais relevante (pago tem prioridade sobre tentativas pendentes mais novas).
+function pagamentoDoPedido(p: PedidoRow): PagamentoAsaasRow | undefined {
+  return pagamentoRelevante(p.pagamentos ?? []);
 }
 
 const ASAAS_LABEL: Record<string, { label: string; cls: string }> = {
@@ -46,19 +46,21 @@ const ASAAS_LABEL: Record<string, { label: string; cls: string }> = {
 };
 
 function statusBadge(asaasStatus?: string, pedidoStatus?: string) {
-  if (asaasStatus && ASAAS_LABEL[asaasStatus]) return ASAAS_LABEL[asaasStatus];
-  // Fallback pro status local do pedido
   if (pedidoStatus === "pago") return { label: "Pago", cls: "bg-emerald-100 text-emerald-700" };
-  if (pedidoStatus === "aguardando_pagamento")
-    return { label: "Aguardando", cls: "bg-amber-100 text-amber-700" };
   if (pedidoStatus === "vencido") return { label: "Vencido", cls: "bg-orange-100 text-orange-700" };
   if (pedidoStatus === "cancelado") return { label: "Cancelado", cls: "bg-zinc-200 text-zinc-700" };
+  if (asaasStatus && ASAAS_LABEL[asaasStatus]) return ASAAS_LABEL[asaasStatus];
+  // Fallback pro status local do pedido
+  if (pedidoStatus === "aguardando_pagamento")
+    return { label: "Aguardando", cls: "bg-amber-100 text-amber-700" };
   return { label: pedidoStatus ?? "—", cls: "bg-zinc-100 text-zinc-700" };
 }
 
 function categoria(asaasStatus?: string, pedidoStatus?: string): string {
   // Cancelamento manual tem precedência sobre qualquer status do Asaas
   if (pedidoStatus === "cancelado") return "cancelado";
+  if (pedidoStatus === "pago") return "pago";
+  if (pedidoStatus === "vencido") return "vencido";
   if (asaasStatus === "CONFIRMED" || asaasStatus === "RECEIVED" || pedidoStatus === "pago")
     return "pago";
   if (asaasStatus === "PENDING" || pedidoStatus === "aguardando_pagamento") return "aguardando";
@@ -94,6 +96,12 @@ export function AbaPedidos() {
 
   const carregar = useCallback(async () => {
     setCarregando(true);
+    const conciliacao = await conciliarPagamentosAsaas();
+    if (conciliacao.ok && (conciliacao.pagamentosAtualizados ?? 0) > 0) {
+      toast.success("Pagamentos conciliados com o Asaas", {
+        description: `${conciliacao.pagamentosAtualizados} pagamento(s) e ${conciliacao.pedidosAtualizados ?? 0} pedido(s) atualizados.`,
+      });
+    }
     const data = await listarPedidos();
     setRows(data);
     setCarregando(false);
@@ -144,7 +152,7 @@ export function AbaPedidos() {
 
   const filtrados = useMemo(() => {
     return rows.filter((r) => {
-      const pag = ultimoPagamento(r);
+      const pag = pagamentoDoPedido(r);
       const cat = categoria(pag?.status, r.status);
       if (status !== "todos" && cat !== status) return false;
       if (filtro && !`${r.cliente_nome} ${r.id} ${pag?.asaas_payment_id ?? ""}`.toLowerCase().includes(filtro.toLowerCase())) return false;
@@ -167,21 +175,21 @@ export function AbaPedidos() {
     return d.toDateString() === h.toDateString();
   }).length;
   const pagosCount = rows.filter((r) => {
-    const pag = ultimoPagamento(r);
+    const pag = pagamentoDoPedido(r);
     return categoria(pag?.status, r.status) === "pago";
   }).length;
   const aguardandoCount = rows.filter((r) => {
-    const pag = ultimoPagamento(r);
+    const pag = pagamentoDoPedido(r);
     return categoria(pag?.status, r.status) === "aguardando";
   }).length;
   const totalArrecadado = rows.reduce((acc, r) => {
-    const pag = ultimoPagamento(r);
+    const pag = pagamentoDoPedido(r);
     if (categoria(pag?.status, r.status) === "pago") return acc + Number(r.total);
     return acc;
   }, 0);
 
   const abrirConfirmacao = (tipo: "cancelar" | "excluir", row: PedidoRow) => {
-    const pag = ultimoPagamento(row);
+    const pag = pagamentoDoPedido(row);
     const cat = categoria(pag?.status, row.status);
     setConfirmaTexto("");
     setConfirmacao({ tipo, row, pago: cat === "pago" });
@@ -221,7 +229,7 @@ export function AbaPedidos() {
       "Data/Hora",
       "Nome",
       "CPF",
-      "Email",
+      "E-mail",
       "WhatsApp",
       "Cesta",
       "Sobremesas",
@@ -237,7 +245,7 @@ export function AbaPedidos() {
       "Total",
     ];
     const csvRows = filtrados.map((r) => {
-      const pag = ultimoPagamento(r);
+      const pag = pagamentoDoPedido(r);
       const p = rowToPedidoSalvo(r);
       return [
         r.id,
@@ -462,7 +470,7 @@ export function AbaPedidos() {
             ) : (
               filtrados.map((r) => {
                 const p = rowToPedidoSalvo(r);
-                const pag = ultimoPagamento(r);
+                const pag = pagamentoDoPedido(r);
                 const badge = statusBadge(pag?.status, r.status);
                 const metodo =
                   pag?.metodo === "PIX"
@@ -537,7 +545,7 @@ export function AbaPedidos() {
           {confirmacao && (() => {
             const isExcluir = confirmacao.tipo === "excluir";
             const p = rowToPedidoSalvo(confirmacao.row);
-            const pag = ultimoPagamento(confirmacao.row);
+            const pag = pagamentoDoPedido(confirmacao.row);
             const pago = confirmacao.pago;
             return (
               <>

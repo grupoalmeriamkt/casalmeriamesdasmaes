@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
+import { pagamentoRelevante } from "@/lib/asaasStatus";
 
 export type PagamentoAsaasRow = {
   id: string;
@@ -106,6 +107,39 @@ export async function inserirPedido(p: Omit<PedidoSalvo, "id" | "criadoEm">, ped
 }
 
 /** Lista pedidos via endpoint server-side (que usa service_role e bypassa RLS). */
+export async function conciliarPagamentosAsaas(): Promise<{
+  ok: boolean;
+  pagamentosAtualizados?: number;
+  pedidosAtualizados?: number;
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return { ok: false };
+
+    const res = await fetch("/api/admin/conciliar-asaas", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) {
+      console.error("Erro ao conciliar Asaas:", res.status);
+      return { ok: false };
+    }
+    const json = (await res.json()) as {
+      pagamentosAtualizados?: number;
+      pedidosAtualizados?: number;
+    };
+    return {
+      ok: true,
+      pagamentosAtualizados: json.pagamentosAtualizados,
+      pedidosAtualizados: json.pedidosAtualizados,
+    };
+  } catch (e) {
+    console.error("Erro ao conciliar Asaas:", e);
+    return { ok: false };
+  }
+}
+
+/** Lista pedidos via endpoint server-side (que usa service_role e bypassa RLS). */
 export async function listarPedidos(): Promise<PedidoRow[]> {
   try {
     const res = await fetch("/api/public/admin/pedidos");
@@ -201,9 +235,7 @@ export async function editarPedidoPorToken(
 
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
-  const ultimoPag = r.pagamentos
-    ?.slice()
-    .sort((a, b) => b.criado_em.localeCompare(a.criado_em))[0];
+  const rel = pagamentoRelevante(r.pagamentos ?? []);
   return {
     id: r.id,
     criadoEm: r.criado_em,
@@ -217,7 +249,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     horario: r.horario ?? undefined,
     pagamento: {
       ...r.pagamento,
-      status: ultimoPag?.status ?? r.pagamento?.status ?? r.status ?? "",
+      status: rel?.status ?? r.pagamento?.status ?? r.status ?? "",
     },
     total: Number(r.total),
   };

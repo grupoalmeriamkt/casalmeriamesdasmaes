@@ -2,34 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
 import { makeAsaasClient } from "@/integrations/asaas/client.server";
-
-const FINAL_PAID = new Set(["CONFIRMED", "RECEIVED"]);
-const FINAL_DONE = new Set([
-  "CONFIRMED",
-  "RECEIVED",
-  "REFUNDED",
-  "REFUND_REQUESTED",
-  "CHARGEBACK_REQUESTED",
-  "CHARGEBACK_DISPUTE",
-  "PAYMENT_DELETED",
-  "OVERDUE",
-]);
-
-function pedidoStatusFromAsaas(status: string): string {
-  if (FINAL_PAID.has(status)) return "pago";
-  if (status === "OVERDUE") return "vencido";
-  if (
-    new Set([
-      "REFUNDED",
-      "REFUND_REQUESTED",
-      "CHARGEBACK_REQUESTED",
-      "CHARGEBACK_DISPUTE",
-      "PAYMENT_DELETED",
-    ]).has(status)
-  )
-    return "cancelado";
-  return "aguardando_pagamento";
-}
+import {
+  ASAAS_FINAL_DONE,
+  ASAAS_FINAL_PAID,
+  pedidoStatusFromAsaas,
+} from "@/lib/asaasStatus";
 
 const ParamSchema = z.string().uuid();
 
@@ -60,7 +37,7 @@ export const Route = createFileRoute("/api/public/asaas/status/$id")({
 
         // Fallback: consulta a API do Asaas diretamente quando o status ainda está pendente.
         // Isso corrige casos em que o webhook não foi entregue.
-        if (!FINAL_DONE.has(currentStatus) && row.asaas_payment_id) {
+        if (!ASAAS_FINAL_DONE.has(currentStatus) && row.asaas_payment_id) {
           try {
             const secrets = await getAppSecrets();
             if (secrets.asaasApiKey) {
@@ -113,7 +90,7 @@ export const Route = createFileRoute("/api/public/asaas/status/$id")({
           metodo: row.metodo,
           atualizadoEm: row.atualizado_em,
           pedidoId: row.pedido_id,
-          pago: FINAL_PAID.has(currentStatus),
+          pago: ASAAS_FINAL_PAID.has(currentStatus),
         });
       },
     },

@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { labelStatusPagamento, labelTipoPedido } from "@/lib/asaasStatus";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -272,7 +273,7 @@ function CozinhaPage() {
             onChange={(e) => { setLoginEmail(e.target.value); setLoginErro(""); }}
             autoComplete="email" autoFocus
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            placeholder="Email" required />
+            placeholder="E-mail" required />
           <input type="password" value={loginSenha}
             onChange={(e) => { setLoginSenha(e.target.value); setLoginErro(""); }}
             autoComplete="current-password"
@@ -397,7 +398,7 @@ function CozinhaPage() {
     if (lista.length === 0) { toast.error("Nenhum pedido para exportar."); return; }
     const rowMap = new Map(rawRows.map((r) => [r.id, r]));
     const head = [
-      "ID", "Data/Hora", "Nome", "CPF", "Email", "WhatsApp",
+      "ID", "Data/Hora", "Nome", "CPF", "E-mail", "WhatsApp",
       "Destinatário", "Tel Destinatário", "Cesta", "Qtd Cesta",
       "Sobremesas", "Cartões", "Polaroids", "Tipo", "Endereço/Unidade",
       "Data Entrega", "Horário", "Método Pagamento", "Status Pagamento",
@@ -427,12 +428,12 @@ function CozinhaPage() {
         sobrNomes,
         String(p.pagamento?.extras?.cartoes?.length ?? 0),
         String(p.pagamento?.extras?.polaroids?.length ?? 0),
-        p.tipo ?? "",
+        labelTipoPedido(p.tipo ?? ""),
         p.enderecoOuUnidade ?? "",
         p.data ?? "",
         p.horario ?? "",
-        p.pagamento?.metodo ?? "",
-        p.pagamento?.status ?? "",
+        labelStatusPagamento(p.pagamento?.metodo),
+        labelStatusPagamento(p.pagamento?.status),
         frete > 0 ? frete.toFixed(2) : "",
         p.total.toFixed(2),
       ];
@@ -495,7 +496,7 @@ function CozinhaPage() {
                 </button>
                 <button
                   onClick={() => toggleView("kanban")}
-                  title="Kanban"
+                  title="Quadro"
                   className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "kanban" ? "bg-white/20" : "hover:bg-white/10"}`}
                 >
                   <Columns className="h-4 w-4" />
@@ -635,7 +636,7 @@ function CozinhaPage() {
                       filtroTipo === t ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
                     }`}
                   >
-                    {t === "" ? "Todos os tipos" : t}
+                    {t === "" ? "Todos os tipos" : labelTipoPedido(t)}
                   </button>
                 ))}
               </div>
@@ -1013,8 +1014,8 @@ function KanbanCard({
         </p>
       )}
 
-      <p className="mt-1 text-[11px] text-charcoal/50 capitalize">
-        {[p.tipo, p.data, p.horario].filter(Boolean).join(" · ")}
+      <p className="mt-1 text-[11px] text-charcoal/50">
+        {[labelTipoPedido(p.tipo), p.data, p.horario].filter(Boolean).join(" · ")}
       </p>
 
       <div className="mt-2 flex items-center gap-1.5">
@@ -1132,8 +1133,8 @@ function PedidoCard({
           </div>
 
           {/* Entrega */}
-          <p className="mt-1 text-xs text-muted-foreground capitalize">
-            {[p.tipo, p.enderecoOuUnidade, p.data, p.horario].filter(Boolean).join(" · ")}
+          <p className="mt-1 text-xs text-muted-foreground">
+            {[labelTipoPedido(p.tipo), p.enderecoOuUnidade, p.data, p.horario].filter(Boolean).join(" · ")}
           </p>
           {frete > 0 && (
             <p className="text-xs text-charcoal/50">🚚 Frete: {formatBRL(frete)}</p>
@@ -1299,11 +1300,11 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
       <div className="border-t border-border pt-3 grid grid-cols-2 gap-2">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</p>
-          <p className="capitalize">{p.tipo || "—"}</p>
+          <p>{labelTipoPedido(p.tipo)}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
-          <p>{p.pagamento?.status || "—"}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Status do pagamento</p>
+          <p>{labelStatusPagamento(p.pagamento?.status)}</p>
         </div>
         <div className="col-span-2">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Endereço / Unidade</p>
@@ -1367,7 +1368,7 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
 
       {/* Entrega */}
       <hr style={{ margin: "10pt 0" }} />
-      <p><strong>Tipo:</strong> {p.tipo || "—"}</p>
+      <p><strong>Tipo:</strong> {labelTipoPedido(p.tipo)}</p>
       <p><strong>Endereço/Unidade:</strong> {p.enderecoOuUnidade || "—"}</p>
       <p><strong>Data:</strong> {p.data || "—"} · <strong>Horário:</strong> {p.horario || "—"}</p>
 

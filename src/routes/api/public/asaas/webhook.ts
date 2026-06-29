@@ -2,15 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
 import type { AsaasWebhookEvent } from "@/integrations/asaas/types";
 import { sendCapiEventServer } from "@/lib/metaCapiServer";
-
-const FINAL_PAID = new Set(["CONFIRMED", "RECEIVED"]);
-const FINAL_FAILED = new Set([
-  "REFUNDED",
-  "REFUND_REQUESTED",
-  "CHARGEBACK_REQUESTED",
-  "CHARGEBACK_DISPUTE",
-  "PAYMENT_DELETED",
-]);
+import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID, pedidoStatusFromAsaas } from "@/lib/asaasStatus";
 
 async function dispatchPurchaseCapi(
   admin: ReturnType<typeof getAdminClient>,
@@ -81,14 +73,6 @@ async function dispatchPurchaseCapi(
     console.error("[webhook] dispatchPurchaseCapi falhou", err);
   }
 }
-
-function pedidoStatusFromAsaas(status: string): string {
-  if (FINAL_PAID.has(status)) return "pago";
-  if (status === "OVERDUE") return "vencido";
-  if (FINAL_FAILED.has(status)) return "cancelado";
-  return "aguardando_pagamento";
-}
-
 export const Route = createFileRoute("/api/public/asaas/webhook")({
   server: {
     handlers: {
@@ -179,8 +163,8 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
             // Incrementa uso do cupom apenas na primeira confirmação
             if (
               pagamento.cupom_codigo &&
-              FINAL_PAID.has(newStatus) &&
-              !FINAL_PAID.has(pagamento.status ?? "")
+              ASAAS_FINAL_PAID.has(newStatus) &&
+              !ASAAS_FINAL_PAID.has(pagamento.status ?? "")
             ) {
               await admin.rpc("incrementar_uso_cupom", {
                 _codigo: pagamento.cupom_codigo,
@@ -188,7 +172,7 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
             }
 
             // Dispara Purchase via CAPI na primeira confirmação de pagamento
-            if (FINAL_PAID.has(newStatus) && !FINAL_PAID.has(pagamento.status ?? "")) {
+            if (ASAAS_FINAL_PAID.has(newStatus) && !ASAAS_FINAL_PAID.has(pagamento.status ?? "")) {
               void dispatchPurchaseCapi(admin, pagamento.pedido_id, event.payment.id);
             }
           }
