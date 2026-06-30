@@ -5,13 +5,14 @@ type Props = {
   linhas: EncomendaLinha[];
   selectedIds: Set<string>;
   onTogglePedido: (pedidoId: string) => void;
+  onAbrirPedido: (pedidoId: string) => void;
 };
 
 function badgeClass(map: Record<string, string>, key: string) {
   return map[key] ?? map.outro;
 }
 
-export function EncomendasTable({ linhas, selectedIds, onTogglePedido }: Props) {
+export function EncomendasTable({ linhas, selectedIds, onTogglePedido, onAbrirPedido }: Props) {
   if (linhas.length === 0) {
     return (
       <p className="py-16 text-center text-sm text-muted-foreground">
@@ -40,15 +41,18 @@ export function EncomendasTable({ linhas, selectedIds, onTogglePedido }: Props) 
           {linhas.map((l) => (
             <tr
               key={l.linhaId}
-              className={`border-b border-border/40 transition-colors ${
-                selectedIds.has(l.pedidoId) ? "bg-olive/10" : "bg-[#edf7ee] hover:bg-[#e3f2e4]"
+              onClick={() => onAbrirPedido(l.pedidoId)}
+              className={`cursor-pointer border-b border-border/40 transition-colors ${
+                selectedIds.has(l.pedidoId) ? "bg-olive/10" : "bg-[#edf7ee] hover:bg-[#dcefdc]"
               }`}
+              title="Clique para abrir o pedido"
             >
-              <td className="px-2 py-2 text-center">
+              <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
                   checked={selectedIds.has(l.pedidoId)}
                   onChange={() => onTogglePedido(l.pedidoId)}
+                  onClick={(e) => e.stopPropagation()}
                   className="h-4 w-4 cursor-pointer rounded border-border accent-charcoal"
                   aria-label={`Selecionar pedido ${l.pedidoId.slice(-6)}`}
                 />

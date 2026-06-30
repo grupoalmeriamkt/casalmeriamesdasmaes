@@ -944,6 +944,10 @@ function CozinhaPage() {
               linhas={linhasEncomenda}
               selectedIds={selectedIds}
               onTogglePedido={toggleSelecionado}
+              onAbrirPedido={(pedidoId) => {
+                const p = pedidosFiltrados.find((x) => x.id === pedidoId);
+                if (p) setDetalhe(p);
+              }}
             />
           ) : operacaoEnabled && view === "lista" ? (
             <div className="space-y-8">
