@@ -28,6 +28,7 @@ import {
   MessageCircle,
   LayoutList,
   Columns,
+  Table2,
   X,
   Pencil,
   AlertTriangle,
@@ -60,6 +61,12 @@ import {
 } from "@/components/operacao/OperacaoPedidoCard";
 import { useAdmin } from "@/store/admin";
 import { SignInPage } from "@/components/admin/SignInPage";
+import { EncomendasTable } from "@/components/operacao/EncomendasTable";
+import {
+  ENCOMENDAS_CSV_HEAD,
+  flattenPedidosParaLinhas,
+  linhasParaCsvRows,
+} from "@/lib/encomendasTable";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -145,9 +152,11 @@ function CozinhaPage() {
   const [editLoading, setEditLoading] = useState(false);
 
   // view mode
-  const [view, setView] = useState<"lista" | "kanban">(() => {
-    if (typeof window === "undefined") return "lista";
-    return (localStorage.getItem("pedidos-view") as "lista" | "kanban") ?? "lista";
+  const [view, setView] = useState<"lista" | "kanban" | "planilha">(() => {
+    if (typeof window === "undefined") return "planilha";
+    const saved = localStorage.getItem("pedidos-view");
+    if (saved === "lista" || saved === "kanban" || saved === "planilha") return saved;
+    return "planilha";
   });
 
   const [rawRows, setRawRows] = useState<PedidoRow[]>([]);
@@ -359,6 +368,11 @@ function CozinhaPage() {
 
   const mostrarArquivadosAtivo = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
 
+  const linhasEncomenda = useMemo(
+    () => flattenPedidosParaLinhas(pedidosFiltrados, rawRows, unidades),
+    [pedidosFiltrados, rawRows, unidades],
+  );
+
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
     const map: Record<StatusKey, PedidoSalvo[]> = {
@@ -485,7 +499,7 @@ function CozinhaPage() {
     setTimeout(() => { window.print(); setTimeout(() => setImprimindo(null), 500); }, 50);
   };
 
-  const toggleView = (v: "lista" | "kanban") => {
+  const toggleView = (v: "lista" | "kanban" | "planilha") => {
     setView(v);
     localStorage.setItem("pedidos-view", v);
   };
@@ -517,99 +531,21 @@ function CozinhaPage() {
     setFiltroPeriodo(p);
   };
 
-  const exportarCSV = (lista: PedidoSalvo[], nome = "pedidos-casa-almeria") => {
+  const exportarCSV = (lista: PedidoSalvo[], nome = "encomendas-casa-almeria") => {
     if (lista.length === 0) { toast.error("Nenhum pedido para exportar."); return; }
-    const rowMap = new Map(rawRows.map((r) => [r.id, r]));
-
-    if (operacaoEnabled) {
-      const ops = lista.map((p) => rowToPedidoOperacional(rowMap.get(p.id)!));
-      const head = [
-        "ID", "Data criação", "Data aprovação", "Data/hora execução",
-        "Status normalizado", "Status bruto", "Setor", "Tipo", "Unidade/endereço",
-        "Destinatário", "WhatsApp destinatário", "Comprador", "WhatsApp comprador",
-        "Cesta", "Sobremesas", "Total",
-      ];
-      const csvRows = ops.map((op) => [
-        op.id,
-        op.criadoEm,
-        op.paymentConfirmedAt ?? "",
-        op.executionAt ?? "",
-        op.paymentStatusNormalized ? PAYMENT_STATUS_LABEL[op.paymentStatusNormalized] : "",
-        op.paymentStatusRaw ?? "",
-        op.productionSector ? SETOR_LABEL[op.productionSector] : "",
-        labelTipoPedido(op.tipo),
-        op.enderecoOuUnidade,
-        op.recipientName,
-        op.recipientPhone,
-        op.cliente.nome,
-        op.cliente.whatsapp,
-        op.cesta ? `${op.cesta.nome} x${op.cesta.quantidade}` : "",
-        op.sobremesas.map((s) => `${s.nome} x${s.quantidade}`).join(" | "),
-        String(op.total),
-      ]);
-      const bom = "\uFEFF";
-      const csv = bom + [head, ...csvRows]
-        .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-        .join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${nome}-${Date.now()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      return;
-    }
-
-    const head = [
-      "ID", "Data/Hora", "Nome", "CPF", "E-mail", "WhatsApp",
-      "Destinatário", "Tel Destinatário", "Cesta", "Qtd Cesta",
-      "Sobremesas", "Cartões", "Polaroids", "Tipo", "Endereço/Unidade",
-      "Data Entrega", "Horário", "Método Pagamento", "Status Pagamento",
-      "Frete Estimado", "Total",
-    ];
-    const csvRows = lista.map((p) => {
-      const raw = rowMap.get(p.id);
-      const sobrNomes = p.sobremesas.map((s) => `${s.nome} x${s.quantidade}`).join(" | ");
-      const itensSoma =
-        (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
-        + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
-        + (p.pagamento?.extras?.cartoes ?? []).reduce((a, c) => a + c.preco, 0)
-        + (p.pagamento?.extras?.polaroids ?? []).reduce((a, po) => a + po.preco, 0)
-        - Number(p.pagamento?.desconto ?? 0);
-      const frete = Math.max(0, p.total - itensSoma);
-      return [
-        p.id,
-        new Date(p.criadoEm).toLocaleString("pt-BR"),
-        p.cliente.nome,
-        raw?.cliente_cpf ?? "",
-        raw?.cliente_email ?? "",
-        p.cliente.whatsapp,
-        p.destinatario?.nome ?? "",
-        p.destinatario?.whatsapp ?? "",
-        p.cesta?.nome ?? "",
-        String(p.cesta?.quantidade ?? 0),
-        sobrNomes,
-        String(p.pagamento?.extras?.cartoes?.length ?? 0),
-        String(p.pagamento?.extras?.polaroids?.length ?? 0),
-        labelTipoPedido(p.tipo ?? ""),
-        p.enderecoOuUnidade ?? "",
-        p.data ?? "",
-        p.horario ?? "",
-        labelStatusPagamento(p.pagamento?.metodo),
-        labelStatusPagamento(p.pagamento?.status),
-        frete > 0 ? frete.toFixed(2) : "",
-        p.total.toFixed(2),
-      ];
-    });
-    const bom = "﻿";
+    const linhas = flattenPedidosParaLinhas(lista, rawRows, unidades);
+    const head = [...ENCOMENDAS_CSV_HEAD];
+    const csvRows = linhasParaCsvRows(linhas);
+    const bom = "\uFEFF";
     const csv = bom + [head, ...csvRows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `${nome}-${Date.now()}.csv`; a.click();
+    a.href = url;
+    a.download = `${nome}-${Date.now()}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -741,6 +677,13 @@ function CozinhaPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* Toggle lista/kanban */}
               <div className="flex rounded-lg border border-white/20 p-0.5">
+                <button
+                  onClick={() => toggleView("planilha")}
+                  title="Planilha ENCOMENDAS"
+                  className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "planilha" ? "bg-white/20" : "hover:bg-white/10"}`}
+                >
+                  <Table2 className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => toggleView("lista")}
                   title="Lista"
@@ -996,6 +939,12 @@ function CozinhaPage() {
             <p className="py-16 text-center text-sm text-muted-foreground">
               {temFiltro ? "Nenhum pedido corresponde aos filtros." : "Nenhum pedido encontrado."}
             </p>
+          ) : view === "planilha" ? (
+            <EncomendasTable
+              linhas={linhasEncomenda}
+              selectedIds={selectedIds}
+              onTogglePedido={toggleSelecionado}
+            />
           ) : operacaoEnabled && view === "lista" ? (
             <div className="space-y-8">
               {operacaoGrupos.length === 0 ? (
