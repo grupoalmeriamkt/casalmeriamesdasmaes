@@ -6,6 +6,7 @@ import {
   rowToPedidoSalvo,
   rowToPedidoOperacional,
   conciliarPagamentosAsaas,
+  excluirPedido,
   type PedidoRow,
 } from "@/lib/pedidos";
 import { buscarInfoToken } from "@/lib/shareToken";
@@ -28,6 +29,7 @@ import {
   X,
   Pencil,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -176,6 +178,9 @@ function CozinhaPage() {
   >([]);
 
   const [loginLoading, setLoginLoading] = useState(false);
+  const [confirmExcluirLote, setConfirmExcluirLote] = useState(false);
+  const [confirmaTextoExcluir, setConfirmaTextoExcluir] = useState("");
+  const [excluirLoteLoading, setExcluirLoteLoading] = useState(false);
 
   // som
   const [somAtivo, setSomAtivo] = useState(false);
@@ -297,6 +302,21 @@ function CozinhaPage() {
   const contagemAprovadosOps = useMemo(
     () => (operacaoEnabled ? contarAprovadosOperacionais(pedidosOps) : 0),
     [operacaoEnabled, pedidosOps],
+  );
+
+  const listaVisivel = useMemo(
+    () => (operacaoEnabled && view === "lista" ? pedidosOpsFiltrados : pedidosFiltrados),
+    [operacaoEnabled, view, pedidosOpsFiltrados, pedidosFiltrados],
+  );
+
+  const pedidosSelecionados = useMemo(
+    () => listaVisivel.filter((p) => selectedIds.has(p.id)),
+    [listaVisivel, selectedIds],
+  );
+
+  const selecionadosComPagamento = useMemo(
+    () => pedidosSelecionados.filter((p) => getStatus(p) === "aprovado"),
+    [pedidosSelecionados],
   );
 
   const pedidosFiltrados = useMemo(() => {
@@ -579,7 +599,39 @@ function CozinhaPage() {
   };
 
   const selecionarTodos = () =>
-    setSelectedIds(new Set(pedidosFiltrados.map((p) => p.id)));
+    setSelectedIds(new Set(listaVisivel.map((p) => p.id)));
+
+  const excluirSelecionados = async () => {
+    if (confirmaTextoExcluir !== "EXCLUIR") return;
+    const ids = [...selectedIds];
+    setExcluirLoteLoading(true);
+    const excluidos: string[] = [];
+    let falhas = 0;
+    for (const id of ids) {
+      const res = await excluirPedido(id);
+      if (res.ok) excluidos.push(id);
+      else falhas += 1;
+    }
+    setExcluirLoteLoading(false);
+    setConfirmExcluirLote(false);
+    setConfirmaTextoExcluir("");
+    setSelectedIds(new Set());
+
+    if (excluidos.length > 0) {
+      const removidos = new Set(excluidos);
+      setPedidos((prev) => prev.filter((p) => !removidos.has(p.id)));
+      setPedidosOps((prev) => prev.filter((p) => !removidos.has(p.id)));
+      setRawRows((prev) => prev.filter((r) => !removidos.has(r.id)));
+    }
+
+    if (falhas === 0) {
+      toast.success(`${excluidos.length} pedido${excluidos.length !== 1 ? "s" : ""} excluído${excluidos.length !== 1 ? "s" : ""}.`);
+    } else if (excluidos.length === 0) {
+      toast.error("Nenhum pedido foi excluído.");
+    } else {
+      toast.warning(`${excluidos.length} excluído(s), ${falhas} falha(s).`);
+    }
+  };
 
   const temFiltro =
     filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
@@ -1039,12 +1091,24 @@ function CozinhaPage() {
           <span>✓ {selectedIds.size} selecionado{selectedIds.size !== 1 ? "s" : ""}</span>
           <button
             onClick={() => {
-              const lista = pedidosFiltrados.filter((p) => selectedIds.has(p.id));
+              const lista = pedidosSelecionados.length
+                ? pedidosSelecionados
+                : pedidosFiltrados.filter((p) => selectedIds.has(p.id));
               exportarCSV(lista, "pedidos-selecionados");
             }}
             className="rounded-lg bg-terracotta px-3 py-1.5 text-xs hover:bg-terracotta/90"
           >
             ⬇ Exportar Excel
+          </button>
+          <button
+            onClick={() => {
+              setConfirmaTextoExcluir("");
+              setConfirmExcluirLote(true);
+            }}
+            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs hover:bg-red-700"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Excluir
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
@@ -1054,6 +1118,73 @@ function CozinhaPage() {
           </button>
         </div>
       )}
+
+      {/* Confirmação exclusão em lote */}
+      <Dialog
+        open={confirmExcluirLote}
+        onOpenChange={(o) => {
+          if (!o && !excluirLoteLoading) {
+            setConfirmExcluirLote(false);
+            setConfirmaTextoExcluir("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Excluir {selectedIds.size} pedido{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <p className="text-amber-900">
+                Esta ação é <strong>permanente</strong> e remove os pedidos do banco de dados.
+              </p>
+            </div>
+            {selecionadosComPagamento.length > 0 && (
+              <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                <p className="text-red-900">
+                  <strong>{selecionadosComPagamento.length}</strong> pedido(s) selecionado(s) está(ão){" "}
+                  <strong>pago(s)</strong>. A exclusão não estorna no Asaas — faça o estorno manualmente se
+                  necessário.
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Digite <span className="font-mono font-semibold text-red-600">EXCLUIR</span> para confirmar:
+              </label>
+              <Input
+                value={confirmaTextoExcluir}
+                onChange={(e) => setConfirmaTextoExcluir(e.target.value)}
+                placeholder="EXCLUIR"
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                disabled={excluirLoteLoading}
+                onClick={() => {
+                  setConfirmExcluirLote(false);
+                  setConfirmaTextoExcluir("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                disabled={excluirLoteLoading || confirmaTextoExcluir !== "EXCLUIR"}
+                onClick={excluirSelecionados}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {excluirLoteLoading
+                  ? "Excluindo…"
+                  : `Excluir ${selectedIds.size} pedido${selectedIds.size !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Toaster position="bottom-right" />
     </div>
