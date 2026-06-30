@@ -19,19 +19,26 @@ export type EncomendaLinha = {
   nomeCliente: string;
   setor: string;
   setorKey: string;
+  productionSector: ProductionSector | null;
   produto: string;
   qtd: number;
   localRetirada: string;
   localKey: string;
+  unidadeId: string | null;
 };
 
-const LOCAIS_CONHECIDOS = [
-  { keys: ["asa sul", "asa-sul"], label: "Asa Sul" },
-  { keys: ["noroeste"], label: "Noroeste" },
-  { keys: ["saan"], label: "SAAN" },
-  { keys: ["beira lago", "beira-lago"], label: "Beira Lago" },
-  { keys: ["wine garden", "wine-garden"], label: "Wine Garden" },
+export const LOCAIS_RETIRADA_OPCOES = [
+  { id: "asa-sul", label: "Asa Sul", key: "asa sul" },
+  { id: "noroeste", label: "Noroeste", key: "noroeste" },
+  { id: "saan", label: "SAAN", key: "saan" },
+  { id: "beira-lago", label: "Beira Lago", key: "beira lago" },
+  { id: "wine-garden", label: "Wine Garden", key: "wine garden" },
 ] as const;
+
+const LOCAIS_CONHECIDOS = LOCAIS_RETIRADA_OPCOES.map((l) => ({
+  keys: [l.key, l.id],
+  label: l.label,
+}));
 
 export const LOCAL_BADGE: Record<string, string> = {
   "asa sul": "bg-blue-600 text-white",
@@ -46,10 +53,14 @@ export const SETOR_BADGE_PLANILHA: Record<string, string> = {
   confeitaria: "bg-pink-100 text-pink-800 border border-pink-300",
   padaria: "bg-green-100 text-green-800 border border-green-500",
   cozinha: "bg-violet-100 text-violet-900 border border-violet-400",
-  "cozinha 104 sul": "bg-violet-100 text-violet-900 border border-violet-400",
-  "cozinha 104/ confeitaria": "bg-blue-100 text-blue-900 border border-blue-400",
   outro: "bg-white text-charcoal border border-border",
 };
+
+export const SETORES_OPCOES: { value: ProductionSector; label: string; key: string }[] = [
+  { value: "CONFEITARIA", label: "Confeitaria", key: "confeitaria" },
+  { value: "PADARIA", label: "Padaria", key: "padaria" },
+  { value: "COZINHA", label: "Cozinha", key: "cozinha" },
+];
 
 function isoToPartsSP(iso: string): { date: string; time: string; weekday: string } | null {
   const d = new Date(iso);
@@ -151,6 +162,7 @@ function pushLinha(
     qtd,
     setor: setor.label,
     setorKey: setor.key,
+    productionSector: sector ?? base.productionSector,
   });
 }
 
@@ -174,6 +186,8 @@ export function flattenPedidosParaLinhas(
       p.cliente.nome ||
       "(sem nome)";
 
+    const sector = op?.productionSector ?? null;
+
     const base = {
       pedidoId: p.id,
       dataRetirada: exec?.date ?? (p.data ? p.data.split("-").reverse().join("/") : "—"),
@@ -182,13 +196,13 @@ export function flattenPedidosParaLinhas(
       nomeCliente,
       localRetirada: local.label,
       localKey: local.key,
+      unidadeId: raw?.unidade_id ?? null,
+      productionSector: (raw?.production_sector as ProductionSector | null) ?? sector,
       setor: "",
       setorKey: "outro",
       produto: "",
       qtd: 0,
     };
-
-    const sector = op?.productionSector ?? null;
 
     if (p.cesta?.nome) {
       pushLinha(linhas, base, p.cesta.nome, p.cesta.quantidade, sector);

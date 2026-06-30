@@ -290,6 +290,30 @@ export async function desarquivarPedidos(
   }
 }
 
+/** Atualiza setor e/ou local de retirada. Requer admin autenticado. */
+export async function atualizarPedidoOperacao(
+  id: string,
+  campos: {
+    production_sector?: "CONFEITARIA" | "PADARIA" | "COZINHA";
+    unidade_id?: string | null;
+    endereco_ou_unidade?: string;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "atualizar_operacao", id, ...campos }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
 /** Edita campos de um pedido via token público (link compartilhado). */
 export async function editarPedidoPorToken(
   token: string,

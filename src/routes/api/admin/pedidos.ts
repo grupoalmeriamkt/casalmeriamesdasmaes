@@ -13,6 +13,13 @@ const BodySchema = z.discriminatedUnion("action", [
     action: z.literal("desarquivar"),
     ids: z.array(z.string().uuid()).min(1).max(200),
   }),
+  z.object({
+    action: z.literal("atualizar_operacao"),
+    id: z.string().uuid(),
+    production_sector: z.enum(["CONFEITARIA", "PADARIA", "COZINHA"]).optional(),
+    unidade_id: z.string().nullable().optional(),
+    endereco_ou_unidade: z.string().optional(),
+  }),
 ]);
 
 async function authenticate(request: Request) {
@@ -100,6 +107,23 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             return Response.json({ error: error.message }, { status: 500 });
           }
           return Response.json({ ok: true, desarquivados: data?.length ?? 0 });
+        }
+
+        if (action === "atualizar_operacao") {
+          const { id, production_sector, unidade_id, endereco_ou_unidade } = parsed.data;
+          const patch: Record<string, string | null> = {};
+          if (production_sector !== undefined) patch.production_sector = production_sector;
+          if (unidade_id !== undefined) patch.unidade_id = unidade_id;
+          if (endereco_ou_unidade !== undefined) patch.endereco_ou_unidade = endereco_ou_unidade;
+          if (Object.keys(patch).length === 0) {
+            return Response.json({ error: "nenhum_campo" }, { status: 400 });
+          }
+          const { error } = await auth.admin.from("pedidos").update(patch).eq("id", id);
+          if (error) {
+            console.error("[admin/pedidos] atualizar_operacao error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true });
         }
 
         return Response.json({ error: "unknown_action" }, { status: 400 });

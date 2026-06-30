@@ -9,6 +9,7 @@ import {
   excluirPedido,
   arquivarPedidos,
   desarquivarPedidos,
+  atualizarPedidoOperacao,
   type PedidoRow,
 } from "@/lib/pedidos";
 import { buscarInfoToken } from "@/lib/shareToken";
@@ -66,7 +67,9 @@ import {
   ENCOMENDAS_CSV_HEAD,
   flattenPedidosParaLinhas,
   linhasParaCsvRows,
+  LOCAIS_RETIRADA_OPCOES,
 } from "@/lib/encomendasTable";
+import type { ProductionSector } from "@/lib/availability";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -198,6 +201,7 @@ function CozinhaPage() {
   const [excluirLoteLoading, setExcluirLoteLoading] = useState(false);
   const [confirmArquivarLote, setConfirmArquivarLote] = useState(false);
   const [arquivarLoteLoading, setArquivarLoteLoading] = useState(false);
+  const [salvandoOperacaoId, setSalvandoOperacaoId] = useState<string | null>(null);
 
   // som
   const [somAtivo, setSomAtivo] = useState(false);
@@ -372,6 +376,19 @@ function CozinhaPage() {
     () => flattenPedidosParaLinhas(pedidosFiltrados, rawRows, unidades),
     [pedidosFiltrados, rawRows, unidades],
   );
+
+  const locaisOpcoes = useMemo(() => {
+    const map = new Map<string, { id: string; label: string; key: string }>();
+    for (const u of unidades.filter((x) => x.status === "ativa")) {
+      map.set(u.id, { id: u.id, label: u.nome, key: u.nome.toLowerCase() });
+    }
+    for (const loc of LOCAIS_RETIRADA_OPCOES) {
+      if (![...map.values()].some((v) => v.label.toLowerCase() === loc.label.toLowerCase())) {
+        map.set(loc.id, { id: loc.id, label: loc.label, key: loc.key });
+      }
+    }
+    return [...map.values()];
+  }, [unidades]);
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
@@ -648,6 +665,48 @@ function CozinhaPage() {
     toast.success(
       `${res.desarquivados ?? ids.length} pedido${(res.desarquivados ?? ids.length) !== 1 ? "s" : ""} restaurado${(res.desarquivados ?? ids.length) !== 1 ? "s" : ""}.`,
     );
+  };
+
+  const alterarSetorPedido = async (pedidoId: string, setor: ProductionSector) => {
+    setSalvandoOperacaoId(pedidoId);
+    const res = await atualizarPedidoOperacao(pedidoId, { production_sector: setor });
+    setSalvandoOperacaoId(null);
+    if (!res.ok) {
+      toast.error("Erro ao atualizar setor", { description: res.error });
+      return;
+    }
+    setRawRows((prev) =>
+      prev.map((r) => (r.id === pedidoId ? { ...r, production_sector: setor } : r)),
+    );
+    setPedidosOps((prev) =>
+      prev.map((p) => (p.id === pedidoId ? { ...p, productionSector: setor } : p)),
+    );
+    toast.success("Setor atualizado.");
+  };
+
+  const alterarLocalPedido = async (pedidoId: string, unidadeId: string, label: string) => {
+    setSalvandoOperacaoId(pedidoId);
+    const res = await atualizarPedidoOperacao(pedidoId, {
+      unidade_id: unidadeId,
+      endereco_ou_unidade: label,
+    });
+    setSalvandoOperacaoId(null);
+    if (!res.ok) {
+      toast.error("Erro ao atualizar local", { description: res.error });
+      return;
+    }
+    setRawRows((prev) =>
+      prev.map((r) =>
+        r.id === pedidoId ? { ...r, unidade_id: unidadeId, endereco_ou_unidade: label } : r,
+      ),
+    );
+    setPedidos((prev) =>
+      prev.map((p) => (p.id === pedidoId ? { ...p, enderecoOuUnidade: label } : p)),
+    );
+    setPedidosOps((prev) =>
+      prev.map((p) => (p.id === pedidoId ? { ...p, unidadeId, enderecoOuUnidade: label } : p)),
+    );
+    toast.success("Local de retirada atualizado.");
   };
 
   const temFiltro =
@@ -943,11 +1002,17 @@ function CozinhaPage() {
             <EncomendasTable
               linhas={linhasEncomenda}
               selectedIds={selectedIds}
+              locaisOpcoes={locaisOpcoes}
+              salvandoPedidoId={salvandoOperacaoId}
               onTogglePedido={toggleSelecionado}
               onAbrirPedido={(pedidoId) => {
                 const p = pedidosFiltrados.find((x) => x.id === pedidoId);
                 if (p) setDetalhe(p);
               }}
+              onAlterarSetor={(pedidoId, setor) => void alterarSetorPedido(pedidoId, setor)}
+              onAlterarLocal={(pedidoId, unidadeId, label) =>
+                void alterarLocalPedido(pedidoId, unidadeId, label)
+              }
             />
           ) : operacaoEnabled && view === "lista" ? (
             <div className="space-y-8">
