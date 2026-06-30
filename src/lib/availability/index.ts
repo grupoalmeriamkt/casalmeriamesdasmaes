@@ -180,3 +180,10 @@ export function getAvailableWindows(
 }
 
 export { defaultRegras, regraMaisRestritiva, resolveProductionSector } from "./rules";
+export type {
+  CarrinhoItem,
+  DisponibilidadeInput,
+  DisponibilidadeResult,
+  JanelaDisponivel,
+  ProdutoRegras,
+} from "./types";
