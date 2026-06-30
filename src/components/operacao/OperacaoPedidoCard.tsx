@@ -1,8 +1,10 @@
 import type { PedidoOperacional } from "@/lib/operacaoPedido";
+import { SETOR_BADGE } from "@/lib/operacaoPedido";
 import {
-  SETOR_BADGE,
-  SETOR_LABEL,
-} from "@/lib/operacaoPedido";
+  badgeKeySetorOperacao,
+  labelSetorOperacao,
+  SETOR_OPERACAO_BADGE_PLANILHA,
+} from "@/lib/setoresOperacao";
 import { labelTipoPedido } from "@/lib/asaasStatus";
 import { PAYMENT_STATUS_LABEL } from "@/lib/paymentStatus";
 import { labelGrupoExecucao } from "@/lib/timezone";
@@ -34,9 +36,13 @@ export function OperacaoPedidoCard({ p, onDetalhe, onImprimir }: Props) {
             </span>
             {p.productionSector && (
               <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${SETOR_BADGE[p.productionSector]}`}
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  SETOR_OPERACAO_BADGE_PLANILHA[badgeKeySetorOperacao(p.productionSector)] ??
+                  SETOR_BADGE[p.productionSector as keyof typeof SETOR_BADGE] ??
+                  SETOR_OPERACAO_BADGE_PLANILHA.outro
+                }`}
               >
-                {SETOR_LABEL[p.productionSector]}
+                {labelSetorOperacao(p.productionSector)}
               </span>
             )}
           </div>

@@ -1,9 +1,14 @@
 import type { PedidoRow } from "@/lib/pedidos";
-import { rowToPedidoOperacional, SETOR_LABEL } from "@/lib/operacaoPedido";
+import { rowToPedidoOperacional } from "@/lib/operacaoPedido";
 import { parseHorarioInicio } from "@/lib/executionAt";
 import { TZ_SP } from "@/lib/timezone";
 import type { PedidoSalvo } from "@/store/admin";
 import type { UnidadeCadastrada } from "@/store/admin";
+import {
+  badgeKeySetorOperacao,
+  labelSetorOperacao,
+  type SetorOperacional,
+} from "@/lib/setoresOperacao";
 import {
   buildRegrasForItens,
   resolveProductionSector,
@@ -19,7 +24,7 @@ export type EncomendaLinha = {
   nomeCliente: string;
   setor: string;
   setorKey: string;
-  productionSector: ProductionSector | null;
+  productionSector: SetorOperacional | null;
   produto: string;
   qtd: number;
   localRetirada: string;
@@ -49,18 +54,10 @@ export const LOCAL_BADGE: Record<string, string> = {
   outro: "bg-charcoal/10 text-charcoal",
 };
 
-export const SETOR_BADGE_PLANILHA: Record<string, string> = {
-  confeitaria: "bg-pink-100 text-pink-800 border border-pink-300",
-  padaria: "bg-green-100 text-green-800 border border-green-500",
-  cozinha: "bg-violet-100 text-violet-900 border border-violet-400",
-  outro: "bg-white text-charcoal border border-border",
-};
-
-export const SETORES_OPCOES: { value: ProductionSector; label: string; key: string }[] = [
-  { value: "CONFEITARIA", label: "Confeitaria", key: "confeitaria" },
-  { value: "PADARIA", label: "Padaria", key: "padaria" },
-  { value: "COZINHA", label: "Cozinha", key: "cozinha" },
-];
+export {
+  SETORES_OPERACAO_OPCOES as SETORES_OPCOES,
+  SETOR_OPERACAO_BADGE_PLANILHA as SETOR_BADGE_PLANILHA,
+} from "@/lib/setoresOperacao";
 
 function isoToPartsSP(iso: string): { date: string; time: string; weekday: string } | null {
   const d = new Date(iso);
@@ -131,20 +128,26 @@ function resolveLocal(
 }
 
 function resolveSetor(
-  sector: ProductionSector | null | undefined,
+  sector: SetorOperacional | ProductionSector | null | undefined,
   produtoNome: string,
-): { label: string; key: string } {
-  if (sector && SETOR_LABEL[sector]) {
-    const label = SETOR_LABEL[sector];
-    return { label, key: label.toLowerCase() };
+): { label: string; key: string; value: SetorOperacional | null } {
+  if (sector && labelSetorOperacao(sector) !== "—") {
+    return {
+      label: labelSetorOperacao(sector),
+      key: badgeKeySetorOperacao(sector),
+      value: sector as SetorOperacional,
+    };
   }
   const itens = [{ produto_id: produtoNome, produto_tipo: "cesta" as const, nome: produtoNome }];
   const resolved = resolveProductionSector(itens, buildRegrasForItens(itens));
-  if (resolved && SETOR_LABEL[resolved]) {
-    const label = SETOR_LABEL[resolved];
-    return { label, key: label.toLowerCase() };
+  if (resolved) {
+    return {
+      label: labelSetorOperacao(resolved),
+      key: badgeKeySetorOperacao(resolved),
+      value: resolved,
+    };
   }
-  return { label: "—", key: "outro" };
+  return { label: "—", key: "outro", value: null };
 }
 
 function pushLinha(
@@ -152,7 +155,7 @@ function pushLinha(
   base: Omit<EncomendaLinha, "linhaId" | "produto" | "qtd" | "setor" | "setorKey">,
   produto: string,
   qtd: number,
-  sector?: ProductionSector | null,
+  sector?: SetorOperacional | ProductionSector | null,
 ) {
   const setor = resolveSetor(sector, produto);
   out.push({
@@ -162,7 +165,7 @@ function pushLinha(
     qtd,
     setor: setor.label,
     setorKey: setor.key,
-    productionSector: sector ?? base.productionSector,
+    productionSector: setor.value ?? base.productionSector,
   });
 }
 
@@ -197,7 +200,7 @@ export function flattenPedidosParaLinhas(
       localRetirada: local.label,
       localKey: local.key,
       unidadeId: raw?.unidade_id ?? null,
-      productionSector: (raw?.production_sector as ProductionSector | null) ?? sector,
+      productionSector: (raw?.production_sector as SetorOperacional | null) ?? sector,
       setor: "",
       setorKey: "outro",
       produto: "",

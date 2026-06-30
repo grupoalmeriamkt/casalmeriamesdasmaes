@@ -294,7 +294,7 @@ export async function desarquivarPedidos(
 export async function atualizarPedidoOperacao(
   id: string,
   campos: {
-    production_sector?: "CONFEITARIA" | "PADARIA" | "COZINHA";
+    production_sector?: SetorOperacional;
     unidade_id?: string | null;
     endereco_ou_unidade?: string;
   },

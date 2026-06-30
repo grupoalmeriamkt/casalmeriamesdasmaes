@@ -69,7 +69,7 @@ import {
   linhasParaCsvRows,
   LOCAIS_RETIRADA_OPCOES,
 } from "@/lib/encomendasTable";
-import type { ProductionSector } from "@/lib/availability";
+import type { SetorOperacional } from "@/lib/setoresOperacao";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -667,7 +667,9 @@ function CozinhaPage() {
     );
   };
 
-  const alterarSetorPedido = async (pedidoId: string, setor: ProductionSector) => {
+  const alterarSetorPedido = async (pedidoId: string, setor: SetorOperacional) => {
+    const atual = rawRows.find((r) => r.id === pedidoId)?.production_sector;
+    if (atual === setor) return;
     setSalvandoOperacaoId(pedidoId);
     const res = await atualizarPedidoOperacao(pedidoId, { production_sector: setor });
     setSalvandoOperacaoId(null);
@@ -685,6 +687,8 @@ function CozinhaPage() {
   };
 
   const alterarLocalPedido = async (pedidoId: string, unidadeId: string, label: string) => {
+    const atual = rawRows.find((r) => r.id === pedidoId);
+    if (atual?.unidade_id === unidadeId && atual.endereco_ou_unidade === label) return;
     setSalvandoOperacaoId(pedidoId);
     const res = await atualizarPedidoOperacao(pedidoId, {
       unidade_id: unidadeId,

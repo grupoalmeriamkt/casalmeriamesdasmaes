@@ -1,6 +1,6 @@
-import type { ProductionSector } from "@/lib/availability/types";
+import type { SetorOperacional } from "@/lib/setoresOperacao";
+import { SETORES_OPERACAO_OPCOES } from "@/lib/setoresOperacao";
 import type { FiltrosOperacionais } from "@/lib/operacaoPedido";
-import { SETOR_LABEL } from "@/lib/operacaoPedido";
 
 type UnidadeOpt = { id: string; nome: string };
 
@@ -30,14 +30,14 @@ export function OperacaoFiltrosBar({
         <select
           value={filtros.setor ?? ""}
           onChange={(e) =>
-            onChange({ setor: (e.target.value || "") as ProductionSector | "" })
+            onChange({ setor: (e.target.value || "") as SetorOperacional | "" })
           }
           className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
         >
           <option value="">Todos os setores</option>
-          {(Object.keys(SETOR_LABEL) as ProductionSector[]).map((s) => (
-            <option key={s} value={s}>
-              {SETOR_LABEL[s]}
+          {SETORES_OPERACAO_OPCOES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
             </option>
           ))}
         </select>

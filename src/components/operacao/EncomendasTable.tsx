@@ -4,7 +4,7 @@ import {
   SETOR_BADGE_PLANILHA,
   SETORES_OPCOES,
 } from "@/lib/encomendasTable";
-import type { ProductionSector } from "@/lib/availability";
+import type { SetorOperacional } from "@/lib/setoresOperacao";
 
 export type LocalOpcao = { id: string; label: string; key: string };
 
@@ -15,7 +15,7 @@ type Props = {
   salvandoPedidoId: string | null;
   onTogglePedido: (pedidoId: string) => void;
   onAbrirPedido: (pedidoId: string) => void;
-  onAlterarSetor: (pedidoId: string, setor: ProductionSector) => void;
+  onAlterarSetor: (pedidoId: string, setor: SetorOperacional) => void;
   onAlterarLocal: (pedidoId: string, unidadeId: string, label: string) => void;
 };
 
@@ -104,7 +104,7 @@ export function EncomendasTable({
                     value={setorAtual}
                     disabled={salvando}
                     onChange={(e) =>
-                      onAlterarSetor(l.pedidoId, e.target.value as ProductionSector)
+                      onAlterarSetor(l.pedidoId, e.target.value as SetorOperacional)
                     }
                     className={selectBadgeClass(
                       badgeClass(SETOR_BADGE_PLANILHA, setorMeta?.key ?? l.setorKey),

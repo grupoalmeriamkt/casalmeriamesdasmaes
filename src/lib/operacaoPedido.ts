@@ -6,6 +6,7 @@ import {
   type PaymentStatusNormalized,
 } from "@/lib/paymentStatus";
 import { isBeforeTodaySP, todayISOSP } from "@/lib/timezone";
+import type { SetorOperacional } from "@/lib/setoresOperacao";
 import type { ProductionSector } from "@/lib/availability/types";
 
 export type PedidoOperacional = PedidoSalvo & {
@@ -13,7 +14,7 @@ export type PedidoOperacional = PedidoSalvo & {
   recipientPhone: string;
   recipientIsBuyer: boolean;
   unidadeId?: string | null;
-  productionSector?: ProductionSector | null;
+  productionSector?: SetorOperacional | null;
   executionAt?: string | null;
   paymentStatusRaw?: string | null;
   paymentStatusNormalized?: PaymentStatusNormalized;
@@ -63,7 +64,7 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
     recipientPhone,
     recipientIsBuyer: r.recipient_is_buyer ?? !r.pagamento?.destinatario,
     unidadeId: r.unidade_id ?? null,
-    productionSector: (r.production_sector as ProductionSector | null) ?? null,
+    productionSector: (r.production_sector as SetorOperacional | null) ?? null,
     executionAt: r.execution_at ?? null,
     paymentStatusRaw: raw,
     paymentStatusNormalized: normalized,
@@ -77,7 +78,7 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
 export type FiltrosOperacionais = {
   status?: PaymentStatusNormalized[];
   tipo?: "" | "delivery" | "retirada";
-  setor?: ProductionSector | "";
+  setor?: SetorOperacional | "";
   unidadeId?: string;
   dataExecucao?: string;
   criadoInicio?: string;

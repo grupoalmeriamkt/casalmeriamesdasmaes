@@ -16,7 +16,15 @@ const BodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("atualizar_operacao"),
     id: z.string().uuid(),
-    production_sector: z.enum(["CONFEITARIA", "PADARIA", "COZINHA"]).optional(),
+    production_sector: z
+      .enum([
+        "CONFEITARIA",
+        "PADARIA",
+        "COZINHA",
+        "COZINHA_104_SUL",
+        "COZINHA_104_CONFEITARIA",
+      ])
+      .optional(),
     unidade_id: z.string().nullable().optional(),
     endereco_ou_unidade: z.string().optional(),
   }),
