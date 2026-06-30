@@ -70,7 +70,17 @@ export function ProdutoFormDialog({ produto, open, onOpenChange, readOnly }: Pro
     upd({ tamanhos: tamanhos.filter((t) => t.id !== id) });
 
   const salvar = () => {
-    setCesta(draft.id, draft);
+    // Limpa linhas vazias dos itens só ao salvar (durante a edição elas são
+    // preservadas para permitir quebrar linha / montar a lista normalmente).
+    const limpo: CestaAdmin = {
+      ...draft,
+      itens: draft.itens.filter(Boolean),
+      tamanhos: draft.tamanhos?.map((t) => ({
+        ...t,
+        itens: t.itens?.filter(Boolean),
+      })),
+    };
+    setCesta(limpo.id, limpo);
     onOpenChange(false);
   };
 
@@ -172,9 +182,7 @@ export function ProdutoFormDialog({ produto, open, onOpenChange, readOnly }: Pro
                 <Textarea
                   rows={temTamanhos ? 5 : 8}
                   value={draft.itens.join("\n")}
-                  onChange={(e) =>
-                    upd({ itens: e.target.value.split("\n").filter(Boolean) })
-                  }
+                  onChange={(e) => upd({ itens: e.target.value.split("\n") })}
                 />
                 {temTamanhos && (
                   <p className="text-[11px] text-muted-foreground">
@@ -318,9 +326,7 @@ export function ProdutoFormDialog({ produto, open, onOpenChange, readOnly }: Pro
                             rows={6}
                             value={(t.itens ?? []).join("\n")}
                             onChange={(e) =>
-                              updTamanho(t.id, {
-                                itens: e.target.value.split("\n").filter(Boolean),
-                              })
+                              updTamanho(t.id, { itens: e.target.value.split("\n") })
                             }
                             disabled={readOnly}
                           />
