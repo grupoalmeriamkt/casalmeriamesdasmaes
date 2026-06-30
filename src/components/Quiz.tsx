@@ -19,6 +19,8 @@ import {
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
 import { parseDateId, toISODateString, formatDatePtBR, parseDatePtBRToDate } from "@/lib/dateUtils";
+import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
+import { dataRetiradaBloqueada, horarioRetiradaBloqueado } from "@/lib/availability/retirada";
 import { Calendar } from "@/components/ui/calendar";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -122,32 +124,48 @@ export function Quiz({
   const horarios = useHorariosAtivos(entregaTipo);
   const todosDias = useTodosDias(entregaTipo);
 
-  // Filtro de datas e horários passados
-  const agoraISO = toISODateString(new Date());
-  const horaAtual = new Date().getHours();
-  const datasDisponiveis = datas.filter(
-    (d) => !/^\d{4}-\d{2}-\d{2}$/.test(d.id) || d.id >= agoraISO,
-  );
-  // Em modo todosDias o calendário livre não popula datasDisponiveis,
-  // então comparamos o label selecionado com o label de hoje para saber se é hoje.
-  const hoje = new Date();
-  const hojeLabel = formatDatePtBR(
-    new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 12),
-  );
-  const dataSelecionadaId =
-    datasDisponiveis.find((d) => d.label === data)?.id ??
-    (data === hojeLabel ? agoraISO : undefined);
-  const horariosDisponiveis =
-    dataSelecionadaId === agoraISO
-      ? horarios.filter((h) => {
-          const m = h.label.match(/Entre (\d{1,2})h e (\d{1,2})h/);
-          return m ? parseInt(m[2], 10) > horaAtual : true;
-        })
-      : horarios;
   const entregaConfig = useAdmin((s) => s.entrega);
   const pagamento = useAdmin((s) => s.pagamento);
   const textosGlobais = useAdmin((s) => s.textos);
   const campanhaAtiva = useCampanhaAtiva();
+
+  // Filtro de datas/horários: passado + regra de antecedência de retirada.
+  // Tudo em horário de São Paulo (não do dispositivo do cliente).
+  const regraRetirada =
+    entregaTipo === "retirada" ? campanhaAtiva?.retirada?.antecedencia : undefined;
+  const agoraSP = nowSP();
+  const hojeISO = todayISOSP(agoraSP);
+  const amanhaISO = amanhaISOSP(agoraSP);
+  const minutosAgoraSP = minutosDoDiaSP();
+
+  const datasDisponiveis = datas.filter((d) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.id)) return true; // labels legados
+    if (d.id < hojeISO) return false; // datas passadas
+    if (dataRetiradaBloqueada(d.id, hojeISO, regraRetirada)) return false; // mesmo-dia na retirada
+    return true;
+  });
+
+  // ISO da data selecionada (resolve cards, calendário e modo livre via label PT-BR).
+  const dataSelecionadaDate = data ? parseDatePtBRToDate(data) : null;
+  const dataSelecionadaISO = dataSelecionadaDate
+    ? toISODateString(dataSelecionadaDate)
+    : undefined;
+
+  const horariosDisponiveis = horarios.filter((h) => {
+    // Regra de retirada: bloqueia a manhã do dia seguinte quando o pedido foi após o corte.
+    if (
+      dataSelecionadaISO &&
+      horarioRetiradaBloqueado(h.label, dataSelecionadaISO, { minutosAgoraSP, amanhaISO }, regraRetirada)
+    ) {
+      return false;
+    }
+    // Filtro de horários passados (apenas quando a data selecionada é hoje).
+    if (dataSelecionadaISO === hojeISO) {
+      const m = h.label.match(/Entre (\d{1,2})h e (\d{1,2})h/);
+      if (m) return parseInt(m[2], 10) * 60 > minutosAgoraSP;
+    }
+    return true;
+  });
 
   const [zonaEntregaAtual, setZonaEntregaAtual] = useState<ZonaEntrega | null>(null);
 
@@ -989,8 +1007,6 @@ export function Quiz({
               {todosDias ? (
                 /* ── Calendário livre — campanha sem restrição de data ── */
                 (() => {
-                  const hoje = new Date();
-                  hoje.setHours(0, 0, 0, 0);
                   const selectedDate = parseDatePtBRToDate(data ?? "");
                   return (
                     <div className="flex justify-center">
@@ -998,9 +1014,9 @@ export function Quiz({
                         mode="single"
                         selected={selectedDate}
                         disabled={(date) => {
-                          const d = new Date(date);
-                          d.setHours(0, 0, 0, 0);
-                          return d < hoje;
+                          const iso = toISODateString(date);
+                          if (iso < hojeISO) return true; // passado
+                          return dataRetiradaBloqueada(iso, hojeISO, regraRetirada); // mesmo-dia retirada
                         }}
                         fromMonth={new Date()}
                         onSelect={(date) => {

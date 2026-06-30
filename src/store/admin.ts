@@ -150,6 +150,12 @@ export type CampanhaRetirada = {
   datas: { id: string; label: string; ativa: boolean }[];
   horarios: { label: string; ativo: boolean }[];
   todosDias?: boolean;
+  /**
+   * Regra de antecedência da retirada. Presença = ativa: bloqueia retirada no mesmo dia e,
+   * para pedidos após `corteHora`, libera o dia seguinte só a partir de `inicioTardeHora`.
+   * `undefined` = regra desligada.
+   */
+  antecedencia?: { corteHora: number; inicioTardeHora: number };
 };
 
 export type CampanhaTextos = {

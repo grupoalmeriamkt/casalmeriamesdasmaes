@@ -13,6 +13,7 @@ import {
   type UpsellItem,
 } from "@/store/admin";
 import { validarSlug, normalizarSlug } from "@/lib/slugs";
+import { REGRA_RETIRADA_PADRAO } from "@/lib/availability/retirada";
 import { formatDatePtBR, dateRange, toISODateString } from "@/lib/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageUpload } from "./ImageUpload";
@@ -1009,6 +1010,61 @@ function RetiradaTab({
           todosDias={r.todosDias ?? false}
           onTodosDias={(v) => onPatch({ todosDias: v })}
         />
+      </Bloco>
+
+      <Bloco titulo="Regra de antecedência (Retirada)">
+        <ToggleLinha
+          label="Bloquear mesmo dia e aplicar corte por horário"
+          checked={!!r.antecedencia}
+          onChange={(v) =>
+            onPatch({ antecedencia: v ? REGRA_RETIRADA_PADRAO : undefined })
+          }
+        />
+        {r.antecedencia && (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Sem retirada no mesmo dia (a primeira data passa a ser o dia seguinte).
+              Pedidos feitos após a <strong>hora de corte</strong> só liberam o dia
+              seguinte a partir da <strong>hora da tarde</strong> — as janelas da manhã
+              ficam indisponíveis. Pedidos até a hora de corte liberam o dia seguinte
+              inteiro, inclusive de manhã.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Hora de corte (0–23h)">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={r.antecedencia.corteHora}
+                  onChange={(e) =>
+                    onPatch({
+                      antecedencia: {
+                        ...r.antecedencia!,
+                        corteHora: Math.min(23, Math.max(0, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Dia seguinte liberado a partir de (0–23h)">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={r.antecedencia.inicioTardeHora}
+                  onChange={(e) =>
+                    onPatch({
+                      antecedencia: {
+                        ...r.antecedencia!,
+                        inicioTardeHora: Math.min(23, Math.max(0, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                />
+              </Field>
+            </div>
+          </>
+        )}
       </Bloco>
 
       {/* Upsell agora vive em "Informações Gerais" — único e aplicado a delivery + retirada. */}

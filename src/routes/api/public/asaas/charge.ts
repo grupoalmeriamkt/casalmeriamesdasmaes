@@ -5,6 +5,12 @@ import { makeAsaasClient, AsaasError } from "@/integrations/asaas/client.server"
 import type { AsaasCreatePayment, AsaasSplit } from "@/integrations/asaas/types";
 import { validateDisponibilidade, type CarrinhoItem } from "@/lib/availability";
 import type { ProdutoRegras } from "@/lib/availability/types";
+import {
+  dataRetiradaBloqueada,
+  horarioRetiradaBloqueado,
+  type RegraAntecedenciaRetirada,
+} from "@/lib/availability/retirada";
+import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
 
 const ItemSchema = z.object({
@@ -126,7 +132,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, unidade_id")
+          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, unidade_id, campanha_id")
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
@@ -175,6 +181,49 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               { error: "disponibilidade_invalida", details: disp.errors },
               { status: 400 },
             );
+          }
+        }
+
+        // Regra de antecedência de retirada (config por campanha) — defesa server-side.
+        if (pedido.tipo === "retirada" && pedido.data_entrega && pedido.campanha_id) {
+          const { data: cfgRow } = await admin
+            .from("app_config")
+            .select("payload")
+            .eq("id", "default")
+            .maybeSingle();
+          const campanhas =
+            (
+              cfgRow?.payload as {
+                campanhas?: Array<{
+                  id: string;
+                  retirada?: { antecedencia?: RegraAntecedenciaRetirada };
+                }>;
+              } | null
+            )?.campanhas ?? [];
+          const regra = campanhas.find((c) => c.id === pedido.campanha_id)?.retirada
+            ?.antecedencia;
+          if (regra) {
+            const agoraSP = nowSP();
+            const hojeISO = todayISOSP(agoraSP);
+            const amanhaISO = amanhaISOSP(agoraSP);
+            const minutosAgoraSP = minutosDoDiaSP();
+            const dataISO = String(pedido.data_entrega).slice(0, 10);
+            const erros: string[] = [];
+            if (dataRetiradaBloqueada(dataISO, hojeISO, regra)) {
+              erros.push("Retirada não disponível para o mesmo dia.");
+            }
+            if (
+              pedido.horario &&
+              horarioRetiradaBloqueado(pedido.horario, dataISO, { minutosAgoraSP, amanhaISO }, regra)
+            ) {
+              erros.push("Horário de retirada indisponível para a data selecionada.");
+            }
+            if (erros.length > 0) {
+              return Response.json(
+                { error: "disponibilidade_invalida", details: erros },
+                { status: 400 },
+              );
+            }
           }
         }
 

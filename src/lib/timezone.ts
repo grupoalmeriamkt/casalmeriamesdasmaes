@@ -27,6 +27,23 @@ export function startOfDaySP(isoDate: string): Date {
   return new Date(`${isoDate}T00:00:00-03:00`);
 }
 
+/** Minutos desde a meia-noite (hora*60 + minuto) no fuso de São Paulo. */
+export function minutosDoDiaSP(date: Date = new Date()): number {
+  const parts = fmtParts.formatToParts(date);
+  const p: Record<string, string> = {};
+  for (const x of parts) if (x.type !== "literal") p[x.type] = x.value;
+  return parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10);
+}
+
+/** "YYYY-MM-DD" do dia seguinte no fuso de São Paulo. */
+export function amanhaISOSP(date: Date = new Date()): string {
+  const hoje = todayISOSP(date);
+  // Âncora ao meio-dia SP para não cruzar borda de fuso ao somar 1 dia.
+  const d = new Date(`${hoje}T12:00:00-03:00`);
+  d.setDate(d.getDate() + 1);
+  return fmtDate.format(d);
+}
+
 /** Fim do dia em SP. */
 export function endOfDaySP(isoDate: string): Date {
   return new Date(`${isoDate}T23:59:59.999-03:00`);
