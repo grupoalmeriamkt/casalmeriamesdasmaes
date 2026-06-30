@@ -547,6 +547,9 @@ export function Quiz({
             </div>
 
             {(() => {
+              // Badge de prazo do Passo 1: badge manual da campanha (override) →
+              // senão derivado de "Data limite para encomendas" (dataLimitePedidos).
+              // Sem badge manual e sem data definida, não exibe nada (evita texto global defasado).
               const prazo = textosCampanha?.passo1Badge
                 ? textosCampanha.passo1Badge
                 : campanhaAtiva?.dataLimitePedidos
@@ -554,7 +557,7 @@ export function Quiz({
                       const d = new Date(campanhaAtiva.dataLimitePedidos.slice(0, 10) + "T12:00:00");
                       return `Encomendas encerram ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}`;
                     })()
-                  : (textos.badgePrazo || null);
+                  : null;
               return prazo ? <div className="tag-prazo">{prazo}</div> : null;
             })()}
 
