@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, type FormEvent } from "react";
 import {
   listarPedidosPorToken,
   editarPedidoPorToken,
@@ -52,6 +52,7 @@ import {
   OperacaoGrupoExecucao,
 } from "@/components/operacao/OperacaoPedidoCard";
 import { useAdmin } from "@/store/admin";
+import { SignInPage } from "@/components/admin/SignInPage";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -174,10 +175,6 @@ function CozinhaPage() {
     }[]
   >([]);
 
-  // login form
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginSenha, setLoginSenha] = useState("");
-  const [loginErro, setLoginErro] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
   // som
@@ -338,41 +335,38 @@ function CozinhaPage() {
   }
 
   if (!user) {
+    const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const form = new FormData(e.currentTarget);
+      const email = String(form.get("email") ?? "").trim();
+      const password = String(form.get("password") ?? "");
+      if (!email || !password) {
+        toast.error("Preencha e-mail e senha.");
+        return;
+      }
+      setLoginLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoginLoading(false);
+      if (error) {
+        toast.error("Falha no login", {
+          description:
+            error.message === "Invalid login credentials"
+              ? "E-mail ou senha incorretos."
+              : error.message,
+        });
+      }
+    };
+
     return (
-      <div className="flex min-h-screen items-center justify-center bg-linen p-6">
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setLoginErro("");
-            const email = loginEmail.trim();
-            if (!email || !loginSenha) { setLoginErro("Preencha email e senha."); return; }
-            setLoginLoading(true);
-            const { error } = await supabase.auth.signInWithPassword({ email, password: loginSenha });
-            setLoginLoading(false);
-            if (error) setLoginErro("Email ou senha incorretos.");
-          }}
-          className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 ring-1 ring-border"
-        >
-          <h1 className="font-serif text-xl font-bold text-charcoal">Acesso restrito</h1>
-          <p className="text-xs text-muted-foreground">Faça login para visualizar os pedidos.</p>
-          <input type="email" value={loginEmail}
-            onChange={(e) => { setLoginEmail(e.target.value); setLoginErro(""); }}
-            autoComplete="email" autoFocus
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            placeholder="E-mail" required />
-          <input type="password" value={loginSenha}
-            onChange={(e) => { setLoginSenha(e.target.value); setLoginErro(""); }}
-            autoComplete="current-password"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            placeholder="Senha" required />
-          {loginErro && <p className="text-xs text-terracotta">{loginErro}</p>}
-          <Button type="submit" disabled={loginLoading}
-            className="w-full bg-charcoal text-white hover:bg-charcoal/90">
-            {loginLoading ? "Entrando…" : "Entrar"}
-          </Button>
-        </form>
+      <>
+        <SignInPage
+          heroImageSrc="/img_casa_fachada.jpeg"
+          description="Central de Pedidos"
+          loading={loginLoading}
+          onSignIn={handleSignIn}
+        />
         <Toaster position="bottom-right" />
-      </div>
+      </>
     );
   }
 
