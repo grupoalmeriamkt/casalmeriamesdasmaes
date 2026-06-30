@@ -7,6 +7,8 @@ import {
   rowToPedidoOperacional,
   conciliarPagamentosAsaas,
   excluirPedido,
+  arquivarPedidos,
+  desarquivarPedidos,
   type PedidoRow,
 } from "@/lib/pedidos";
 import { buscarInfoToken } from "@/lib/shareToken";
@@ -30,6 +32,8 @@ import {
   Pencil,
   AlertTriangle,
   Trash2,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -157,6 +161,7 @@ function CozinhaPage() {
   const [filtroInicio, setFiltroInicio] = useState("");
   const [filtroFim, setFiltroFim] = useState("");
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
+  const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filtrosOps, setFiltrosOps] = useState<FiltrosOperacionais>(() =>
     operacaoEnabled
@@ -182,6 +187,8 @@ function CozinhaPage() {
   const [confirmExcluirLote, setConfirmExcluirLote] = useState(false);
   const [confirmaTextoExcluir, setConfirmaTextoExcluir] = useState("");
   const [excluirLoteLoading, setExcluirLoteLoading] = useState(false);
+  const [confirmArquivarLote, setConfirmArquivarLote] = useState(false);
+  const [arquivarLoteLoading, setArquivarLoteLoading] = useState(false);
 
   // som
   const [somAtivo, setSomAtivo] = useState(false);
@@ -306,7 +313,9 @@ function CozinhaPage() {
   );
 
   const pedidosFiltrados = useMemo(() => {
+    const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
     const filtered = pedidos.filter((p) => {
+      if (!mostrarArq && p.archivedAt) return false;
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroData && p.data !== filtroData) return false;
@@ -321,7 +330,7 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, filtroStatus, filtroTipo, filtroData, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroData, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
 
   const listaVisivel = useMemo(
     () => (operacaoEnabled && view === "lista" ? pedidosOpsFiltrados : pedidosFiltrados),
@@ -337,6 +346,18 @@ function CozinhaPage() {
     () => pedidosSelecionados.filter((p) => getStatus(p) === "aprovado"),
     [pedidosSelecionados],
   );
+
+  const selecionadosArquivados = useMemo(
+    () => pedidosSelecionados.filter((p) => !!p.archivedAt),
+    [pedidosSelecionados],
+  );
+
+  const selecionadosNaoArquivados = useMemo(
+    () => pedidosSelecionados.filter((p) => !p.archivedAt),
+    [pedidosSelecionados],
+  );
+
+  const mostrarArquivadosAtivo = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
@@ -635,6 +656,64 @@ function CozinhaPage() {
     }
   };
 
+  const arquivarSelecionados = async () => {
+    const ids = selecionadosNaoArquivados.map((p) => p.id);
+    if (ids.length === 0) return;
+    setArquivarLoteLoading(true);
+    const res = await arquivarPedidos(ids);
+    setArquivarLoteLoading(false);
+    setConfirmArquivarLote(false);
+    setSelectedIds(new Set());
+
+    if (!res.ok) {
+      toast.error("Erro ao arquivar", { description: res.error });
+      return;
+    }
+
+    const agora = new Date().toISOString();
+    const arquivados = new Set(ids);
+    setPedidos((prev) =>
+      prev.map((p) => (arquivados.has(p.id) ? { ...p, archivedAt: agora } : p)),
+    );
+    setPedidosOps((prev) =>
+      prev.map((p) => (arquivados.has(p.id) ? { ...p, archivedAt: agora } : p)),
+    );
+    setRawRows((prev) =>
+      prev.map((r) => (arquivados.has(r.id) ? { ...r, archived_at: agora } : r)),
+    );
+    toast.success(
+      `${res.arquivados ?? ids.length} pedido${(res.arquivados ?? ids.length) !== 1 ? "s" : ""} arquivado${(res.arquivados ?? ids.length) !== 1 ? "s" : ""}.`,
+    );
+  };
+
+  const desarquivarSelecionados = async () => {
+    const ids = selecionadosArquivados.map((p) => p.id);
+    if (ids.length === 0) return;
+    setArquivarLoteLoading(true);
+    const res = await desarquivarPedidos(ids);
+    setArquivarLoteLoading(false);
+    setSelectedIds(new Set());
+
+    if (!res.ok) {
+      toast.error("Erro ao desarquivar", { description: res.error });
+      return;
+    }
+
+    const desarquivados = new Set(ids);
+    setPedidos((prev) =>
+      prev.map((p) => (desarquivados.has(p.id) ? { ...p, archivedAt: null } : p)),
+    );
+    setPedidosOps((prev) =>
+      prev.map((p) => (desarquivados.has(p.id) ? { ...p, archivedAt: null } : p)),
+    );
+    setRawRows((prev) =>
+      prev.map((r) => (desarquivados.has(r.id) ? { ...r, archived_at: null, archived_by: null } : r)),
+    );
+    toast.success(
+      `${res.desarquivados ?? ids.length} pedido${(res.desarquivados ?? ids.length) !== 1 ? "s" : ""} restaurado${(res.desarquivados ?? ids.length) !== 1 ? "s" : ""}.`,
+    );
+  };
+
   const temFiltro =
     filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
     filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "";
@@ -789,6 +868,17 @@ function CozinhaPage() {
               >
                 📸 Polaroid
               </button>
+              {!operacaoEnabled && (
+                <label className="flex items-center gap-1.5 text-xs text-charcoal">
+                  <input
+                    type="checkbox"
+                    checked={mostrarArquivados}
+                    onChange={(e) => setMostrarArquivados(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  Mostrar arquivados
+                </label>
+              )}
               <div className="ml-auto flex items-center gap-3">
                 <span className="text-xs text-muted-foreground">
                   {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? "s" : ""}
@@ -1102,6 +1192,25 @@ function CozinhaPage() {
           >
             ⬇ Exportar Excel
           </button>
+          {selecionadosNaoArquivados.length > 0 && (
+            <button
+              onClick={() => setConfirmArquivarLote(true)}
+              className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 text-xs hover:bg-white/25"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              Arquivar
+            </button>
+          )}
+          {mostrarArquivadosAtivo && selecionadosArquivados.length > 0 && (
+            <button
+              onClick={() => void desarquivarSelecionados()}
+              disabled={arquivarLoteLoading}
+              className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 text-xs hover:bg-white/25 disabled:opacity-50"
+            >
+              <ArchiveRestore className="h-3.5 w-3.5" />
+              Desarquivar
+            </button>
+          )}
           <button
             onClick={() => {
               setConfirmaTextoExcluir("");
@@ -1120,6 +1229,43 @@ function CozinhaPage() {
           </button>
         </div>
       )}
+
+      {/* Confirmação arquivamento em lote */}
+      <Dialog
+        open={confirmArquivarLote}
+        onOpenChange={(o) => {
+          if (!o && !arquivarLoteLoading) setConfirmArquivarLote(false);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Arquivar {selecionadosNaoArquivados.length} pedido
+              {selecionadosNaoArquivados.length !== 1 ? "s" : ""}?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <p className="text-muted-foreground">
+              Os pedidos saem da lista principal, mas permanecem no banco. Você pode recuperá-los
+              marcando <strong>Mostrar arquivados</strong>.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmArquivarLote(false)}
+                disabled={arquivarLoteLoading}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={() => void arquivarSelecionados()} disabled={arquivarLoteLoading}>
+                {arquivarLoteLoading
+                  ? "Arquivando…"
+                  : `Arquivar ${selecionadosNaoArquivados.length} pedido${selecionadosNaoArquivados.length !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmação exclusão em lote */}
       <Dialog
@@ -1397,6 +1543,11 @@ function PedidoCard({
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CONFIG[s].bg}`}>
               {STATUS_CONFIG[s].label}
             </span>
+            {p.archivedAt && (
+              <span className="rounded-full bg-charcoal/10 px-2 py-0.5 text-xs font-semibold text-charcoal">
+                Arquivado
+              </span>
+            )}
             <span className="font-mono text-xs font-bold text-charcoal">#{p.id.slice(-6).toUpperCase()}</span>
             <span className="text-xs text-muted-foreground">
               {new Date(p.criadoEm).toLocaleString("pt-BR")}

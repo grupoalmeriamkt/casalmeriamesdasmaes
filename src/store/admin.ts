@@ -287,6 +287,7 @@ export type PedidoSalvo = {
     desconto?: number | null;
   };
   total: number;
+  archivedAt?: string | null;
 };
 
 export type CestaAdmin = Cesta & {

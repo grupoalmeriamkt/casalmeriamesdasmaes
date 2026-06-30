@@ -248,6 +248,48 @@ export async function excluirPedido(id: string): Promise<{ ok: boolean; error?: 
   }
 }
 
+/** Arquiva pedidos selecionados (soft delete). Requer admin autenticado. */
+export async function arquivarPedidos(
+  ids: string[],
+): Promise<{ ok: boolean; arquivados?: number; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "arquivar", ids }),
+    });
+    const json = (await res.json()) as { ok?: boolean; arquivados?: number; error?: string };
+    return res.ok
+      ? { ok: true, arquivados: json.arquivados ?? ids.length }
+      : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Restaura pedidos arquivados. Requer admin autenticado. */
+export async function desarquivarPedidos(
+  ids: string[],
+): Promise<{ ok: boolean; desarquivados?: number; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "desarquivar", ids }),
+    });
+    const json = (await res.json()) as { ok?: boolean; desarquivados?: number; error?: string };
+    return res.ok
+      ? { ok: true, desarquivados: json.desarquivados ?? ids.length }
+      : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
 /** Edita campos de um pedido via token público (link compartilhado). */
 export async function editarPedidoPorToken(
   token: string,
@@ -300,6 +342,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
       status: rel?.status ?? r.pagamento?.status ?? r.status ?? "",
     },
     total: Number(r.total),
+    archivedAt: r.archived_at ?? null,
   };
 }
 

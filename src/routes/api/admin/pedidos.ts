@@ -5,6 +5,14 @@ import { getAdminClient } from "@/integrations/supabase/client.server";
 const BodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancelar"), id: z.string().uuid() }),
   z.object({ action: z.literal("excluir"), id: z.string().uuid() }),
+  z.object({
+    action: z.literal("arquivar"),
+    ids: z.array(z.string().uuid()).min(1).max(200),
+  }),
+  z.object({
+    action: z.literal("desarquivar"),
+    ids: z.array(z.string().uuid()).min(1).max(200),
+  }),
 ]);
 
 async function authenticate(request: Request) {
@@ -37,9 +45,10 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           return Response.json({ error: "invalid_body" }, { status: 400 });
         }
 
-        const { action, id } = parsed.data;
+        const { action } = parsed.data;
 
         if (action === "cancelar") {
+          const { id } = parsed.data;
           const { error } = await auth.admin
             .from("pedidos")
             .update({ status: "cancelado" })
@@ -52,6 +61,7 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         }
 
         if (action === "excluir") {
+          const { id } = parsed.data;
           // Pagamentos são excluídos em cascata pelo FK (ON DELETE CASCADE)
           const { error } = await auth.admin.from("pedidos").delete().eq("id", id);
           if (error) {
@@ -59,6 +69,37 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             return Response.json({ error: error.message }, { status: 500 });
           }
           return Response.json({ ok: true });
+        }
+
+        if (action === "arquivar") {
+          const { ids } = parsed.data;
+          const archivedBy = auth.user.email ?? auth.user.id;
+          const { data, error } = await auth.admin
+            .from("pedidos")
+            .update({ archived_at: new Date().toISOString(), archived_by: archivedBy })
+            .in("id", ids)
+            .is("archived_at", null)
+            .select("id");
+          if (error) {
+            console.error("[admin/pedidos] arquivar error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true, arquivados: data?.length ?? 0 });
+        }
+
+        if (action === "desarquivar") {
+          const { ids } = parsed.data;
+          const { data, error } = await auth.admin
+            .from("pedidos")
+            .update({ archived_at: null, archived_by: null })
+            .in("id", ids)
+            .not("archived_at", "is", null)
+            .select("id");
+          if (error) {
+            console.error("[admin/pedidos] desarquivar error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true, desarquivados: data?.length ?? 0 });
         }
 
         return Response.json({ error: "unknown_action" }, { status: 400 });
