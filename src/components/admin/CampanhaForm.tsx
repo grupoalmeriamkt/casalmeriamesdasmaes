@@ -868,6 +868,61 @@ function DeliveryTab({
         />
       </Bloco>
 
+      <Bloco titulo="Regra de antecedência (Delivery)">
+        <ToggleLinha
+          label="Bloquear mesmo dia e aplicar corte por horário"
+          checked={!!d.antecedencia}
+          onChange={(v) =>
+            onPatch({ antecedencia: v ? REGRA_RETIRADA_PADRAO : undefined })
+          }
+        />
+        {d.antecedencia && (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Sem entrega no mesmo dia (a primeira data passa a ser o dia seguinte).
+              Pedidos feitos após a <strong>hora de corte</strong> só liberam o dia
+              seguinte a partir da <strong>hora da tarde</strong> — as janelas da manhã
+              ficam indisponíveis. Pedidos até a hora de corte liberam o dia seguinte
+              inteiro, inclusive de manhã.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Hora de corte (0–23h)">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={d.antecedencia.corteHora}
+                  onChange={(e) =>
+                    onPatch({
+                      antecedencia: {
+                        ...d.antecedencia!,
+                        corteHora: Math.min(23, Math.max(0, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Dia seguinte liberado a partir de (0–23h)">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={d.antecedencia.inicioTardeHora}
+                  onChange={(e) =>
+                    onPatch({
+                      antecedencia: {
+                        ...d.antecedencia!,
+                        inicioTardeHora: Math.min(23, Math.max(0, Number(e.target.value) || 0)),
+                      },
+                    })
+                  }
+                />
+              </Field>
+            </div>
+          </>
+        )}
+      </Bloco>
+
       {/* Upsell agora vive em "Informações Gerais" — único e aplicado a delivery + retirada. */}
     </div>
   );

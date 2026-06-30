@@ -168,32 +168,30 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // data_entrega é gravado como rótulo PT-BR; converte para ISO p/ as validações.
         const dataEntregaISO = dataEntregaParaISO(pedido.data_entrega);
 
-        // Carrega a campanha do pedido uma vez: horários configurados + regra de retirada.
+        // Carrega a campanha do pedido uma vez: horários configurados + regra de antecedência
+        // (delivery ou retirada, conforme o tipo do pedido).
+        const isDelivery = pedido.tipo === "delivery";
         let horariosCampanha: string[] | undefined;
-        let regraRetirada: RegraAntecedenciaRetirada | undefined;
+        let regraAntecedencia: RegraAntecedenciaRetirada | undefined;
         if (pedido.campanha_id) {
           const { data: cfgRow } = await admin
             .from("app_config")
             .select("payload")
             .eq("id", "default")
             .maybeSingle();
+          type CampModo = {
+            horarios?: { label: string; ativo: boolean }[];
+            antecedencia?: RegraAntecedenciaRetirada;
+          };
           const camp = (
             cfgRow?.payload as {
-              campanhas?: Array<{
-                id: string;
-                delivery?: { horarios?: { label: string; ativo: boolean }[] };
-                retirada?: {
-                  horarios?: { label: string; ativo: boolean }[];
-                  antecedencia?: RegraAntecedenciaRetirada;
-                };
-              }>;
+              campanhas?: Array<{ id: string; delivery?: CampModo; retirada?: CampModo }>;
             } | null
           )?.campanhas?.find((c) => c.id === pedido.campanha_id);
-          const cfgHorarios =
-            pedido.tipo === "delivery" ? camp?.delivery?.horarios : camp?.retirada?.horarios;
-          const labels = (cfgHorarios ?? []).filter((h) => h.ativo).map((h) => h.label);
+          const modo = isDelivery ? camp?.delivery : camp?.retirada;
+          const labels = (modo?.horarios ?? []).filter((h) => h.ativo).map((h) => h.label);
           horariosCampanha = labels.length > 0 ? labels : undefined;
-          regraRetirada = camp?.retirada?.antecedencia;
+          regraAntecedencia = modo?.antecedencia;
         }
 
         if (carrinhoItens.length > 0 && pedido.data_entrega) {
@@ -225,31 +223,33 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           }
         }
 
-        // Regra de antecedência de retirada (config por campanha) — defesa server-side.
-        if (pedido.tipo === "retirada" && dataEntregaISO && regraRetirada) {
-          {
-            const regra = regraRetirada;
-            const agoraSP = nowSP();
-            const hojeISO = todayISOSP(agoraSP);
-            const amanhaISO = amanhaISOSP(agoraSP);
-            const minutosAgoraSP = minutosDoDiaSP();
-            const dataISO = dataEntregaISO;
-            const erros: string[] = [];
-            if (dataRetiradaBloqueada(dataISO, hojeISO, regra)) {
-              erros.push("Retirada não disponível para o mesmo dia.");
-            }
-            if (
-              pedido.horario &&
-              horarioRetiradaBloqueado(pedido.horario, dataISO, { minutosAgoraSP, amanhaISO }, regra)
-            ) {
-              erros.push("Horário de retirada indisponível para a data selecionada.");
-            }
-            if (erros.length > 0) {
-              return Response.json(
-                { error: "disponibilidade_invalida", details: erros },
-                { status: 400 },
-              );
-            }
+        // Regra de antecedência (config por campanha, delivery ou retirada) — defesa server-side.
+        if (dataEntregaISO && regraAntecedencia) {
+          const modoLabel = isDelivery ? "Entrega" : "Retirada";
+          const agoraSP = nowSP();
+          const hojeISO = todayISOSP(agoraSP);
+          const amanhaISO = amanhaISOSP(agoraSP);
+          const minutosAgoraSP = minutosDoDiaSP();
+          const erros: string[] = [];
+          if (dataRetiradaBloqueada(dataEntregaISO, hojeISO, regraAntecedencia)) {
+            erros.push(`${modoLabel} não disponível para o mesmo dia.`);
+          }
+          if (
+            pedido.horario &&
+            horarioRetiradaBloqueado(
+              pedido.horario,
+              dataEntregaISO,
+              { minutosAgoraSP, amanhaISO },
+              regraAntecedencia,
+            )
+          ) {
+            erros.push(`Horário de ${modoLabel.toLowerCase()} indisponível para a data selecionada.`);
+          }
+          if (erros.length > 0) {
+            return Response.json(
+              { error: "disponibilidade_invalida", details: erros },
+              { status: 400 },
+            );
           }
         }
 

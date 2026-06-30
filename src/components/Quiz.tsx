@@ -129,10 +129,14 @@ export function Quiz({
   const textosGlobais = useAdmin((s) => s.textos);
   const campanhaAtiva = useCampanhaAtiva();
 
-  // Filtro de datas/horários: passado + regra de antecedência de retirada.
+  // Filtro de datas/horários: passado + regra de antecedência (retirada e/ou delivery).
   // Tudo em horário de São Paulo (não do dispositivo do cliente).
   const regraRetirada =
-    entregaTipo === "retirada" ? campanhaAtiva?.retirada?.antecedencia : undefined;
+    entregaTipo === "retirada"
+      ? campanhaAtiva?.retirada?.antecedencia
+      : entregaTipo === "delivery"
+        ? campanhaAtiva?.delivery?.antecedencia
+        : undefined;
   const agoraSP = nowSP();
   const hojeISO = todayISOSP(agoraSP);
   const amanhaISO = amanhaISOSP(agoraSP);

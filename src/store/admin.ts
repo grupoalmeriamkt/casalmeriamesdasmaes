@@ -136,6 +136,8 @@ export type CampanhaDelivery = {
   centroLng?: number;
   zonas?: ConfigZonasEntrega;
   todosDias?: boolean;
+  /** Regra de antecedência (mesmo dia bloqueado + corte por horário). undefined = desligada. */
+  antecedencia?: { corteHora: number; inicioTardeHora: number };
 };
 
 export type CampanhaRetirada = {
