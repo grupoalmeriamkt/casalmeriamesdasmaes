@@ -132,7 +132,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, unidade_id, campanha_id")
+          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, campanha_id")
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
@@ -170,7 +170,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             {
               itens: carrinhoItens,
               fulfillmentMode: (pedido.tipo as "delivery" | "retirada") ?? "retirada",
-              unidadeId: pedido.unidade_id ?? undefined,
+              unidadeId: undefined,
               candidateDate: String(pedido.data_entrega).slice(0, 10),
               candidateHorario: pedido.horario ?? undefined,
             },
