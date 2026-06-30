@@ -601,7 +601,7 @@ export function Quiz({
                     )}
                     <div className="aspect-[16/10] w-full overflow-hidden">
                       <img
-                        src={c.imagem}
+                        src={tamSelecionado?.imagem || c.imagem}
                         alt={c.nome}
                         loading="lazy"
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -1611,7 +1611,10 @@ export function Quiz({
             {/* ── Coluna imagem ── */}
             <div className="relative aspect-[16/10] w-full flex-none overflow-hidden sm:aspect-auto sm:w-[42%]">
               <img
-                src={detalhe.imagem}
+                src={
+                  detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.imagem ||
+                  detalhe.imagem
+                }
                 alt={detalhe.nome}
                 className="h-full w-full object-cover"
               />
@@ -1696,16 +1699,25 @@ export function Quiz({
               )}
 
               {/* Itens — 2 colunas no desktop para economizar altura */}
-              {detalhe.itens.length > 0 && (
-                <ul className="mt-3 grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
-                  {detalhe.itens.map((i) => (
-                    <li key={i} className="flex items-start gap-2 border-b border-charcoal/5 pb-1.5 text-xs text-ink sm:text-sm">
-                      <span className="mt-1 block h-1.5 w-1.5 flex-none rounded-full bg-terracotta" />
-                      <span>{i}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {(() => {
+                const tamSelModal = detalhe.tamanhos?.find((t) => t.id === modalTamanhoId);
+                const itensExibidos =
+                  tamSelModal?.itens && tamSelModal.itens.length > 0
+                    ? tamSelModal.itens
+                    : detalhe.itens;
+                return (
+                  itensExibidos.length > 0 && (
+                    <ul className="mt-3 grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
+                      {itensExibidos.map((i) => (
+                        <li key={i} className="flex items-start gap-2 border-b border-charcoal/5 pb-1.5 text-xs text-ink sm:text-sm">
+                          <span className="mt-1 block h-1.5 w-1.5 flex-none rounded-full bg-terracotta" />
+                          <span>{i}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                );
+              })()}
 
               {/* Espaçador para empurrar quantidade + botão para o fundo no desktop */}
               <div className="flex-1" />

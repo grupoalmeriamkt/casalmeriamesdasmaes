@@ -5,6 +5,8 @@ export type TamanhoVariante = {
   fatias?: number;
   peso?: string;
   preco: number;
+  itens?: string[];
+  imagem?: string;
 };
 
 export type Cesta = {
