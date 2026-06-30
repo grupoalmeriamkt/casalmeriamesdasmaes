@@ -717,14 +717,18 @@ function CozinhaPage() {
     filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
     filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "";
 
+  const planilhaLayout = view === "planilha";
+  const shellClass = planilhaLayout ? "w-full" : "mx-auto max-w-6xl";
+  const padX = planilhaLayout ? "px-2 sm:px-3" : "px-4 sm:px-6";
+
   // ── View ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-linen">
-      <div className="print:hidden">
+    <div className={planilhaLayout ? "flex min-h-dvh flex-col bg-linen" : "min-h-screen bg-linen"}>
+      <div className={planilhaLayout ? "flex min-h-0 flex-1 flex-col print:hidden" : "print:hidden"}>
 
         {/* Header */}
-        <header className="bg-charcoal text-white">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+        <header className="shrink-0 bg-charcoal text-white">
+          <div className={`${shellClass} flex flex-wrap items-center justify-between gap-3 py-3 ${padX}`}>
             <div>
               <h1 className="font-serif text-xl font-bold">
                 {campanhaInfo?.nome
@@ -818,8 +822,8 @@ function CozinhaPage() {
         </header>
 
         {/* Filtros */}
-        <div className="border-b border-border bg-white">
-          <div className="mx-auto max-w-6xl space-y-2 px-4 py-3 sm:px-6">
+        <div className={`shrink-0 border-b border-border bg-white ${planilhaLayout ? "" : ""}`}>
+          <div className={`${shellClass} space-y-2 py-2 ${padX} ${planilhaLayout ? "space-y-1.5" : "py-3"}`}>
 
             {operacaoEnabled && pendencias.length > 0 && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
@@ -844,13 +848,15 @@ function CozinhaPage() {
             )}
 
             {/* Linha 1: busca + data entrega + polaroid + contagem */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className={`flex flex-wrap items-center gap-2 ${planilhaLayout ? "gap-1.5" : ""}`}>
               <input
                 type="search"
                 placeholder="🔍 Buscar por nome, telefone…"
                 value={filtroTexto}
                 onChange={(e) => setFiltroTexto(e.target.value)}
-                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-1 focus:ring-charcoal/30"
+                className={`rounded-lg border border-border bg-background py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-charcoal/30 ${
+                  planilhaLayout ? "min-w-[10rem] flex-1 sm:max-w-xs" : "w-56 px-3"
+                } px-3`}
               />
               <div className="flex items-center gap-1.5">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">Entrega:</label>
@@ -866,14 +872,16 @@ function CozinhaPage() {
                   </button>
                 )}
               </div>
-              <button
-                onClick={() => setFiltroPolaroid((v) => !v)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                  filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
-                }`}
-              >
-                📸 Polaroid
-              </button>
+              {!planilhaLayout && (
+                <button
+                  onClick={() => setFiltroPolaroid((v) => !v)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                    filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                  }`}
+                >
+                  📸 Polaroid
+                </button>
+              )}
               {!operacaoEnabled && (
                 <label className="flex items-center gap-1.5 text-xs text-charcoal">
                   <input
@@ -910,16 +918,16 @@ function CozinhaPage() {
               </div>
             </div>
 
-            {/* Linha 2: status + tipo */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              <div className="flex flex-wrap gap-1.5">
+            {/* Linha 2: status + tipo + período (compacto na planilha) */}
+            <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 ${planilhaLayout ? "gap-y-1" : ""}`}>
+              <div className="flex flex-wrap gap-1">
                 {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((s) => {
                   const active = filtroStatus.includes(s);
                   return (
                     <button
                       key={s}
                       onClick={() => toggleStatus(s)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:px-3 sm:py-1 sm:text-xs ${
                         active ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
                       }`}
                     >
@@ -929,20 +937,38 @@ function CozinhaPage() {
                   );
                 })}
               </div>
-              <div className="h-3 w-px bg-border" />
-              <div className="flex gap-1.5">
+              <div className="hidden h-3 w-px bg-border sm:block" />
+              <div className="flex flex-wrap gap-1">
                 {(["", "delivery", "retirada"] as const).map((t) => (
                   <button
                     key={t || "todos"}
                     onClick={() => setFiltroTipo(t)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors capitalize ${
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors capitalize sm:px-3 sm:py-1 sm:text-xs ${
                       filtroTipo === t ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
                     }`}
                   >
-                    {t === "" ? "Todos os tipos" : labelTipoPedido(t)}
+                    {t === "" ? "Todos" : labelTipoPedido(t)}
                   </button>
                 ))}
               </div>
+              {planilhaLayout && (
+                <>
+                  <div className="hidden h-3 w-px bg-border md:block" />
+                  <div className="flex flex-wrap items-center gap-1">
+                    {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:text-xs ${
+                          filtroPeriodo === p ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                        }`}
+                      >
+                        {{ hoje: "Hoje", ontem: "Ontem", semana: "Semana", mes: "Mês" }[p]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {operacaoEnabled && (
@@ -954,7 +980,7 @@ function CozinhaPage() {
               />
             )}
 
-            {/* Linha 3: período recebido */}
+            {!planilhaLayout && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
               {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
@@ -991,11 +1017,18 @@ function CozinhaPage() {
                 </button>
               )}
             </div>
+            )}
           </div>
         </div>
 
         {/* Conteúdo */}
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <main
+          className={
+            planilhaLayout
+              ? `flex min-h-0 flex-1 flex-col pb-2 pt-2 ${padX}`
+              : "mx-auto max-w-6xl px-4 py-6 sm:px-6"
+          }
+        >
           {carregando && pedidos.length === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">Carregando pedidos…</p>
           ) : pedidosFiltrados.length === 0 ? (
@@ -1004,6 +1037,7 @@ function CozinhaPage() {
             </p>
           ) : view === "planilha" ? (
             <EncomendasTable
+              fillViewport
               linhas={linhasEncomenda}
               selectedIds={selectedIds}
               locaisOpcoes={locaisOpcoes}
