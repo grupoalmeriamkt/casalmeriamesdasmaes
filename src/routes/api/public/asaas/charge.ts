@@ -168,6 +168,34 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // data_entrega é gravado como rótulo PT-BR; converte para ISO p/ as validações.
         const dataEntregaISO = dataEntregaParaISO(pedido.data_entrega);
 
+        // Carrega a campanha do pedido uma vez: horários configurados + regra de retirada.
+        let horariosCampanha: string[] | undefined;
+        let regraRetirada: RegraAntecedenciaRetirada | undefined;
+        if (pedido.campanha_id) {
+          const { data: cfgRow } = await admin
+            .from("app_config")
+            .select("payload")
+            .eq("id", "default")
+            .maybeSingle();
+          const camp = (
+            cfgRow?.payload as {
+              campanhas?: Array<{
+                id: string;
+                delivery?: { horarios?: { label: string; ativo: boolean }[] };
+                retirada?: {
+                  horarios?: { label: string; ativo: boolean }[];
+                  antecedencia?: RegraAntecedenciaRetirada;
+                };
+              }>;
+            } | null
+          )?.campanhas?.find((c) => c.id === pedido.campanha_id);
+          const cfgHorarios =
+            pedido.tipo === "delivery" ? camp?.delivery?.horarios : camp?.retirada?.horarios;
+          const labels = (cfgHorarios ?? []).filter((h) => h.ativo).map((h) => h.label);
+          horariosCampanha = labels.length > 0 ? labels : undefined;
+          regraRetirada = camp?.retirada?.antecedencia;
+        }
+
         if (carrinhoItens.length > 0 && pedido.data_entrega) {
           const ids = carrinhoItens.map((i) => i.produto_id);
           const { data: regrasDb } = await admin
@@ -187,6 +215,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               candidateHorario: pedido.horario ?? undefined,
             },
             dbMap,
+            horariosCampanha,
           );
           if (!disp.valid) {
             return Response.json(
@@ -197,24 +226,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         }
 
         // Regra de antecedência de retirada (config por campanha) — defesa server-side.
-        if (pedido.tipo === "retirada" && dataEntregaISO && pedido.campanha_id) {
-          const { data: cfgRow } = await admin
-            .from("app_config")
-            .select("payload")
-            .eq("id", "default")
-            .maybeSingle();
-          const campanhas =
-            (
-              cfgRow?.payload as {
-                campanhas?: Array<{
-                  id: string;
-                  retirada?: { antecedencia?: RegraAntecedenciaRetirada };
-                }>;
-              } | null
-            )?.campanhas ?? [];
-          const regra = campanhas.find((c) => c.id === pedido.campanha_id)?.retirada
-            ?.antecedencia;
-          if (regra) {
+        if (pedido.tipo === "retirada" && dataEntregaISO && regraRetirada) {
+          {
+            const regra = regraRetirada;
             const agoraSP = nowSP();
             const hojeISO = todayISOSP(agoraSP);
             const amanhaISO = amanhaISOSP(agoraSP);
