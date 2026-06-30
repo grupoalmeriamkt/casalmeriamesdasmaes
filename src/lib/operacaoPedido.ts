@@ -144,7 +144,7 @@ export function filtrarPedidosOperacionais(
     });
   }
 
-  const ord = f.ordenacao ?? "execution_asc";
+  const ord = f.ordenacao ?? "criado_desc";
   list.sort((a, b) => {
     if (ord === "execution_asc" || ord === "execution_desc") {
       const ta = a.executionAt ? new Date(a.executionAt).getTime() : Infinity;
@@ -170,6 +170,12 @@ export function contarAprovadosOperacionais(pedidos: PedidoOperacional[]): numbe
   ).length;
 }
 
+export function sortPedidosPorCriadoDesc<T extends { criadoEm: string }>(list: T[]): T[] {
+  return [...list].sort(
+    (a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime(),
+  );
+}
+
 export function agruparPorExecucao(pedidos: PedidoOperacional[]) {
   const grupos = new Map<string, PedidoOperacional[]>();
   for (const p of pedidos) {
@@ -177,7 +183,9 @@ export function agruparPorExecucao(pedidos: PedidoOperacional[]) {
     if (!grupos.has(key)) grupos.set(key, []);
     grupos.get(key)!.push(p);
   }
-  return [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b));
+  return [...grupos.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, items]) => [key, sortPedidosPorCriadoDesc(items)] as const);
 }
 
 export const SETOR_LABEL: Record<ProductionSector, string> = {

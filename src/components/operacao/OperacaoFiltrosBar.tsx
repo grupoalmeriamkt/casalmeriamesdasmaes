@@ -76,7 +76,7 @@ export function OperacaoFiltrosBar({
         />
 
         <select
-          value={filtros.ordenacao ?? "execution_asc"}
+          value={filtros.ordenacao ?? "criado_desc"}
           onChange={(e) =>
             onChange({
               ordenacao: e.target.value as FiltrosOperacionais["ordenacao"],
@@ -84,10 +84,10 @@ export function OperacaoFiltrosBar({
           }
           className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
         >
-          <option value="execution_asc">Execução — mais próxima</option>
-          <option value="execution_desc">Execução — mais distante</option>
           <option value="criado_desc">Criação — mais recente</option>
           <option value="criado_asc">Criação — mais antiga</option>
+          <option value="execution_asc">Execução — mais próxima</option>
+          <option value="execution_desc">Execução — mais distante</option>
         </select>
 
         <label className="flex items-center gap-1.5 text-xs text-charcoal">

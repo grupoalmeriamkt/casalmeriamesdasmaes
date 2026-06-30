@@ -43,6 +43,7 @@ import {
   agruparPorExecucao,
   contarAprovadosOperacionais,
   filtrarPedidosOperacionais,
+  sortPedidosPorCriadoDesc,
   SETOR_LABEL,
   type FiltrosOperacionais,
   type PedidoOperacional,
@@ -163,7 +164,7 @@ function CozinhaPage() {
           status: ["aprovado"],
           mostrarArquivados: false,
           mostrarTestes: false,
-          ordenacao: "execution_asc",
+          ordenacao: "criado_desc",
         }
       : {},
   );
@@ -230,8 +231,8 @@ function CozinhaPage() {
       }
       pedidosIdsRef.current = new Set(rows.map((r) => r.id));
       setRawRows(rows);
-      setPedidos(rows.map(rowToPedidoSalvo));
-      setPedidosOps(rows.map(rowToPedidoOperacional));
+      setPedidos(sortPedidosPorCriadoDesc(rows.map(rowToPedidoSalvo)));
+      setPedidosOps(sortPedidosPorCriadoDesc(rows.map(rowToPedidoOperacional)));
       setUltimaAtualizacao(horaNow());
     } catch {
       // token inválido ou sem permissão
@@ -304,6 +305,24 @@ function CozinhaPage() {
     [operacaoEnabled, pedidosOps],
   );
 
+  const pedidosFiltrados = useMemo(() => {
+    const filtered = pedidos.filter((p) => {
+      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
+      if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
+      if (filtroData && p.data !== filtroData) return false;
+      if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
+      if (filtroTexto) {
+        const q = filtroTexto.toLowerCase();
+        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (filtroInicio && p.criadoEm.slice(0, 10) < filtroInicio) return false;
+      if (filtroFim   && p.criadoEm.slice(0, 10) > filtroFim)     return false;
+      return true;
+    });
+    return sortPedidosPorCriadoDesc(filtered);
+  }, [pedidos, filtroStatus, filtroTipo, filtroData, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+
   const listaVisivel = useMemo(
     () => (operacaoEnabled && view === "lista" ? pedidosOpsFiltrados : pedidosFiltrados),
     [operacaoEnabled, view, pedidosOpsFiltrados, pedidosFiltrados],
@@ -318,23 +337,6 @@ function CozinhaPage() {
     () => pedidosSelecionados.filter((p) => getStatus(p) === "aprovado"),
     [pedidosSelecionados],
   );
-
-  const pedidosFiltrados = useMemo(() => {
-    return pedidos.filter((p) => {
-      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
-      if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
-      if (filtroData && p.data !== filtroData) return false;
-      if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
-      if (filtroTexto) {
-        const q = filtroTexto.toLowerCase();
-        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      if (filtroInicio && p.criadoEm.slice(0, 10) < filtroInicio) return false;
-      if (filtroFim   && p.criadoEm.slice(0, 10) > filtroFim)     return false;
-      return true;
-    });
-  }, [pedidos, filtroStatus, filtroTipo, filtroData, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
