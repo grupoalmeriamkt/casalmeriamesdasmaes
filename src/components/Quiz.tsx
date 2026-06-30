@@ -1624,11 +1624,13 @@ export function Quiz({
           */}
           <div
             className="flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-linen sm:max-w-3xl sm:flex-row sm:rounded-3xl"
-            style={{ maxHeight: "min(90vh, 680px)" }}
+            style={{ maxHeight: "min(90dvh, 700px)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── Coluna imagem ── */}
-            <div className="relative aspect-[16/10] w-full flex-none overflow-hidden sm:aspect-auto sm:w-[42%]">
+            <div className="relative h-40 w-full flex-none overflow-hidden sm:h-auto sm:aspect-auto sm:w-[42%]">
+              {/* Alça do bottom sheet (mobile) */}
+              <div className="absolute left-1/2 top-2.5 z-10 h-1.5 w-10 -translate-x-1/2 rounded-full bg-white/80 shadow-sm sm:hidden" />
               <img
                 src={
                   detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.imagem ||
@@ -1646,8 +1648,11 @@ export function Quiz({
               </button>
             </div>
 
-            {/* ── Coluna conteúdo ── */}
-            <div className="flex flex-1 flex-col overflow-y-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:pb-5">
+            {/* ── Coluna conteúdo ──
+                No mobile a barra fixa de "Adicionar ao pedido" (~80px, z-9999) fica
+                sobre o rodapé do sheet; reservamos folga embaixo para não cobrir os
+                itens/quantidade. dvh evita corte pela barra do navegador. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-5 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 sm:pb-5">
               <span className="inline-block rounded-full bg-olive px-2.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-white">
                 {detalhe.badge}
               </span>
