@@ -2,6 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
 import { pagamentoRelevante } from "@/lib/asaasStatus";
 import { computeExecutionAt } from "@/lib/executionAt";
+import {
+  buildRegrasForItens,
+  resolveProductionSector,
+  type CarrinhoItem,
+} from "@/lib/availability";
 
 export type PagamentoAsaasRow = {
   id: string;
@@ -67,6 +72,19 @@ function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: strin
   const recipientIsBuyer = !p.destinatario;
   const recipientName = p.destinatario?.nome ?? p.cliente.nome;
   const recipientPhone = p.destinatario?.whatsapp ?? p.cliente.whatsapp;
+
+  // Setor de produção derivado dos itens (best-effort, pelo nome do produto).
+  const itensCarrinho: CarrinhoItem[] = [];
+  if (p.cesta?.nome)
+    itensCarrinho.push({ produto_id: p.cesta.nome, produto_tipo: "cesta", nome: p.cesta.nome });
+  for (const s of p.sobremesas ?? [])
+    itensCarrinho.push({ produto_id: s.nome, produto_tipo: "sobremesa", nome: s.nome });
+  const productionSector =
+    (p as { productionSector?: string }).productionSector ??
+    (itensCarrinho.length
+      ? resolveProductionSector(itensCarrinho, buildRegrasForItens(itensCarrinho))
+      : null);
+
   return {
     cliente_nome: p.cliente.nome,
     cliente_whatsapp: p.cliente.whatsapp,
@@ -87,7 +105,7 @@ function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: strin
     recipient_phone: recipientPhone,
     recipient_is_buyer: recipientIsBuyer,
     unidade_id: (p as { unidadeId?: string }).unidadeId ?? null,
-    production_sector: (p as { productionSector?: string }).productionSector ?? null,
+    production_sector: productionSector,
     execution_at: computeExecutionAt(p.data ?? null, p.horario ?? null),
   };
 }

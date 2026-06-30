@@ -82,24 +82,54 @@ CREATE TABLE IF NOT EXISTS conciliacao_eventos (
 CREATE INDEX IF NOT EXISTS idx_conciliacao_eventos_pedido ON conciliacao_eventos (pedido_id);
 
 -- ── Função: parse horário → hora inteira ────────────────────────────────────
+-- Aceita "Entre 12h e 17h", "À Partir das 8h", "08:00" etc. Fallback 12.
 CREATE OR REPLACE FUNCTION parse_horario_inicio_sql(horario text)
 RETURNS integer LANGUAGE sql IMMUTABLE AS $$
-  SELECT COALESCE(
-    (regexp_match(horario, 'Entre\s+(\d{1,2})h', 'i'))[1]::integer,
-  12);
+  SELECT LEAST(23, GREATEST(0, COALESCE(
+    (regexp_match(horario, '(\d{1,2})\s*h', 'i'))[1]::integer,
+    (regexp_match(horario, '(\d{1,2}):(\d{2})'))[1]::integer,
+    12)));
 $$;
 
 -- ── Função: execution_at a partir de data + horário ─────────────────────────
-CREATE OR REPLACE FUNCTION compute_execution_at_sql(data_entrega date, horario text)
-RETURNS timestamptz LANGUAGE sql IMMUTABLE AS $$
-  SELECT CASE
-    WHEN data_entrega IS NULL THEN NULL
-    ELSE (data_entrega + make_time(
-      LEAST(23, GREATEST(0, parse_horario_inicio_sql(horario))),
-      0, 0
-    )) AT TIME ZONE 'America/Sao_Paulo'
-  END;
-$$;
+-- data_entrega é TEXTO: aceita ISO ("2026-06-30") ou rótulo PT-BR
+-- ("Terça-feira, 30 de Junho de 2026"). Espelha computeExecutionAt do app.
+CREATE OR REPLACE FUNCTION compute_execution_at_sql(data_entrega text, horario text)
+RETURNS timestamptz LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+  v_iso   text;
+  v_m     text[];
+  v_month text;
+BEGIN
+  IF data_entrega IS NULL OR data_entrega = '' THEN
+    RETURN NULL;
+  END IF;
+
+  IF data_entrega ~ '^\d{4}-\d{2}-\d{2}' THEN
+    v_iso := substring(data_entrega FROM 1 FOR 10);
+  ELSE
+    v_m := regexp_match(data_entrega, '(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})', 'i');
+    IF v_m IS NULL THEN
+      RETURN NULL;
+    END IF;
+    v_month := CASE lower(v_m[2])
+      WHEN 'janeiro' THEN '01' WHEN 'fevereiro' THEN '02'
+      WHEN 'março' THEN '03'   WHEN 'marco' THEN '03'
+      WHEN 'abril' THEN '04'   WHEN 'maio' THEN '05'
+      WHEN 'junho' THEN '06'   WHEN 'julho' THEN '07'
+      WHEN 'agosto' THEN '08'  WHEN 'setembro' THEN '09'
+      WHEN 'outubro' THEN '10' WHEN 'novembro' THEN '11'
+      WHEN 'dezembro' THEN '12' ELSE NULL
+    END;
+    IF v_month IS NULL THEN
+      RETURN NULL;
+    END IF;
+    v_iso := v_m[3] || '-' || v_month || '-' || lpad(v_m[1], 2, '0');
+  END IF;
+
+  RETURN (v_iso::date + make_time(parse_horario_inicio_sql(horario), 0, 0))
+         AT TIME ZONE 'America/Sao_Paulo';
+END $$;
 
 -- ── Backfill destinatário ─────────────────────────────────────────────────────
 UPDATE pedidos p SET
@@ -114,9 +144,9 @@ UPDATE pedidos p SET
   recipient_is_buyer = (p.pagamento->'destinatario' IS NULL OR p.pagamento->'destinatario' = 'null'::jsonb)
 WHERE recipient_name IS NULL;
 
--- Backfill execution_at
+-- Backfill execution_at (data_entrega é texto: ISO ou rótulo PT-BR)
 UPDATE pedidos
-SET execution_at = compute_execution_at_sql(data_entrega::date, horario)
+SET execution_at = compute_execution_at_sql(data_entrega, horario)
 WHERE execution_at IS NULL AND data_entrega IS NOT NULL;
 
 -- Backfill payment normalized a partir de status + pagamentos
@@ -133,21 +163,26 @@ UPDATE pedidos p SET
   END
 WHERE payment_status_normalized IS NULL;
 
--- Pedidos de teste (heurística conservadora)
-UPDATE pedidos SET is_test = true
-WHERE is_test = false AND (
-  LOWER(cliente_nome) LIKE '%teste%'
-  OR LOWER(cliente_email) LIKE '%teste%'
-  OR LOWER(cliente_nome) LIKE '%sandbox%'
-);
-
--- Arquivar pedidos com execução anterior a hoje (SP)
-UPDATE pedidos
-SET archived_at = now(), archived_by = 'migration_backfill'
-WHERE archived_at IS NULL
-  AND execution_at IS NOT NULL
-  AND (execution_at AT TIME ZONE 'America/Sao_Paulo')::date < (now() AT TIME ZONE 'America/Sao_Paulo')::date
-  AND payment_status_normalized = 'aprovado';
+-- NOTA: backfills destrutivos desativados no rollout para não alterar/ocultar pedidos
+-- existentes ao aplicar. Podem ser executados sob demanda depois:
+--   • marcar is_test por heurística de nome/email;
+--   • arquivar pedidos vencidos via RPC arquivar_pedidos_vencidos().
+--
+-- -- Pedidos de teste (heurística conservadora)
+-- UPDATE pedidos SET is_test = true
+-- WHERE is_test = false AND (
+--   LOWER(cliente_nome) LIKE '%teste%'
+--   OR LOWER(cliente_email) LIKE '%teste%'
+--   OR LOWER(cliente_nome) LIKE '%sandbox%'
+-- );
+--
+-- -- Arquivar pedidos com execução anterior a hoje (SP)
+-- UPDATE pedidos
+-- SET archived_at = now(), archived_by = 'migration_backfill'
+-- WHERE archived_at IS NULL
+--   AND execution_at IS NOT NULL
+--   AND (execution_at AT TIME ZONE 'America/Sao_Paulo')::date < (now() AT TIME ZONE 'America/Sao_Paulo')::date
+--   AND payment_status_normalized = 'aprovado';
 
 -- ── RPC: arquivar pedidos vencidos ────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION arquivar_pedidos_vencidos()
@@ -175,14 +210,21 @@ CREATE OR REPLACE FUNCTION upsert_pedido_rascunho(_pedido_id uuid, _payload json
 RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_id uuid;
-DECLARE v_data date;
+DECLARE v_data text;
 DECLARE v_horario text;
+DECLARE v_execution_at timestamptz;
 DECLARE v_recipient_name text;
 DECLARE v_recipient_phone text;
 DECLARE v_recipient_is_buyer boolean;
 BEGIN
-  v_data := NULLIF(_payload->>'data_entrega', '')::date;
+  -- data_entrega é texto (rótulo PT-BR ou ISO) — NUNCA castar para date.
+  v_data := NULLIF(_payload->>'data_entrega', '');
   v_horario := NULLIF(_payload->>'horario', '');
+  -- Prefere execution_at calculado pelo app; senão calcula do rótulo.
+  v_execution_at := COALESCE(
+    NULLIF(_payload->>'execution_at', '')::timestamptz,
+    compute_execution_at_sql(v_data, v_horario)
+  );
   v_recipient_name := COALESCE(
     NULLIF(_payload->>'recipient_name', ''),
     _payload->'pagamento'->'destinatario'->>'nome',
@@ -219,7 +261,7 @@ BEGIN
       recipient_is_buyer  = v_recipient_is_buyer,
       unidade_id          = NULLIF(_payload->>'unidade_id', ''),
       production_sector   = NULLIF(_payload->>'production_sector', ''),
-      execution_at        = compute_execution_at_sql(v_data, v_horario),
+      execution_at        = v_execution_at,
       is_test             = COALESCE((_payload->>'is_test')::boolean, is_test)
     WHERE id = _pedido_id
     RETURNING id INTO v_id;
@@ -251,7 +293,7 @@ BEGIN
       v_recipient_is_buyer,
       NULLIF(_payload->>'unidade_id', ''),
       NULLIF(_payload->>'production_sector', ''),
-      compute_execution_at_sql(v_data, v_horario),
+      v_execution_at,
       COALESCE((_payload->>'is_test')::boolean, false)
     ) RETURNING id INTO v_id;
     RETURN v_id;

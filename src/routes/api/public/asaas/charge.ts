@@ -11,7 +11,16 @@ import {
   type RegraAntecedenciaRetirada,
 } from "@/lib/availability/retirada";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
+import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
 import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
+
+/** Converte data_entrega (rótulo PT-BR ou ISO) para "YYYY-MM-DD" em SP. */
+function dataEntregaParaISO(d: string | null | undefined): string | undefined {
+  if (!d) return undefined;
+  const parsed = parseDatePtBRToDate(d);
+  if (parsed) return toISODateString(parsed);
+  return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : undefined;
+}
 
 const ItemSchema = z.object({
   nome: z.string().min(1).max(200),
@@ -156,6 +165,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           });
         }
 
+        // data_entrega é gravado como rótulo PT-BR; converte para ISO p/ as validações.
+        const dataEntregaISO = dataEntregaParaISO(pedido.data_entrega);
+
         if (carrinhoItens.length > 0 && pedido.data_entrega) {
           const ids = carrinhoItens.map((i) => i.produto_id);
           const { data: regrasDb } = await admin
@@ -171,7 +183,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               itens: carrinhoItens,
               fulfillmentMode: (pedido.tipo as "delivery" | "retirada") ?? "retirada",
               unidadeId: undefined,
-              candidateDate: String(pedido.data_entrega).slice(0, 10),
+              candidateDate: dataEntregaISO,
               candidateHorario: pedido.horario ?? undefined,
             },
             dbMap,
@@ -185,7 +197,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         }
 
         // Regra de antecedência de retirada (config por campanha) — defesa server-side.
-        if (pedido.tipo === "retirada" && pedido.data_entrega && pedido.campanha_id) {
+        if (pedido.tipo === "retirada" && dataEntregaISO && pedido.campanha_id) {
           const { data: cfgRow } = await admin
             .from("app_config")
             .select("payload")
@@ -207,7 +219,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             const hojeISO = todayISOSP(agoraSP);
             const amanhaISO = amanhaISOSP(agoraSP);
             const minutosAgoraSP = minutosDoDiaSP();
-            const dataISO = String(pedido.data_entrega).slice(0, 10);
+            const dataISO = dataEntregaISO;
             const erros: string[] = [];
             if (dataRetiradaBloqueada(dataISO, hojeISO, regra)) {
               erros.push("Retirada não disponível para o mesmo dia.");
