@@ -4,6 +4,7 @@ import type { AsaasWebhookEvent } from "@/integrations/asaas/types";
 import { sendCapiEventServer } from "@/lib/metaCapiServer";
 import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID } from "@/lib/asaasStatus";
 import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
+import { enviarConfirmacaoPedido } from "@/lib/emailDispatch.server";
 
 async function dispatchPurchaseCapi(
   admin: ReturnType<typeof getAdminClient>,
@@ -153,6 +154,13 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
             // Dispara Purchase via CAPI na primeira confirmação de pagamento
             if (ASAAS_FINAL_PAID.has(newStatus) && !ASAAS_FINAL_PAID.has(pagamento.status ?? "")) {
               void dispatchPurchaseCapi(admin, pagamento.pedido_id, event.payment.id);
+              void enviarConfirmacaoPedido(admin, pagamento.pedido_id).then((res) => {
+                if (!res.ok) {
+                  console.error("[asaas/webhook] email confirmação pedido", res.error);
+                } else if ("skipped" in res && res.skipped) {
+                  console.info("[asaas/webhook] email confirmação ignorado:", res.reason);
+                }
+              });
             }
           }
 

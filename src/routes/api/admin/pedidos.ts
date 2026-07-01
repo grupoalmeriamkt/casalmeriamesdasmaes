@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getAdminClient } from "@/integrations/supabase/client.server";
+import { authenticateRequest, requireAdmin } from "@/lib/authServer";
 
 const BodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancelar"), id: z.string().uuid() }),
@@ -30,23 +30,15 @@ const BodySchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-async function authenticate(request: Request) {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return null;
-  const admin = getAdminClient();
-  if (!admin) return null;
-  const { data, error } = await admin.auth.getUser(token);
-  if (error || !data?.user) return null;
-  return { admin, user: data.user };
-}
-
 export const Route = createFileRoute("/api/admin/pedidos")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const auth = await authenticate(request);
+        const auth = await authenticateRequest(request);
         if (!auth) return Response.json({ error: "unauthorized" }, { status: 401 });
+        if (!(await requireAdmin(auth.admin, auth.user.id))) {
+          return Response.json({ error: "forbidden" }, { status: 403 });
+        }
 
         let body: unknown;
         try {

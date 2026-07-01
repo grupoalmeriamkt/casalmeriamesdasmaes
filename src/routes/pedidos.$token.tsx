@@ -63,6 +63,7 @@ import {
 } from "@/components/operacao/OperacaoPedidoCard";
 import { useAdmin } from "@/store/admin";
 import { SignInPage } from "@/components/admin/SignInPage";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 import { EncomendasTable } from "@/components/operacao/EncomendasTable";
 import { EncomendasCalendario } from "@/components/operacao/EncomendasCalendario";
 import { PlanilhaFiltrosBar } from "@/components/operacao/PlanilhaFiltrosBar";
@@ -139,7 +140,7 @@ function horaNow() {
 
 function CozinhaPage() {
   const { token } = Route.useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, canAccessCozinha } = useAuth();
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
 
@@ -478,9 +479,23 @@ function CozinhaPage() {
       <>
         <SignInPage
           heroImageSrc="/img_casa_fachada.jpeg"
-          description="Central de Pedidos"
+          description="Central de Pedidos — Módulo Cozinha"
           loading={loginLoading}
           onSignIn={handleSignIn}
+        />
+        <Toaster position="bottom-right" />
+      </>
+    );
+  }
+
+  if (!canAccessCozinha) {
+    return (
+      <>
+        <AccessDenied
+          title="Acesso restrito"
+          description="Esta central é exclusiva para usuários da cozinha ou administradores."
+          showSignOut
+          onSignOut={() => supabase.auth.signOut()}
         />
         <Toaster position="bottom-right" />
       </>

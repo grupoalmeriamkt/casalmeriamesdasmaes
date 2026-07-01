@@ -15,12 +15,7 @@ import {
   type PedidoRow,
   type PagamentoAsaasRow,
 } from "@/lib/pedidos";
-import {
-  listarTokensPedidos,
-  criarTokenPedidos,
-  urlPublicaPedidos,
-  type ShareToken,
-} from "@/lib/shareToken";
+import { urlModuloCozinha } from "@/lib/cozinha";
 import { useAdmin } from "@/store/admin";
 import type { PedidoSalvo } from "@/store/admin";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
@@ -79,7 +74,6 @@ export function AbaPedidos() {
   const [filtroData, setFiltroData] = useState("");
   const [filtroPolaroid, setFiltroPolaroid] = useState(false);
   const [filtroCampanha, setFiltroCampanha] = useState("");
-  const [tokenGeral, setTokenGeral] = useState<ShareToken | null>(null);
   const [filtroInicio, setFiltroInicio] = useState("");
   const [filtroFim, setFiltroFim] = useState("");
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
@@ -107,19 +101,9 @@ export function AbaPedidos() {
     setCarregando(false);
   }, []);
 
-  const carregarTokenGeral = useCallback(async () => {
-    const lista = await listarTokensPedidos();
-    let geral = lista.find((t) => !t.campanha_id) ?? null;
-    if (!geral) {
-      geral = await criarTokenPedidos(undefined, undefined);
-    }
-    setTokenGeral(geral);
-  }, []);
-
   useEffect(() => {
     carregar();
-    carregarTokenGeral();
-  }, [carregar, carregarTokenGeral]);
+  }, [carregar]);
 
   function toISO(d: Date) { return d.toISOString().slice(0, 10); }
 
@@ -286,28 +270,27 @@ export function AbaPedidos() {
       icon={<ListOrdered className="h-5 w-5" />}
       description="Pedidos sincronizados do banco de dados (Supabase)."
     >
-      {/* Link público para a equipe da cozinha */}
       <div className="rounded-2xl border border-border bg-linen/50 p-4">
         <p className="mb-2 flex items-center gap-2 text-sm font-bold text-charcoal">
-          <Link2 className="h-4 w-4" /> Link público da cozinha
+          <Link2 className="h-4 w-4" /> Módulo Cozinha
         </p>
-        {tokenGeral ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-border">
-            <code className="flex-1 truncate text-xs text-charcoal min-w-0">
-              {urlPublicaPedidos(tokenGeral.token)}
-            </code>
-            <Button size="sm" variant="outline" asChild>
-              <a href={urlPublicaPedidos(tokenGeral.token)} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-1 h-3 w-3" /> Abrir
-              </a>
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => copiar(urlPublicaPedidos(tokenGeral.token))}>
-              <Copy className="mr-1 h-3 w-3" /> Copiar
-            </Button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Gerando link…</p>
-        )}
+        <p className="mb-3 text-xs text-muted-foreground">
+          A equipe da cozinha acessa a central de pedidos pelo portal dedicado, com login próprio.
+          Gerencie usuários na aba <strong>Cozinha</strong>.
+        </p>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-border">
+          <code className="min-w-0 flex-1 truncate text-xs text-charcoal">
+            {urlModuloCozinha()}
+          </code>
+          <Button size="sm" variant="outline" asChild>
+            <a href={urlModuloCozinha()} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="mr-1 h-3 w-3" /> Abrir
+            </a>
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => copiar(urlModuloCozinha())}>
+            <Copy className="mr-1 h-3 w-3" /> Copiar
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
