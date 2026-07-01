@@ -880,10 +880,9 @@ function DeliveryTab({
           <>
             <p className="text-xs text-muted-foreground">
               Sem entrega no mesmo dia (a primeira data passa a ser o dia seguinte).
-              Pedidos feitos após a <strong>hora de corte</strong> só liberam o dia
-              seguinte a partir da <strong>hora da tarde</strong> — as janelas da manhã
-              ficam indisponíveis. Pedidos até a hora de corte liberam o dia seguinte
-              inteiro, inclusive de manhã.
+              Pedidos até <strong>16:00</strong> liberam manhã e tarde no dia seguinte.
+              Pedidos após <strong>17:00</strong> só liberam o dia seguinte a partir das{" "}
+              <strong>14h</strong> — janelas da manhã ficam indisponíveis.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Hora de corte (0–23h)">
@@ -1079,10 +1078,9 @@ function RetiradaTab({
           <>
             <p className="text-xs text-muted-foreground">
               Sem retirada no mesmo dia (a primeira data passa a ser o dia seguinte).
-              Pedidos feitos após a <strong>hora de corte</strong> só liberam o dia
-              seguinte a partir da <strong>hora da tarde</strong> — as janelas da manhã
-              ficam indisponíveis. Pedidos até a hora de corte liberam o dia seguinte
-              inteiro, inclusive de manhã.
+              Pedidos até <strong>16:00</strong> liberam manhã e tarde no dia seguinte.
+              Pedidos após <strong>17:00</strong> só liberam o dia seguinte a partir das{" "}
+              <strong>14h</strong> — janelas da manhã ficam indisponíveis.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Hora de corte (0–23h)">

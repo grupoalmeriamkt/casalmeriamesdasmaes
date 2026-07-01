@@ -20,7 +20,11 @@ import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
 import { parseDateId, toISODateString, formatDatePtBR, parseDatePtBRToDate } from "@/lib/dateUtils";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
-import { dataRetiradaBloqueada, horarioRetiradaBloqueado } from "@/lib/availability/retirada";
+import {
+  dataRetiradaBloqueada,
+  horarioRetiradaBloqueado,
+  REGRA_RETIRADA_PADRAO,
+} from "@/lib/availability/retirada";
 import { Calendar } from "@/components/ui/calendar";
 import type { ZonaEntrega } from "@/store/admin";
 import { Logo } from "@/components/Logo";
@@ -131,12 +135,7 @@ export function Quiz({
 
   // Filtro de datas/horários: passado + regra de antecedência (retirada e/ou delivery).
   // Tudo em horário de São Paulo (não do dispositivo do cliente).
-  const regraRetirada =
-    entregaTipo === "retirada"
-      ? campanhaAtiva?.retirada?.antecedencia
-      : entregaTipo === "delivery"
-        ? campanhaAtiva?.delivery?.antecedencia
-        : undefined;
+  const regraAntecedencia = REGRA_RETIRADA_PADRAO;
   const agoraSP = nowSP();
   const hojeISO = todayISOSP(agoraSP);
   const amanhaISO = amanhaISOSP(agoraSP);
@@ -145,7 +144,7 @@ export function Quiz({
   const datasDisponiveis = datas.filter((d) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.id)) return true; // labels legados
     if (d.id < hojeISO) return false; // datas passadas
-    if (dataRetiradaBloqueada(d.id, hojeISO, regraRetirada)) return false; // mesmo-dia na retirada
+    if (dataRetiradaBloqueada(d.id, hojeISO, regraAntecedencia)) return false; // sem mesmo dia
     return true;
   });
 
@@ -159,7 +158,7 @@ export function Quiz({
     // Regra de retirada: bloqueia a manhã do dia seguinte quando o pedido foi após o corte.
     if (
       dataSelecionadaISO &&
-      horarioRetiradaBloqueado(h.label, dataSelecionadaISO, { minutosAgoraSP, amanhaISO }, regraRetirada)
+      horarioRetiradaBloqueado(h.label, dataSelecionadaISO, { minutosAgoraSP, amanhaISO }, regraAntecedencia)
     ) {
       return false;
     }
@@ -1021,7 +1020,7 @@ export function Quiz({
                         disabled={(date) => {
                           const iso = toISODateString(date);
                           if (iso < hojeISO) return true; // passado
-                          return dataRetiradaBloqueada(iso, hojeISO, regraRetirada); // mesmo-dia retirada
+                          return dataRetiradaBloqueada(iso, hojeISO, regraAntecedencia); // sem mesmo dia
                         }}
                         fromMonth={new Date()}
                         onSelect={(date) => {

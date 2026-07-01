@@ -8,7 +8,7 @@ import {
 const HOJE = "2026-06-29";
 const AMANHA = "2026-06-30";
 const DEPOIS = "2026-07-01";
-const regra = REGRA_RETIRADA_PADRAO; // corte 17h, tarde a partir de 12h
+const regra = REGRA_RETIRADA_PADRAO; // corte 17h, tarde a partir de 14h
 
 describe("dataRetiradaBloqueada", () => {
   it("bloqueia o mesmo dia", () => {
@@ -20,16 +20,13 @@ describe("dataRetiradaBloqueada", () => {
   it("libera o dia seguinte", () => {
     expect(dataRetiradaBloqueada(AMANHA, HOJE, regra)).toBe(false);
   });
-  it("sem regra não bloqueia nada", () => {
-    expect(dataRetiradaBloqueada(HOJE, HOJE, undefined)).toBe(false);
-  });
 });
 
-describe("horarioRetiradaBloqueado (corte 17h)", () => {
+describe("horarioRetiradaBloqueado (corte 17h, tarde 14h)", () => {
   const ctx = (min: number) => ({ minutosAgoraSP: min, amanhaISO: AMANHA });
 
-  it("pedido às 16h50 → manhã de amanhã liberada", () => {
-    expect(horarioRetiradaBloqueado("Entre 08h e 10h", AMANHA, ctx(16 * 60 + 50), regra)).toBe(false);
+  it("pedido às 16h00 → manhã de amanhã liberada", () => {
+    expect(horarioRetiradaBloqueado("Entre 08h e 10h", AMANHA, ctx(16 * 60), regra)).toBe(false);
   });
   it("pedido às 16h59 → manhã de amanhã liberada", () => {
     expect(horarioRetiradaBloqueado("Entre 08h e 10h", AMANHA, ctx(16 * 60 + 59), regra)).toBe(false);
@@ -43,13 +40,13 @@ describe("horarioRetiradaBloqueado (corte 17h)", () => {
   it("pedido às 20h → manhã de amanhã bloqueada", () => {
     expect(horarioRetiradaBloqueado("Entre 10h e 12h", AMANHA, ctx(20 * 60), regra)).toBe(true);
   });
-  it("após o corte, janela da tarde (12h) de amanhã continua liberada", () => {
-    expect(horarioRetiradaBloqueado("Entre 12h e 14h", AMANHA, ctx(22 * 60), regra)).toBe(false);
+  it("após o corte, janela antes das 14h de amanhã continua bloqueada", () => {
+    expect(horarioRetiradaBloqueado("Entre 12h e 14h", AMANHA, ctx(22 * 60), regra)).toBe(true);
+  });
+  it("após o corte, janela a partir das 14h de amanhã continua liberada", () => {
+    expect(horarioRetiradaBloqueado("Entre 14h e 16h", AMANHA, ctx(22 * 60), regra)).toBe(false);
   });
   it("corte só afeta o dia seguinte: depois de amanhã a manhã fica liberada", () => {
     expect(horarioRetiradaBloqueado("Entre 08h e 10h", DEPOIS, ctx(20 * 60), regra)).toBe(false);
-  });
-  it("sem regra não bloqueia nada", () => {
-    expect(horarioRetiradaBloqueado("Entre 08h e 10h", AMANHA, ctx(22 * 60), undefined)).toBe(false);
   });
 });

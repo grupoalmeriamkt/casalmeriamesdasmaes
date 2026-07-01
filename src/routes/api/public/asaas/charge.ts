@@ -8,6 +8,7 @@ import type { ProdutoRegras } from "@/lib/availability/types";
 import {
   dataRetiradaBloqueada,
   horarioRetiradaBloqueado,
+  REGRA_RETIRADA_PADRAO,
   type RegraAntecedenciaRetirada,
 } from "@/lib/availability/retirada";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
@@ -191,7 +192,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           const modo = isDelivery ? camp?.delivery : camp?.retirada;
           const labels = (modo?.horarios ?? []).filter((h) => h.ativo).map((h) => h.label);
           horariosCampanha = labels.length > 0 ? labels : undefined;
-          regraAntecedencia = modo?.antecedencia;
+          regraAntecedencia = REGRA_RETIRADA_PADRAO;
         }
 
         if (carrinhoItens.length > 0 && pedido.data_entrega) {
@@ -223,15 +224,16 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           }
         }
 
-        // Regra de antecedência (config por campanha, delivery ou retirada) — defesa server-side.
-        if (dataEntregaISO && regraAntecedencia) {
+        // Regra de antecedência (entrega/retirada) — defesa server-side.
+        if (dataEntregaISO) {
+          const regra = regraAntecedencia ?? REGRA_RETIRADA_PADRAO;
           const modoLabel = isDelivery ? "Entrega" : "Retirada";
           const agoraSP = nowSP();
           const hojeISO = todayISOSP(agoraSP);
           const amanhaISO = amanhaISOSP(agoraSP);
           const minutosAgoraSP = minutosDoDiaSP();
           const erros: string[] = [];
-          if (dataRetiradaBloqueada(dataEntregaISO, hojeISO, regraAntecedencia)) {
+          if (dataRetiradaBloqueada(dataEntregaISO, hojeISO, regra)) {
             erros.push(`${modoLabel} não disponível para o mesmo dia.`);
           }
           if (
@@ -240,7 +242,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               pedido.horario,
               dataEntregaISO,
               { minutosAgoraSP, amanhaISO },
-              regraAntecedencia,
+              regra,
             )
           ) {
             erros.push(`Horário de ${modoLabel.toLowerCase()} indisponível para a data selecionada.`);
