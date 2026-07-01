@@ -7,8 +7,11 @@ import { AbaPedidos } from "@/components/admin/AbaPedidos";
 import { CentralPedidos } from "@/components/admin/pedidos/CentralPedidos";
 import { AbaCupons } from "@/components/admin/AbaCupons";
 import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
+import { AbaCozinha } from "@/components/admin/AbaCozinha";
+import { AbaEmails } from "@/components/admin/AbaEmails";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
 import { AdminLogin } from "@/components/admin/AdminLogin";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -21,7 +24,10 @@ import {
   ListOrdered,
   Settings,
   Tag,
+  ChefHat,
+  Mail,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { UserProfileWidget } from "@/components/admin/UserProfileWidget";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -35,12 +41,14 @@ const ABAS = [
   { id: "campanhas", label: "Campanhas", Icon: Megaphone, Comp: AbaCampanhas },
   { id: "pedidos", label: "Pedidos", Icon: ListOrdered, Comp: AbaPedidos },
   { id: "pedidos-central", label: "Pedidos ✦", Icon: ListOrdered, Comp: CentralPedidos },
+  { id: "cozinha", label: "Cozinha", Icon: ChefHat, Comp: AbaCozinha },
+  { id: "emails", label: "E-mails", Icon: Mail, Comp: AbaEmails },
   { id: "cupons", label: "Cupons", Icon: Tag, Comp: AbaCupons },
   { id: "configuracoes", label: "Configurações", Icon: Settings, Comp: AbaConfiguracoes },
 ] as const;
 
 function AdminPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -54,6 +62,20 @@ function AdminPage() {
     return (
       <>
         <AdminLogin />
+        <Toaster position="bottom-right" />
+      </>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <>
+        <AccessDenied
+          title="Painel administrativo restrito"
+          description="Sua conta não tem permissão de administrador. Se você é da equipe da cozinha, acesse o módulo Cozinha."
+          showSignOut
+          onSignOut={() => supabase.auth.signOut()}
+        />
         <Toaster position="bottom-right" />
       </>
     );

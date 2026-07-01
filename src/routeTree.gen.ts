@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PedidoRouteImport } from './routes/pedido'
+import { Route as CozinhaRouteImport } from './routes/cozinha'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SlugRouteImport } from './routes/$slug'
@@ -22,7 +23,10 @@ import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-
 import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
 import { Route as ApiAdminPedidosRouteImport } from './routes/api/admin/pedidos'
+import { Route as ApiAdminEmailLogsRouteImport } from './routes/api/admin/email-logs'
+import { Route as ApiAdminEmailRouteImport } from './routes/api/admin/email'
 import { Route as ApiAdminCuponsRouteImport } from './routes/api/admin/cupons'
+import { Route as ApiAdminCozinhaUsersRouteImport } from './routes/api/admin/cozinha-users'
 import { Route as ApiAdminConciliarAsaasRouteImport } from './routes/api/admin/conciliar-asaas'
 import { Route as ApiAdminConciliacaoPendenciasRouteImport } from './routes/api/admin/conciliacao-pendencias'
 import { Route as ApiAdminArquivarPedidosRouteImport } from './routes/api/admin/arquivar-pedidos'
@@ -36,6 +40,11 @@ import { Route as ApiPublicAsaasStatusIdRouteImport } from './routes/api/public/
 const PedidoRoute = PedidoRouteImport.update({
   id: '/pedido',
   path: '/pedido',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CozinhaRoute = CozinhaRouteImport.update({
+  id: '/cozinha',
+  path: '/cozinha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutRoute = CheckoutRouteImport.update({
@@ -99,9 +108,24 @@ const ApiAdminPedidosRoute = ApiAdminPedidosRouteImport.update({
   path: '/api/admin/pedidos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminEmailLogsRoute = ApiAdminEmailLogsRouteImport.update({
+  id: '/api/admin/email-logs',
+  path: '/api/admin/email-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminEmailRoute = ApiAdminEmailRouteImport.update({
+  id: '/api/admin/email',
+  path: '/api/admin/email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminCuponsRoute = ApiAdminCuponsRouteImport.update({
   id: '/api/admin/cupons',
   path: '/api/admin/cupons',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminCozinhaUsersRoute = ApiAdminCozinhaUsersRouteImport.update({
+  id: '/api/admin/cozinha-users',
+  path: '/api/admin/cozinha-users',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminConciliarAsaasRoute = ApiAdminConciliarAsaasRouteImport.update({
@@ -156,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
+  '/cozinha': typeof CozinhaRoute
   '/pedido': typeof PedidoRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
@@ -163,7 +188,10 @@ export interface FileRoutesByFullPath {
   '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
   '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
   '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
+  '/api/admin/cozinha-users': typeof ApiAdminCozinhaUsersRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
+  '/api/admin/email': typeof ApiAdminEmailRoute
+  '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
@@ -181,6 +209,7 @@ export interface FileRoutesByTo {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
+  '/cozinha': typeof CozinhaRoute
   '/pedido': typeof PedidoRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
@@ -188,7 +217,10 @@ export interface FileRoutesByTo {
   '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
   '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
   '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
+  '/api/admin/cozinha-users': typeof ApiAdminCozinhaUsersRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
+  '/api/admin/email': typeof ApiAdminEmailRoute
+  '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
@@ -207,6 +239,7 @@ export interface FileRoutesById {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
   '/checkout': typeof CheckoutRoute
+  '/cozinha': typeof CozinhaRoute
   '/pedido': typeof PedidoRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
@@ -214,7 +247,10 @@ export interface FileRoutesById {
   '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
   '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
   '/api/admin/conciliar-asaas': typeof ApiAdminConciliarAsaasRoute
+  '/api/admin/cozinha-users': typeof ApiAdminCozinhaUsersRoute
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
+  '/api/admin/email': typeof ApiAdminEmailRoute
+  '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
@@ -234,6 +270,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/admin'
     | '/checkout'
+    | '/cozinha'
     | '/pedido'
     | '/api/disponibilidade'
     | '/pedidos/$token'
@@ -241,7 +278,10 @@ export interface FileRouteTypes {
     | '/api/admin/arquivar-pedidos'
     | '/api/admin/conciliacao-pendencias'
     | '/api/admin/conciliar-asaas'
+    | '/api/admin/cozinha-users'
     | '/api/admin/cupons'
+    | '/api/admin/email'
+    | '/api/admin/email-logs'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
     | '/api/pedidos/editar-por-token'
@@ -259,6 +299,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/admin'
     | '/checkout'
+    | '/cozinha'
     | '/pedido'
     | '/api/disponibilidade'
     | '/pedidos/$token'
@@ -266,7 +307,10 @@ export interface FileRouteTypes {
     | '/api/admin/arquivar-pedidos'
     | '/api/admin/conciliacao-pendencias'
     | '/api/admin/conciliar-asaas'
+    | '/api/admin/cozinha-users'
     | '/api/admin/cupons'
+    | '/api/admin/email'
+    | '/api/admin/email-logs'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
     | '/api/pedidos/editar-por-token'
@@ -284,6 +328,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/admin'
     | '/checkout'
+    | '/cozinha'
     | '/pedido'
     | '/api/disponibilidade'
     | '/pedidos/$token'
@@ -291,7 +336,10 @@ export interface FileRouteTypes {
     | '/api/admin/arquivar-pedidos'
     | '/api/admin/conciliacao-pendencias'
     | '/api/admin/conciliar-asaas'
+    | '/api/admin/cozinha-users'
     | '/api/admin/cupons'
+    | '/api/admin/email'
+    | '/api/admin/email-logs'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
     | '/api/pedidos/editar-por-token'
@@ -310,6 +358,7 @@ export interface RootRouteChildren {
   SlugRoute: typeof SlugRoute
   AdminRoute: typeof AdminRoute
   CheckoutRoute: typeof CheckoutRoute
+  CozinhaRoute: typeof CozinhaRoute
   PedidoRoute: typeof PedidoRoute
   ApiDisponibilidadeRoute: typeof ApiDisponibilidadeRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
@@ -317,7 +366,10 @@ export interface RootRouteChildren {
   ApiAdminArquivarPedidosRoute: typeof ApiAdminArquivarPedidosRoute
   ApiAdminConciliacaoPendenciasRoute: typeof ApiAdminConciliacaoPendenciasRoute
   ApiAdminConciliarAsaasRoute: typeof ApiAdminConciliarAsaasRoute
+  ApiAdminCozinhaUsersRoute: typeof ApiAdminCozinhaUsersRoute
   ApiAdminCuponsRoute: typeof ApiAdminCuponsRoute
+  ApiAdminEmailRoute: typeof ApiAdminEmailRoute
+  ApiAdminEmailLogsRoute: typeof ApiAdminEmailLogsRoute
   ApiAdminPedidosRoute: typeof ApiAdminPedidosRoute
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
   ApiPedidosEditarPorTokenRoute: typeof ApiPedidosEditarPorTokenRoute
@@ -338,6 +390,13 @@ declare module '@tanstack/react-router' {
       path: '/pedido'
       fullPath: '/pedido'
       preLoaderRoute: typeof PedidoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cozinha': {
+      id: '/cozinha'
+      path: '/cozinha'
+      fullPath: '/cozinha'
+      preLoaderRoute: typeof CozinhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout': {
@@ -424,11 +483,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminPedidosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/email-logs': {
+      id: '/api/admin/email-logs'
+      path: '/api/admin/email-logs'
+      fullPath: '/api/admin/email-logs'
+      preLoaderRoute: typeof ApiAdminEmailLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/email': {
+      id: '/api/admin/email'
+      path: '/api/admin/email'
+      fullPath: '/api/admin/email'
+      preLoaderRoute: typeof ApiAdminEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/cupons': {
       id: '/api/admin/cupons'
       path: '/api/admin/cupons'
       fullPath: '/api/admin/cupons'
       preLoaderRoute: typeof ApiAdminCuponsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/cozinha-users': {
+      id: '/api/admin/cozinha-users'
+      path: '/api/admin/cozinha-users'
+      fullPath: '/api/admin/cozinha-users'
+      preLoaderRoute: typeof ApiAdminCozinhaUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/conciliar-asaas': {
@@ -502,6 +582,7 @@ const rootRouteChildren: RootRouteChildren = {
   SlugRoute: SlugRoute,
   AdminRoute: AdminRoute,
   CheckoutRoute: CheckoutRoute,
+  CozinhaRoute: CozinhaRoute,
   PedidoRoute: PedidoRoute,
   ApiDisponibilidadeRoute: ApiDisponibilidadeRoute,
   PedidosTokenRoute: PedidosTokenRoute,
@@ -509,7 +590,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminArquivarPedidosRoute: ApiAdminArquivarPedidosRoute,
   ApiAdminConciliacaoPendenciasRoute: ApiAdminConciliacaoPendenciasRoute,
   ApiAdminConciliarAsaasRoute: ApiAdminConciliarAsaasRoute,
+  ApiAdminCozinhaUsersRoute: ApiAdminCozinhaUsersRoute,
   ApiAdminCuponsRoute: ApiAdminCuponsRoute,
+  ApiAdminEmailRoute: ApiAdminEmailRoute,
+  ApiAdminEmailLogsRoute: ApiAdminEmailLogsRoute,
   ApiAdminPedidosRoute: ApiAdminPedidosRoute,
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
   ApiPedidosEditarPorTokenRoute: ApiPedidosEditarPorTokenRoute,
