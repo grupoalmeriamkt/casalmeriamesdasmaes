@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { criarTokenPedidos } from "@/lib/shareToken";
 
 export type UsuarioCozinha = {
   user_id: string;
@@ -27,9 +26,24 @@ export async function obterTokenGeralCozinha(): Promise<string | null> {
   if (!error && typeof data === "string" && data.length > 0) return data;
   if (error) console.error("cozinha_token_geral:", error);
 
-  // Fallback: admin pode criar o token geral se ainda não existir no banco.
-  const criado = await criarTokenPedidos(undefined, undefined);
-  return criado?.token ?? null;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) return null;
+
+    const res = await fetch("/api/cozinha/token", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const json = (await res.json()) as { token?: string; error?: string };
+    if (res.ok && typeof json.token === "string" && json.token.length > 0) {
+      return json.token;
+    }
+    if (!res.ok) console.error("api/cozinha/token:", json.error);
+  } catch (e) {
+    console.error("obterTokenGeralCozinha fallback:", e);
+  }
+
+  return null;
 }
 
 export async function listarUsuariosCozinha(): Promise<UsuarioCozinha[]> {

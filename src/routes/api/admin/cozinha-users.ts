@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authenticateRequest, requireAdmin } from "@/lib/authServer";
+import { obterOuCriarTokenGeralCozinha } from "@/lib/cozinha.server";
 import { dispatchEmail } from "@/lib/emailDispatch.server";
 import { cozinhaWelcomeEmail } from "@/lib/emailTemplates/cozinhaWelcome";
 
@@ -105,6 +106,11 @@ export const Route = createFileRoute("/api/admin/cozinha-users")({
             console.error("[cozinha-users] role insert error", roleErr);
             await auth.admin.auth.admin.deleteUser(created.user.id);
             return Response.json({ error: roleErr.message }, { status: 500 });
+          }
+
+          const portalToken = await obterOuCriarTokenGeralCozinha(auth.admin);
+          if (!portalToken) {
+            console.warn("[cozinha-users] token geral indisponível após criar usuário");
           }
 
           let emailSent = false;

@@ -21,6 +21,7 @@ import { Route as ApiDisponibilidadeRouteImport } from './routes/api/disponibili
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
 import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
+import { Route as ApiCozinhaTokenRouteImport } from './routes/api/cozinha/token'
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
 import { Route as ApiAdminPedidosRouteImport } from './routes/api/admin/pedidos'
 import { Route as ApiAdminEmailLogsRouteImport } from './routes/api/admin/email-logs'
@@ -98,6 +99,11 @@ const ApiPedidosEditarPorTokenRoute =
     path: '/api/pedidos/editar-por-token',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCozinhaTokenRoute = ApiCozinhaTokenRouteImport.update({
+  id: '/api/cozinha/token',
+  path: '/api/cozinha/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminSaveConfigRoute = ApiAdminSaveConfigRouteImport.update({
   id: '/api/admin/save-config',
   path: '/api/admin/save-config',
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/cozinha/token': typeof ApiCozinhaTokenRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/cozinha/token': typeof ApiCozinhaTokenRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
+  '/api/cozinha/token': typeof ApiCozinhaTokenRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
   '/api/public/meta-capi': typeof ApiPublicMetaCapiRoute
   '/api/public/mp-preference': typeof ApiPublicMpPreferenceRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/api/admin/email-logs'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
+    | '/api/cozinha/token'
     | '/api/pedidos/editar-por-token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/api/admin/email-logs'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
+    | '/api/cozinha/token'
     | '/api/pedidos/editar-por-token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/api/admin/email-logs'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
+    | '/api/cozinha/token'
     | '/api/pedidos/editar-por-token'
     | '/api/public/meta-capi'
     | '/api/public/mp-preference'
@@ -372,6 +384,7 @@ export interface RootRouteChildren {
   ApiAdminEmailLogsRoute: typeof ApiAdminEmailLogsRoute
   ApiAdminPedidosRoute: typeof ApiAdminPedidosRoute
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
+  ApiCozinhaTokenRoute: typeof ApiCozinhaTokenRoute
   ApiPedidosEditarPorTokenRoute: typeof ApiPedidosEditarPorTokenRoute
   ApiPublicMetaCapiRoute: typeof ApiPublicMetaCapiRoute
   ApiPublicMpPreferenceRoute: typeof ApiPublicMpPreferenceRoute
@@ -467,6 +480,13 @@ declare module '@tanstack/react-router' {
       path: '/api/pedidos/editar-por-token'
       fullPath: '/api/pedidos/editar-por-token'
       preLoaderRoute: typeof ApiPedidosEditarPorTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cozinha/token': {
+      id: '/api/cozinha/token'
+      path: '/api/cozinha/token'
+      fullPath: '/api/cozinha/token'
+      preLoaderRoute: typeof ApiCozinhaTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/save-config': {
@@ -596,6 +616,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminEmailLogsRoute: ApiAdminEmailLogsRoute,
   ApiAdminPedidosRoute: ApiAdminPedidosRoute,
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
+  ApiCozinhaTokenRoute: ApiCozinhaTokenRoute,
   ApiPedidosEditarPorTokenRoute: ApiPedidosEditarPorTokenRoute,
   ApiPublicMetaCapiRoute: ApiPublicMetaCapiRoute,
   ApiPublicMpPreferenceRoute: ApiPublicMpPreferenceRoute,
