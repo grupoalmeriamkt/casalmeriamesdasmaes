@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import { CESTAS, SOBREMESAS, UNIDADES, DATAS_ENTREGA, HORARIOS } from "@/lib/data";
+import { REGRA_RETIRADA_PADRAO } from "@/lib/availability/retirada";
 import type { Cesta, Sobremesa, Unidade } from "@/lib/types";
 
 export type Tema = {
@@ -389,6 +390,7 @@ const deliveryDefault = (): CampanhaDelivery => ({
   datas: datasDefault(),
   horarios: horariosDefault(),
   zonas: { ativo: false, zonas: [] },
+  antecedencia: { ...REGRA_RETIRADA_PADRAO },
 });
 
 const retiradaDefault = (endereco = ""): CampanhaRetirada => ({
@@ -402,6 +404,7 @@ const retiradaDefault = (endereco = ""): CampanhaRetirada => ({
   upsellProdutoIds: [],
   datas: datasDefault(),
   horarios: horariosDefault(),
+  antecedencia: { ...REGRA_RETIRADA_PADRAO },
 });
 
 const textosDefault = (nome = "Campanha"): CampanhaTextos => ({
