@@ -30,6 +30,7 @@ import {
   LayoutList,
   Columns,
   Table2,
+  CalendarDays,
   X,
   Pencil,
   AlertTriangle,
@@ -63,12 +64,21 @@ import {
 import { useAdmin } from "@/store/admin";
 import { SignInPage } from "@/components/admin/SignInPage";
 import { EncomendasTable } from "@/components/operacao/EncomendasTable";
+import { EncomendasCalendario } from "@/components/operacao/EncomendasCalendario";
+import { PlanilhaFiltrosBar } from "@/components/operacao/PlanilhaFiltrosBar";
 import {
   ENCOMENDAS_CSV_HEAD,
   flattenPedidosParaLinhas,
   linhasParaCsvRows,
   LOCAIS_RETIRADA_OPCOES,
 } from "@/lib/encomendasTable";
+import {
+  FILTROS_PLANILHA_VAZIOS,
+  filtrarLinhasEncomenda,
+  filtrosPlanilhaAtivos,
+  produtosUnicosDasLinhas,
+  type FiltrosPlanilha,
+} from "@/lib/planilhaFiltros";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 
 export const Route = createFileRoute("/pedidos/$token")({
@@ -82,6 +92,8 @@ export const Route = createFileRoute("/pedidos/$token")({
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+type ViewMode = "lista" | "kanban" | "planilha" | "calendario";
 
 type StatusKey = "aprovado" | "pendente" | "rascunho" | "abandonado";
 
@@ -155,10 +167,12 @@ function CozinhaPage() {
   const [editLoading, setEditLoading] = useState(false);
 
   // view mode
-  const [view, setView] = useState<"lista" | "kanban" | "planilha">(() => {
+  const [view, setView] = useState<ViewMode>(() => {
     if (typeof window === "undefined") return "planilha";
     const saved = localStorage.getItem("pedidos-view");
-    if (saved === "lista" || saved === "kanban" || saved === "planilha") return saved;
+    if (saved === "lista" || saved === "kanban" || saved === "planilha" || saved === "calendario") {
+      return saved;
+    }
     return "planilha";
   });
 
@@ -173,6 +187,7 @@ function CozinhaPage() {
   const [filtroInicio, setFiltroInicio] = useState("");
   const [filtroFim, setFiltroFim] = useState("");
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
+  const [filtrosPlanilha, setFiltrosPlanilha] = useState<FiltrosPlanilha>(FILTROS_PLANILHA_VAZIOS);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filtrosOps, setFiltrosOps] = useState<FiltrosOperacionais>(() =>
@@ -325,13 +340,12 @@ function CozinhaPage() {
     [operacaoEnabled, pedidosOps],
   );
 
-  const pedidosFiltrados = useMemo(() => {
+  const pedidosSemFiltroData = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
     const filtered = pedidos.filter((p) => {
       if (!mostrarArq && p.archivedAt) return false;
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
-      if (filtroData && p.data !== filtroData) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       if (filtroTexto) {
         const q = filtroTexto.toLowerCase();
@@ -339,11 +353,25 @@ function CozinhaPage() {
         if (!hay.includes(q)) return false;
       }
       if (filtroInicio && p.criadoEm.slice(0, 10) < filtroInicio) return false;
-      if (filtroFim   && p.criadoEm.slice(0, 10) > filtroFim)     return false;
+      if (filtroFim && p.criadoEm.slice(0, 10) > filtroFim) return false;
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroData, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+
+  const pedidosFiltrados = useMemo(() => {
+    if (!filtroData) return pedidosSemFiltroData;
+    return pedidosSemFiltroData.filter((p) => p.data === filtroData);
+  }, [pedidosSemFiltroData, filtroData]);
+
+  const contagemPorDiaEntrega = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const p of pedidosSemFiltroData) {
+      if (!p.data) continue;
+      map[p.data] = (map[p.data] ?? 0) + 1;
+    }
+    return map;
+  }, [pedidosSemFiltroData]);
 
   const listaVisivel = useMemo(
     () => (operacaoEnabled && view === "lista" ? pedidosOpsFiltrados : pedidosFiltrados),
@@ -372,11 +400,6 @@ function CozinhaPage() {
 
   const mostrarArquivadosAtivo = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
 
-  const linhasEncomenda = useMemo(
-    () => flattenPedidosParaLinhas(pedidosFiltrados, rawRows, unidades),
-    [pedidosFiltrados, rawRows, unidades],
-  );
-
   const locaisOpcoes = useMemo(() => {
     const map = new Map<string, { id: string; label: string; key: string }>();
     for (const u of unidades.filter((x) => x.status === "ativa")) {
@@ -389,6 +412,26 @@ function CozinhaPage() {
     }
     return [...map.values()];
   }, [unidades]);
+
+  const linhasEncomenda = useMemo(
+    () => flattenPedidosParaLinhas(pedidosFiltrados, rawRows, unidades),
+    [pedidosFiltrados, rawRows, unidades],
+  );
+
+  const linhasVisiveis = useMemo(
+    () => filtrarLinhasEncomenda(linhasEncomenda, filtrosPlanilha, locaisOpcoes),
+    [linhasEncomenda, filtrosPlanilha, locaisOpcoes],
+  );
+
+  const produtosOpcoes = useMemo(
+    () => produtosUnicosDasLinhas(linhasEncomenda),
+    [linhasEncomenda],
+  );
+
+  const pedidosComDataEntrega = useMemo(
+    () => pedidosSemFiltroData.filter((p) => !!p.data),
+    [pedidosSemFiltroData],
+  );
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
   const porStatus = useMemo(() => {
@@ -516,7 +559,7 @@ function CozinhaPage() {
     setTimeout(() => { window.print(); setTimeout(() => setImprimindo(null), 500); }, 50);
   };
 
-  const toggleView = (v: "lista" | "kanban" | "planilha") => {
+  const toggleView = (v: ViewMode) => {
     setView(v);
     localStorage.setItem("pedidos-view", v);
   };
@@ -715,9 +758,24 @@ function CozinhaPage() {
 
   const temFiltro =
     filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
-    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "";
+    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "" ||
+    filtrosPlanilhaAtivos(filtrosPlanilha);
 
-  const planilhaLayout = view === "planilha";
+  const limparFiltrosPlanilha = () => setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
+
+  const limparTodosFiltros = () => {
+    setFiltroStatus([]);
+    setFiltroTipo("");
+    setFiltroData("");
+    setFiltroPolaroid(false);
+    setFiltroTexto("");
+    setFiltroInicio("");
+    setFiltroFim("");
+    setFiltroPeriodo("");
+    setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
+  };
+
+  const planilhaLayout = view === "planilha" || view === "calendario";
   const shellClass = planilhaLayout ? "w-full" : "mx-auto max-w-6xl";
   const padX = planilhaLayout ? "px-2 sm:px-3" : "px-4 sm:px-6";
 
@@ -750,6 +808,13 @@ function CozinhaPage() {
                   className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "planilha" ? "bg-white/20" : "hover:bg-white/10"}`}
                 >
                   <Table2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => toggleView("calendario")}
+                  title="Calendário de entregas"
+                  className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "calendario" ? "bg-white/20" : "hover:bg-white/10"}`}
+                >
+                  <CalendarDays className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => toggleView("lista")}
@@ -980,6 +1045,26 @@ function CozinhaPage() {
               />
             )}
 
+            {planilhaLayout && (
+              <PlanilhaFiltrosBar
+                filtros={filtrosPlanilha}
+                produtos={produtosOpcoes}
+                locais={locaisOpcoes.map((l) => ({ id: l.id, label: l.label }))}
+                onChange={(patch) => setFiltrosPlanilha((f) => ({ ...f, ...patch }))}
+                onLimpar={limparFiltrosPlanilha}
+              />
+            )}
+
+            {temFiltro && planilhaLayout && (
+              <button
+                type="button"
+                onClick={limparTodosFiltros}
+                className="text-xs font-medium text-terracotta hover:underline"
+              >
+                Limpar todos os filtros
+              </button>
+            )}
+
             {!planilhaLayout && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
@@ -1031,14 +1116,39 @@ function CozinhaPage() {
         >
           {carregando && pedidos.length === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">Carregando pedidos…</p>
-          ) : pedidosFiltrados.length === 0 ? (
+          ) : pedidosFiltrados.length === 0 && view !== "calendario" ? (
             <p className="py-16 text-center text-sm text-muted-foreground">
               {temFiltro ? "Nenhum pedido corresponde aos filtros." : "Nenhum pedido encontrado."}
             </p>
+          ) : view === "calendario" ? (
+            pedidosComDataEntrega.length === 0 ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                Nenhum pedido com data de entrega nos filtros atuais.
+              </p>
+            ) : (
+              <EncomendasCalendario
+                contagemPorDia={contagemPorDiaEntrega}
+                dataSelecionada={filtroData}
+                onSelecionarData={setFiltroData}
+                linhas={linhasVisiveis}
+                selectedIds={selectedIds}
+                locaisOpcoes={locaisOpcoes}
+                salvandoPedidoId={salvandoOperacaoId}
+                onTogglePedido={toggleSelecionado}
+                onAbrirPedido={(pedidoId) => {
+                  const p = pedidosFiltrados.find((x) => x.id === pedidoId);
+                  if (p) setDetalhe(p);
+                }}
+                onAlterarSetor={(pedidoId, setor) => void alterarSetorPedido(pedidoId, setor)}
+                onAlterarLocal={(pedidoId, unidadeId, label) =>
+                  void alterarLocalPedido(pedidoId, unidadeId, label)
+                }
+              />
+            )
           ) : view === "planilha" ? (
             <EncomendasTable
               fillViewport
-              linhas={linhasEncomenda}
+              linhas={linhasVisiveis}
               selectedIds={selectedIds}
               locaisOpcoes={locaisOpcoes}
               salvandoPedidoId={salvandoOperacaoId}
@@ -1681,8 +1791,39 @@ function PedidoCard({
 
 // ── Modal detalhes ─────────────────────────────────────────────────────────
 
+function destinatarioEntrega(p: PedidoSalvo): { nome: string; whatsapp: string } {
+  if (p.destinatario?.nome) {
+    return {
+      nome: p.destinatario.nome,
+      whatsapp: p.destinatario.whatsapp ?? "",
+    };
+  }
+  return {
+    nome: p.cliente.nome || "—",
+    whatsapp: p.cliente.whatsapp ?? "",
+  };
+}
+
+function formatDataEntregaLegivel(data?: string | null): string {
+  if (!data) return "—";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    const d = new Date(`${data}T12:00:00`);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString("pt-BR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    }
+  }
+  return data;
+}
+
 function DetalhesPedido({ p }: { p: PedidoSalvo }) {
-  const tel = p.cliente.whatsapp.replace(/\D/g, "");
+  const dest = destinatarioEntrega(p);
+  const telDest = dest.whatsapp.replace(/\D/g, "");
+  const isDelivery = p.tipo?.toLowerCase() === "delivery";
   const cartoes = p.pagamento?.extras?.cartoes ?? [];
   const polaroids = p.pagamento?.extras?.polaroids ?? [];
   const desconto = Number(p.pagamento?.desconto ?? 0);
@@ -1718,29 +1859,49 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
         </span>
       </div>
 
-      {/* Quem pediu */}
-      <div>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Quem pediu</p>
-        <p className="font-semibold text-charcoal">{p.cliente.nome || "—"}</p>
-        {tel && (
-          <a href={`https://wa.me/55${tel}`} target="_blank" rel="noreferrer" className="text-olive hover:underline">
-            {p.cliente.whatsapp}
+      {/* Destinatário — foco para entrega */}
+      <div className="rounded-xl border-2 border-terracotta/40 bg-terracotta/10 px-4 py-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
+          {isDelivery ? "🛵 Entregar para" : "🎁 Pedido para"}
+        </p>
+        <p className="mt-1 text-lg font-bold text-charcoal">{dest.nome}</p>
+        {telDest && (
+          <a
+            href={`https://wa.me/55${telDest}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-0.5 inline-block text-base font-semibold text-olive hover:underline"
+          >
+            📞 {dest.whatsapp}
           </a>
         )}
       </div>
 
-      {p.destinatario && (
-        <div className="rounded-lg bg-terracotta/8 px-3 py-2.5 flex flex-col gap-0.5">
-          <p className="text-xs font-semibold text-terracotta uppercase tracking-wide">🎁 Para quem é o pedido</p>
-          <p className="font-semibold text-charcoal">{p.destinatario.nome}</p>
-          {p.destinatario.whatsapp && (
-            <a href={`https://wa.me/55${p.destinatario.whatsapp.replace(/\D/g, "")}`}
-              target="_blank" rel="noreferrer" className="text-sm text-olive hover:underline">
-              {p.destinatario.whatsapp}
-            </a>
-          )}
+      {/* Logística */}
+      <div className="rounded-lg border border-border bg-linen/60 px-4 py-3 space-y-2">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            {isDelivery ? "📍 Endereço de entrega" : "📍 Local de retirada"}
+          </p>
+          <p className="mt-0.5 text-base font-semibold text-charcoal leading-snug">
+            {p.enderecoOuUnidade || "—"}
+          </p>
         </div>
-      )}
+        <div className="grid grid-cols-2 gap-3 pt-1 border-t border-border/60">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              {isDelivery ? "📅 Entregar em" : "📅 Retirar em"}
+            </p>
+            <p className="mt-0.5 font-semibold text-charcoal capitalize">
+              {formatDataEntregaLegivel(p.data)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">🕐 Horário</p>
+            <p className="mt-0.5 font-semibold text-charcoal">{p.horario || "—"}</p>
+          </div>
+        </div>
+      </div>
 
       {/* Itens com preços individuais */}
       <div>
@@ -1816,27 +1977,15 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
         </div>
       )}
 
-      {/* Entrega */}
-      <div className="border-t border-border pt-3 grid grid-cols-2 gap-2">
+      {/* Pagamento (referência interna) */}
+      <div className="border-t border-border pt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Tipo</p>
-          <p>{labelTipoPedido(p.tipo)}</p>
+          <p className="uppercase tracking-wide">Tipo</p>
+          <p className="text-sm text-charcoal">{labelTipoPedido(p.tipo)}</p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Status do pagamento</p>
-          <p>{labelStatusPagamento(p.pagamento?.status)}</p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Endereço / Unidade</p>
-          <p>{p.enderecoOuUnidade || "—"}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Data</p>
-          <p>{p.data || "—"}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Horário</p>
-          <p>{p.horario || "—"}</p>
+          <p className="uppercase tracking-wide">Pagamento</p>
+          <p className="text-sm text-charcoal">{labelStatusPagamento(p.pagamento?.status)}</p>
         </div>
       </div>
     </div>
@@ -1848,56 +1997,62 @@ function DetalhesPedido({ p }: { p: PedidoSalvo }) {
 function FolhaImpressao({ p }: { p: PedidoSalvo }) {
   const cartoes = p.pagamento?.extras?.cartoes ?? [];
   const polaroids = p.pagamento?.extras?.polaroids ?? [];
-  const desconto = Number(p.pagamento?.desconto ?? 0);
-  const cupom = p.pagamento?.cupom;
-  const itensSoma =
-    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
-    + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
-    + cartoes.reduce((a, c) => a + c.preco, 0)
-    + polaroids.reduce((a, po) => a + po.preco, 0)
-    - desconto;
-  const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
+  const dest = destinatarioEntrega(p);
+  const isDelivery = p.tipo?.toLowerCase() === "delivery";
 
   return (
-    <div style={{ pageBreakAfter: "always", padding: "20mm 15mm", fontFamily: "system-ui, sans-serif", color: "#000", fontSize: "12pt" }}>
-      {/* Cabeçalho */}
-      <div style={{ borderBottom: "2px solid #000", paddingBottom: "8pt", marginBottom: "12pt" }}>
-        <h1 style={{ fontSize: "18pt", margin: 0 }}>Casa Almeria — Pedido</h1>
+    <div style={{ pageBreakAfter: "always", padding: "16mm 14mm", fontFamily: "system-ui, sans-serif", color: "#000", fontSize: "12pt" }}>
+      {/* Cabeçalho mínimo */}
+      <div style={{ borderBottom: "2px solid #000", paddingBottom: "6pt", marginBottom: "10pt" }}>
+        <h1 style={{ fontSize: "16pt", margin: 0 }}>Casa Almeria — {isDelivery ? "Entrega" : "Retirada"}</h1>
         <p style={{ fontSize: "10pt", margin: "4pt 0 0", fontFamily: "monospace" }}>
-          #{p.id.slice(-6).toUpperCase()} · {new Date(p.criadoEm).toLocaleString("pt-BR")}
-        </p>
-        <p style={{ margin: "4pt 0 0", fontSize: "10pt" }}>
-          <strong>Status:</strong> {STATUS_CONFIG[getStatus(p)].label}
+          Pedido #{p.id.slice(-6).toUpperCase()}
         </p>
       </div>
 
-      {/* Quem pediu */}
-      <p><strong>Quem pediu:</strong> {p.cliente.nome || "—"}</p>
-      <p><strong>WhatsApp:</strong> {p.cliente.whatsapp || "—"}</p>
-
       {/* Destinatário em destaque */}
-      {p.destinatario && (
-        <div style={{ background: "#f9f0e8", border: "1.5px solid #c4855a", borderRadius: "4pt", padding: "6pt 10pt", margin: "10pt 0" }}>
-          <p style={{ fontWeight: "bold", margin: 0, fontSize: "11pt" }}>🎁 Para quem é o pedido:</p>
-          <p style={{ margin: "3pt 0 0", fontSize: "12pt" }}>{p.destinatario.nome}</p>
-          {p.destinatario.whatsapp && (
-            <p style={{ margin: "2pt 0 0", color: "#555", fontSize: "10pt" }}>WhatsApp: {p.destinatario.whatsapp}</p>
-          )}
-        </div>
-      )}
+      <div style={{ background: "#f9f0e8", border: "2px solid #c4855a", borderRadius: "6pt", padding: "10pt 12pt", marginBottom: "10pt" }}>
+        <p style={{ fontWeight: "bold", margin: 0, fontSize: "11pt", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          {isDelivery ? "🛵 Entregar para" : "🎁 Pedido para"}
+        </p>
+        <p style={{ margin: "6pt 0 0", fontSize: "20pt", fontWeight: "bold" }}>{dest.nome}</p>
+        {dest.whatsapp && (
+          <p style={{ margin: "4pt 0 0", fontSize: "14pt", fontWeight: "bold" }}>📞 {dest.whatsapp}</p>
+        )}
+      </div>
 
-      {/* Entrega */}
-      <hr style={{ margin: "10pt 0" }} />
-      <p><strong>Tipo:</strong> {labelTipoPedido(p.tipo)}</p>
-      <p><strong>Endereço/Unidade:</strong> {p.enderecoOuUnidade || "—"}</p>
-      <p><strong>Data:</strong> {p.data || "—"} · <strong>Horário:</strong> {p.horario || "—"}</p>
+      {/* Onde e quando */}
+      <div style={{ border: "1.5px solid #333", borderRadius: "6pt", padding: "10pt 12pt", marginBottom: "10pt" }}>
+        <p style={{ fontWeight: "bold", margin: 0, fontSize: "11pt", textTransform: "uppercase" }}>
+          {isDelivery ? "📍 Endereço de entrega" : "📍 Local de retirada"}
+        </p>
+        <p style={{ margin: "6pt 0 0", fontSize: "13pt", fontWeight: "bold", lineHeight: 1.35 }}>
+          {p.enderecoOuUnidade || "—"}
+        </p>
+        <hr style={{ margin: "8pt 0", border: "none", borderTop: "1px solid #ccc" }} />
+        <div style={{ display: "flex", gap: "16pt" }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: "bold", margin: 0, fontSize: "10pt", textTransform: "uppercase" }}>
+              {isDelivery ? "📅 Entregar em" : "📅 Retirar em"}
+            </p>
+            <p style={{ margin: "4pt 0 0", fontSize: "12pt", fontWeight: "bold", textTransform: "capitalize" }}>
+              {formatDataEntregaLegivel(p.data)}
+            </p>
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: "bold", margin: 0, fontSize: "10pt", textTransform: "uppercase" }}>🕐 Horário</p>
+            <p style={{ margin: "4pt 0 0", fontSize: "12pt", fontWeight: "bold" }}>{p.horario || "—"}</p>
+          </div>
+        </div>
+      </div>
 
       {/* Itens */}
-      <hr style={{ margin: "10pt 0" }} />
-      <p style={{ fontWeight: "bold", marginBottom: "4pt" }}>Itens</p>
-      {p.cesta && <p>• {p.cesta.nome} × {p.cesta.quantidade} — {formatBRL(p.cesta.preco * p.cesta.quantidade)}</p>}
+      <p style={{ fontWeight: "bold", marginBottom: "6pt", fontSize: "11pt", textTransform: "uppercase" }}>
+        📦 O que levar
+      </p>
+      {p.cesta && <p style={{ margin: "3pt 0", fontSize: "12pt" }}>• {p.cesta.nome} × {p.cesta.quantidade}</p>}
       {p.sobremesas.map((s, i) => (
-        <p key={i}>• {s.nome} × {s.quantidade} — {formatBRL(s.preco * s.quantidade)}</p>
+        <p key={i} style={{ margin: "3pt 0", fontSize: "12pt" }}>• {s.nome} × {s.quantidade}</p>
       ))}
 
       {/* Personalizações */}
@@ -1906,29 +2061,17 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
           <p style={{ fontWeight: "bold", margin: "8pt 0 4pt" }}>Personalizações</p>
           {cartoes.map((c, i) => (
             <div key={`c${i}`} style={{ marginBottom: "6pt" }}>
-              <p>• 💌 {c.nome} — {formatBRL(c.preco)}</p>
-              {c.mensagem && <p style={{ margin: "2pt 0 0 12pt", fontStyle: "italic" }}>"{c.mensagem}"</p>}
+              <p style={{ margin: "3pt 0", fontSize: "12pt" }}>• 💌 {c.nome}</p>
+              {c.mensagem && <p style={{ margin: "2pt 0 0 12pt", fontStyle: "italic", fontSize: "11pt" }}>"{c.mensagem}"</p>}
             </div>
           ))}
           {polaroids.map((pl, i) => (
-            <p key={`p${i}`}>• 📸 {pl.nome} — {formatBRL(pl.preco)}{pl.arquivoNome ? ` (${pl.arquivoNome})` : ""}</p>
+            <p key={`p${i}`} style={{ margin: "3pt 0", fontSize: "12pt" }}>
+              • 📸 {pl.nome}{pl.arquivoNome ? ` (${pl.arquivoNome})` : ""}
+            </p>
           ))}
         </>
       )}
-
-      {/* Totais */}
-      <hr style={{ margin: "10pt 0" }} />
-      {desconto > 0 && (
-        <p style={{ textAlign: "right", color: "#2d7a2d" }}>
-          Desconto{cupom ? ` (${cupom})` : ""}: −{formatBRL(desconto)}
-        </p>
-      )}
-      {frete > 0 && (
-        <p style={{ textAlign: "right", color: "#555" }}>🚚 Taxa de entrega: {formatBRL(frete)}</p>
-      )}
-      <p style={{ fontSize: "16pt", fontWeight: "bold", textAlign: "right" }}>
-        Total: {formatBRL(p.total)}
-      </p>
     </div>
   );
 }

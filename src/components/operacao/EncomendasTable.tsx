@@ -1,6 +1,7 @@
 import type { EncomendaLinha } from "@/lib/encomendasTable";
 import {
   LOCAL_BADGE,
+  resolveLocalOptionId,
   SETOR_BADGE_PLANILHA,
   SETORES_OPCOES,
 } from "@/lib/encomendasTable";
@@ -66,9 +67,10 @@ export function EncomendasTable({
   return (
     <div className={outerClass}>
       <div className={scrollClass}>
-        <table className="w-full min-w-[720px] border-collapse text-sm xl:min-w-0 xl:table-fixed">
+        <table className="w-full min-w-[800px] border-collapse text-sm xl:min-w-0 xl:table-fixed">
           <colgroup>
             <col className="w-10" />
+            <col className="w-[5.5rem] sm:w-[6.5rem]" />
             <col className="w-[5.5rem] sm:w-[6.5rem]" />
             <col className="w-[4.5rem] sm:w-[5.5rem]" />
             <col className="hidden w-[6rem] md:table-column sm:table-column" />
@@ -81,9 +83,30 @@ export function EncomendasTable({
           <thead className="sticky top-0 z-10">
             <tr className="bg-[#1e1b4b] text-left text-[10px] font-semibold uppercase tracking-wide text-white sm:text-[11px]">
               <th className="px-1.5 py-2 sm:px-2 sm:py-2.5" aria-label="Selecionar" />
-              <th className="px-2 py-2 sm:px-3 sm:py-2.5">Data</th>
-              <th className="px-2 py-2 sm:px-3 sm:py-2.5">Hora</th>
-              <th className="hidden px-2 py-2 sm:table-cell sm:px-3 sm:py-2.5">Dia</th>
+              <th className="px-2 py-2 sm:px-3 sm:py-2.5" title="Data em que o pedido chegou">
+                Chegou
+              </th>
+              <th
+                className="px-2 py-2 sm:px-3 sm:py-2.5"
+                title="Data da Entrega"
+              >
+                <span className="hidden lg:inline">Data da Entrega</span>
+                <span className="lg:hidden">Dt. Entrega</span>
+              </th>
+              <th
+                className="px-2 py-2 sm:px-3 sm:py-2.5"
+                title="Hora da Entrega"
+              >
+                <span className="hidden sm:inline">Hora da Entrega</span>
+                <span className="sm:hidden">Hora</span>
+              </th>
+              <th
+                className="hidden px-2 py-2 sm:table-cell sm:px-3 sm:py-2.5"
+                title="Dia da Entrega"
+              >
+                <span className="hidden lg:inline">Dia da Entrega</span>
+                <span className="lg:hidden">Dia</span>
+              </th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Cliente</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Setor</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Produto</th>
@@ -95,10 +118,12 @@ export function EncomendasTable({
             {linhas.map((l) => {
               const setorAtual = resolveSetorValue(l);
               const setorMeta = SETORES_OPCOES.find((s) => s.value === setorAtual);
-              const localAtual =
-                l.unidadeId ??
-                locaisOpcoes.find((o) => o.label.toLowerCase() === l.localRetirada.toLowerCase())?.id ??
-                "";
+              const localAtual = resolveLocalOptionId(
+                l.unidadeId,
+                l.localRetirada,
+                l.localKey,
+                locaisOpcoes,
+              );
               const localMeta =
                 locaisOpcoes.find((o) => o.id === localAtual) ??
                 locaisOpcoes.find((o) => o.label.toLowerCase() === l.localRetirada.toLowerCase());
@@ -122,6 +147,9 @@ export function EncomendasTable({
                       className="h-4 w-4 cursor-pointer rounded border-border accent-charcoal"
                       aria-label={`Selecionar pedido ${l.pedidoId.slice(-6)}`}
                     />
+                  </td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs text-charcoal sm:px-3 sm:py-2 sm:text-sm">
+                    {l.dataChegada}
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-xs font-medium text-charcoal sm:px-3 sm:py-2 sm:text-sm">
                     {l.dataRetirada}

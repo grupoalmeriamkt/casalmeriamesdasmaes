@@ -382,6 +382,7 @@ export function Quiz({
         st.entregaTipo === "delivery" && st.endereco
           ? `${st.endereco.rua}, ${st.endereco.numero} — ${st.endereco.bairro}, ${st.endereco.cidade}-${st.endereco.estado}`
           : (st.unidade?.nome ?? ""),
+      unidadeId: st.entregaTipo === "retirada" ? st.unidade?.id : undefined,
       data: st.data,
       horario: st.horario,
       pagamento: { metodo: "", status: "rascunho" },
@@ -1469,6 +1470,7 @@ export function Quiz({
                     st.entregaTipo === "delivery" && st.endereco
                       ? `${st.endereco.rua}, ${st.endereco.numero} — ${st.endereco.bairro}, ${st.endereco.cidade}-${st.endereco.estado}`
                       : (st.unidade?.nome ?? ""),
+                  unidadeId: st.entregaTipo === "retirada" ? st.unidade?.id : undefined,
                   data: st.data,
                   horario: st.horario,
                   pagamento: {

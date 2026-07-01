@@ -18,6 +18,7 @@ import {
 export type EncomendaLinha = {
   linhaId: string;
   pedidoId: string;
+  dataChegada: string;
   dataRetirada: string;
   horarioRetirada: string;
   diaSemana: string;
@@ -35,7 +36,6 @@ export type EncomendaLinha = {
 export const LOCAIS_RETIRADA_OPCOES = [
   { id: "asa-sul", label: "Asa Sul", key: "asa sul" },
   { id: "noroeste", label: "Noroeste", key: "noroeste" },
-  { id: "saan", label: "SAAN", key: "saan" },
   { id: "beira-lago", label: "Beira Lago", key: "beira lago" },
   { id: "wine-garden", label: "Wine Garden", key: "wine garden" },
 ] as const;
@@ -48,7 +48,6 @@ const LOCAIS_CONHECIDOS = LOCAIS_RETIRADA_OPCOES.map((l) => ({
 export const LOCAL_BADGE: Record<string, string> = {
   "asa sul": "bg-blue-600 text-white",
   noroeste: "bg-amber-400 text-charcoal",
-  saan: "bg-red-600 text-white",
   "beira lago": "bg-green-600 text-white",
   "wine garden": "bg-purple-600 text-white",
   outro: "bg-charcoal/10 text-charcoal",
@@ -127,6 +126,72 @@ function resolveLocal(
   return { label, key: "outro" };
 }
 
+export type LocalOpcaoRef = { id: string; label: string; key: string };
+
+/** Resolve o id da opção de local para o dropdown da planilha. */
+export function resolveLocalOptionId(
+  unidadeId: string | null,
+  localRetirada: string,
+  localKey: string,
+  opcoes: LocalOpcaoRef[] = [],
+): string {
+  if (unidadeId && opcoes.some((o) => o.id === unidadeId)) {
+    return unidadeId;
+  }
+
+  const labelNorm = localRetirada.trim().toLowerCase();
+  if (labelNorm && labelNorm !== "—") {
+    const byLabel = opcoes.find((o) => o.label.toLowerCase() === labelNorm);
+    if (byLabel) return byLabel.id;
+
+    const byLabelPartial = opcoes.find(
+      (o) => labelNorm.includes(o.label.toLowerCase()) || o.label.toLowerCase().includes(labelNorm),
+    );
+    if (byLabelPartial) return byLabelPartial.id;
+  }
+
+  const keyNorm = localKey.trim().toLowerCase();
+  if (keyNorm && keyNorm !== "outro") {
+    const byKey = opcoes.find((o) => o.key === keyNorm || o.id === keyNorm);
+    if (byKey) return byKey.id;
+  }
+
+  for (const loc of LOCAIS_RETIRADA_OPCOES) {
+    if (
+      labelNorm.includes(loc.key) ||
+      labelNorm === loc.label.toLowerCase() ||
+      keyNorm === loc.key
+    ) {
+      const inOpcoes = opcoes.find(
+        (o) => o.id === loc.id || o.label.toLowerCase() === loc.label.toLowerCase(),
+      );
+      if (inOpcoes) return inOpcoes.id;
+      return loc.id;
+    }
+  }
+
+  return "";
+}
+
+function inferUnidadeId(
+  rawId: string | null | undefined,
+  local: { label: string; key: string },
+  unidades: UnidadeCadastrada[],
+): string | null {
+  if (rawId) return rawId;
+
+  const fromUnidades = unidades.find(
+    (u) => u.nome.toLowerCase() === local.label.toLowerCase(),
+  );
+  if (fromUnidades) return fromUnidades.id;
+
+  const fromLocais = LOCAIS_RETIRADA_OPCOES.find(
+    (l) =>
+      l.label.toLowerCase() === local.label.toLowerCase() || l.key === local.key,
+  );
+  return fromLocais?.id ?? null;
+}
+
 function resolveSetor(
   sector: SetorOperacional | ProductionSector | null | undefined,
   produtoNome: string,
@@ -190,16 +255,18 @@ export function flattenPedidosParaLinhas(
       "(sem nome)";
 
     const sector = op?.productionSector ?? null;
+    const chegada = isoToPartsSP(raw?.criado_em ?? p.criadoEm ?? "");
 
     const base = {
       pedidoId: p.id,
+      dataChegada: chegada?.date ?? "—",
       dataRetirada: exec?.date ?? (p.data ? p.data.split("-").reverse().join("/") : "—"),
       horarioRetirada: exec?.time ?? (p.horario ? `${String(parseHorarioInicio(p.horario)).padStart(2, "0")}:00:00` : "—"),
       diaSemana: exec?.weekday ?? "—",
       nomeCliente,
       localRetirada: local.label,
       localKey: local.key,
-      unidadeId: raw?.unidade_id ?? null,
+      unidadeId: inferUnidadeId(raw?.unidade_id, local, unidades),
       productionSector: (raw?.production_sector as SetorOperacional | null) ?? sector,
       setor: "",
       setorKey: "outro",
@@ -229,9 +296,10 @@ export function flattenPedidosParaLinhas(
 }
 
 export const ENCOMENDAS_CSV_HEAD = [
-  "DATA DE RETIRADA",
-  "HORÁRIO DA RETIRADA",
-  "DIA DA SEMANA",
+  "DATA DO PEDIDO",
+  "DATA DA ENTREGA",
+  "HORÁRIO DA ENTREGA",
+  "DIA DA ENTREGA",
   "NOME DO CLIENTE",
   "SETOR RESPONSÁVEL",
   "PRODUTO",
@@ -241,6 +309,7 @@ export const ENCOMENDAS_CSV_HEAD = [
 
 export function linhasParaCsvRows(linhas: EncomendaLinha[]): string[][] {
   return linhas.map((l) => [
+    l.dataChegada,
     l.dataRetirada,
     l.horarioRetirada,
     l.diaSemana,

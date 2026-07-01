@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { flattenPedidosParaLinhas } from "@/lib/encomendasTable";
+import {
+  flattenPedidosParaLinhas,
+  LOCAIS_RETIRADA_OPCOES,
+  resolveLocalOptionId,
+} from "@/lib/encomendasTable";
 import type { PedidoRow } from "@/lib/pedidos";
 import type { PedidoSalvo } from "@/store/admin";
 import { rowToPedidoSalvo } from "@/lib/pedidos";
@@ -27,6 +31,11 @@ const baseRow = (): PedidoRow => ({
   pagamentos: [],
 });
 
+const locaisOpcoes = [
+  { id: "asa-sul", label: "Asa Sul", key: "asa sul" },
+  { id: "noroeste", label: "Noroeste", key: "noroeste" },
+];
+
 describe("flattenPedidosParaLinhas", () => {
   it("gera linha no formato ENCOMENDAS", () => {
     const row = baseRow();
@@ -41,6 +50,36 @@ describe("flattenPedidosParaLinhas", () => {
     expect(linhas[0].qtd).toBe(1);
     expect(linhas[0].setor).toBe("Confeitaria");
     expect(linhas[0].localRetirada).toBe("Asa Sul");
+    expect(linhas[0].unidadeId).toBe("asa-sul");
+    expect(linhas[0].dataChegada).toBe("29/06/2026");
+    expect(linhas[0].dataRetirada).toBe("29/06/2026");
     expect(linhas[0].diaSemana).toMatch(/feira/);
+  });
+
+  it("infere unidadeId pelo nome quando unidade_id está vazio", () => {
+    const row = { ...baseRow(), unidade_id: null, endereco_ou_unidade: "Noroeste" };
+    const pedido = rowToPedidoSalvo(row);
+    const linhas = flattenPedidosParaLinhas([pedido], [row], [
+      { id: "noroeste", nome: "Noroeste", endereco: "", status: "ativa", raioEntregaKm: 0, horarioFuncionamento: {} as never },
+    ]);
+
+    expect(linhas[0].unidadeId).toBe("noroeste");
+    expect(linhas[0].localRetirada).toBe("Noroeste");
+  });
+});
+
+describe("resolveLocalOptionId", () => {
+  it("resolve por unidadeId", () => {
+    expect(resolveLocalOptionId("asa-sul", "Asa Sul", "asa sul", locaisOpcoes)).toBe("asa-sul");
+  });
+
+  it("resolve por label quando unidade_id é null", () => {
+    expect(resolveLocalOptionId(null, "Noroeste", "noroeste", locaisOpcoes)).toBe("noroeste");
+  });
+});
+
+describe("LOCAIS_RETIRADA_OPCOES", () => {
+  it("não inclui SAAN", () => {
+    expect(LOCAIS_RETIRADA_OPCOES.some((l) => l.id === "saan")).toBe(false);
   });
 });

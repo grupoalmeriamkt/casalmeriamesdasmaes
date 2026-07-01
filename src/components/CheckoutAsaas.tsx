@@ -262,6 +262,8 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           })),
           tipo: pedidoState.entregaTipo ?? "",
           enderecoOuUnidade,
+          unidadeId:
+            pedidoState.entregaTipo === "retirada" ? pedidoState.unidade?.id : undefined,
           data: pedidoState.data,
           horario: pedidoState.horario,
           pagamento: {
