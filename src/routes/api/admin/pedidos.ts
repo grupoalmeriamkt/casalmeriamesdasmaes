@@ -28,7 +28,22 @@ const BodySchema = z.discriminatedUnion("action", [
     unidade_id: z.string().nullable().optional(),
     endereco_ou_unidade: z.string().optional(),
   }),
+  z.object({
+    action: z.literal("set_etapa"),
+    id: z.string().uuid(),
+    stage: z.enum(["confirmado", "em_preparo", "pronto", "finalizado"]),
+  }),
+  z.object({
+    action: z.literal("avancar_etapa"),
+    ids: z.array(z.string().uuid()).min(1).max(200),
+  }),
+  z.object({
+    action: z.literal("marcar_pago"),
+    ids: z.array(z.string().uuid()).min(1).max(200),
+  }),
 ]);
+
+const STAGE_ORDER = ["confirmado", "em_preparo", "pronto", "finalizado"] as const;
 
 async function authenticate(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
@@ -132,6 +147,72 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             return Response.json({ error: error.message }, { status: 500 });
           }
           return Response.json({ ok: true });
+        }
+
+        if (action === "set_etapa") {
+          const { id, stage } = parsed.data;
+          const { error } = await auth.admin
+            .from("pedidos")
+            .update({ fulfillment_stage: stage, fulfillment_stage_at: new Date().toISOString() })
+            .eq("id", id);
+          if (error) {
+            console.error("[admin/pedidos] set_etapa error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true });
+        }
+
+        if (action === "avancar_etapa") {
+          const { ids } = parsed.data;
+          const { data: rows, error: selErr } = await auth.admin
+            .from("pedidos")
+            .select("id, fulfillment_stage")
+            .in("id", ids);
+          if (selErr) {
+            console.error("[admin/pedidos] avancar_etapa select error", selErr);
+            return Response.json({ error: selErr.message }, { status: 500 });
+          }
+          // Agrupa por próxima etapa (finalizado permanece).
+          const grupos: Record<string, string[]> = {};
+          for (const r of rows ?? []) {
+            const cur = (r.fulfillment_stage as string | null) ?? null;
+            const idx = cur ? STAGE_ORDER.indexOf(cur as (typeof STAGE_ORDER)[number]) : -1;
+            const next = idx < 0 ? "confirmado" : STAGE_ORDER[idx + 1];
+            if (!next) continue;
+            (grupos[next] ??= []).push(r.id as string);
+          }
+          const agora = new Date().toISOString();
+          let avancados = 0;
+          for (const [stage, gids] of Object.entries(grupos)) {
+            const { error } = await auth.admin
+              .from("pedidos")
+              .update({ fulfillment_stage: stage, fulfillment_stage_at: agora })
+              .in("id", gids);
+            if (error) {
+              console.error("[admin/pedidos] avancar_etapa update error", error);
+              return Response.json({ error: error.message }, { status: 500 });
+            }
+            avancados += gids.length;
+          }
+          return Response.json({ ok: true, avancados });
+        }
+
+        if (action === "marcar_pago") {
+          const { ids } = parsed.data;
+          const { data, error } = await auth.admin
+            .from("pedidos")
+            .update({
+              status: "pago",
+              payment_status_normalized: "aprovado",
+              payment_confirmed_at: new Date().toISOString(),
+            })
+            .in("id", ids)
+            .select("id");
+          if (error) {
+            console.error("[admin/pedidos] marcar_pago error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true, pagos: data?.length ?? 0 });
         }
 
         return Response.json({ error: "unknown_action" }, { status: 400 });

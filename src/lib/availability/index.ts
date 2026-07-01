@@ -186,4 +186,5 @@ export type {
   DisponibilidadeResult,
   JanelaDisponivel,
   ProdutoRegras,
+  ProductionSector,
 } from "./types";

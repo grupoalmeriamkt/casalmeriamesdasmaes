@@ -11,7 +11,7 @@ const baseRow = (patch: Partial<PedidoRow> = {}): PedidoRow => ({
   sobremesas: [],
   tipo: "retirada",
   endereco_ou_unidade: "Unidade X",
-  data_entrega: "2026-06-30",
+  data_entrega: "2099-06-30",
   horario: "Entre 08h e 09h",
   pagamento: { metodo: "pix", status: "CONFIRMED" },
   total: 100,
@@ -21,7 +21,7 @@ const baseRow = (patch: Partial<PedidoRow> = {}): PedidoRow => ({
   recipient_is_buyer: true,
   payment_status_normalized: "aprovado",
   is_test: false,
-  execution_at: "2026-06-30T11:00:00.000Z",
+  execution_at: "2099-06-30T11:00:00.000Z",
   pagamentos: [{ id: "p1", asaas_payment_id: "pay1", metodo: "PIX", status: "CONFIRMED", valor: 100, cupom_codigo: null, cupom_desconto: null, cartao_brand: null, cartao_last4: null, criado_em: "2026-06-29T10:00:00Z" }],
   ...patch,
 });

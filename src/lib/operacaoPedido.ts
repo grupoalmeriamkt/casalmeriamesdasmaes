@@ -8,6 +8,7 @@ import {
 import { isBeforeTodaySP, todayISOSP } from "@/lib/timezone";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import type { ProductionSector } from "@/lib/availability/types";
+import type { FulfillmentStage } from "@/lib/etapaPedido";
 
 export type PedidoOperacional = PedidoSalvo & {
   recipientName: string;
@@ -22,6 +23,8 @@ export type PedidoOperacional = PedidoSalvo & {
   isTest: boolean;
   archivedAt?: string | null;
   conciliacaoPendente: boolean;
+  fulfillmentStage?: FulfillmentStage | null;
+  fulfillmentStageAt?: string | null;
 };
 
 export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
@@ -72,6 +75,8 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
     isTest: r.is_test ?? false,
     archivedAt: r.archived_at ?? null,
     conciliacaoPendente: r.conciliacao_pendente ?? false,
+    fulfillmentStage: (r.fulfillment_stage as FulfillmentStage | null) ?? null,
+    fulfillmentStageAt: r.fulfillment_stage_at ?? null,
   };
 }
 

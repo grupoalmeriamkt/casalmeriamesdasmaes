@@ -7,6 +7,8 @@ import {
   resolveProductionSector,
   type CarrinhoItem,
 } from "@/lib/availability";
+import type { SetorOperacional } from "@/lib/setoresOperacao";
+import type { FulfillmentStage } from "@/lib/etapaPedido";
 
 export type PagamentoAsaasRow = {
   id: string;
@@ -61,6 +63,8 @@ export type PedidoRow = {
   archived_at?: string | null;
   archived_by?: string | null;
   conciliacao_pendente?: boolean | null;
+  fulfillment_stage?: string | null;
+  fulfillment_stage_at?: string | null;
   pagamentos?: PagamentoAsaasRow[];
 };
 
@@ -284,6 +288,68 @@ export async function desarquivarPedidos(
     const json = (await res.json()) as { ok?: boolean; desarquivados?: number; error?: string };
     return res.ok
       ? { ok: true, desarquivados: json.desarquivados ?? ids.length }
+      : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Define a etapa de produção de um pedido. Requer admin autenticado. */
+export async function setEtapaPedido(
+  id: string,
+  stage: FulfillmentStage,
+): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "set_etapa", id, stage }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Avança a etapa de produção de vários pedidos (finalizado permanece). */
+export async function avancarEtapaPedidos(
+  ids: string[],
+): Promise<{ ok: boolean; avancados?: number; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "avancar_etapa", ids }),
+    });
+    const json = (await res.json()) as { ok?: boolean; avancados?: number; error?: string };
+    return res.ok
+      ? { ok: true, avancados: json.avancados ?? 0 }
+      : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Marca pedidos como pagos manualmente (override). Requer admin autenticado. */
+export async function marcarComoPago(
+  ids: string[],
+): Promise<{ ok: boolean; pagos?: number; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "marcar_pago", ids }),
+    });
+    const json = (await res.json()) as { ok?: boolean; pagos?: number; error?: string };
+    return res.ok
+      ? { ok: true, pagos: json.pagos ?? ids.length }
       : { ok: false, error: json.error ?? "Erro desconhecido" };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };

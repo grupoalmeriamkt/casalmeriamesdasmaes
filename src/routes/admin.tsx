@@ -4,6 +4,7 @@ import { AbaTextos } from "@/components/admin/AbaTextos";
 import { AbaCestas } from "@/components/admin/AbaCestas";
 import { AbaCampanhas } from "@/components/admin/AbaCampanhas";
 import { AbaPedidos } from "@/components/admin/AbaPedidos";
+import { CentralPedidos } from "@/components/admin/pedidos/CentralPedidos";
 import { AbaCupons } from "@/components/admin/AbaCupons";
 import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
@@ -33,6 +34,7 @@ const ABAS = [
   { id: "cestas", label: "Produtos", Icon: Package, Comp: AbaCestas },
   { id: "campanhas", label: "Campanhas", Icon: Megaphone, Comp: AbaCampanhas },
   { id: "pedidos", label: "Pedidos", Icon: ListOrdered, Comp: AbaPedidos },
+  { id: "pedidos-central", label: "Pedidos ✦", Icon: ListOrdered, Comp: CentralPedidos },
   { id: "cupons", label: "Cupons", Icon: Tag, Comp: AbaCupons },
   { id: "configuracoes", label: "Configurações", Icon: Settings, Comp: AbaConfiguracoes },
 ] as const;
