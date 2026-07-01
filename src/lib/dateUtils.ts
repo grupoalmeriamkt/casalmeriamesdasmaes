@@ -42,15 +42,30 @@ const MONTHS_PT = [
   "julho","agosto","setembro","outubro","novembro","dezembro",
 ];
 
-// Reverte formatDatePtBR("Domingo, 10 de Junho de 2026") → Date
+// Reverte formatDatePtBR("Domingo, 10 de Junho de 2026") ou "10 de junho de 2026" → Date
 export function parseDatePtBRToDate(s: string): Date | undefined {
-  const match = s.match(/,\s*(\d+)\s+de\s+(\w+)\s+de\s+(\d{4})/i);
+  const match = s.match(/(?:,\s*)?(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
   if (!match) return undefined;
-  const day = parseInt(match[1]);
+  const day = parseInt(match[1], 10);
   const month = MONTHS_PT.indexOf(match[2].toLowerCase());
-  const year = parseInt(match[3]);
-  if (month === -1) return undefined;
+  const year = parseInt(match[3], 10);
+  if (month === -1 || Number.isNaN(day) || Number.isNaN(year)) return undefined;
   return new Date(year, month, day, 12);
+}
+
+/** Normaliza data_entrega (ISO, PT-BR com/sem dia da semana) para YYYY-MM-DD. */
+export function dataEntregaParaIso(data?: string | null): string | null {
+  if (!data) return null;
+  const trimmed = data.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const embedded = trimmed.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (embedded) return `${embedded[1]}-${embedded[2]}-${embedded[3]}`;
+
+  const parsed = parseDatePtBRToDate(trimmed);
+  if (parsed) return toISODateString(parsed);
+
+  return null;
 }
 
 // Parse ISO date id "YYYY-MM-DD" → card display parts, null for legacy ids

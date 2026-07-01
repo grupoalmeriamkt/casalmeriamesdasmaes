@@ -1,4 +1,5 @@
 import type { PedidoRow } from "@/lib/pedidos";
+import { dataEntregaParaIso } from "@/lib/dateUtils";
 import { rowToPedidoOperacional } from "@/lib/operacaoPedido";
 import { parseHorarioInicio } from "@/lib/executionAt";
 import { TZ_SP } from "@/lib/timezone";
@@ -79,14 +80,6 @@ function isoToPartsSP(iso: string): { date: string; time: string; weekday: strin
     weekday: "long",
   }).format(d);
   return { date, time, weekday };
-}
-
-function dataEntregaParaIso(data?: string | null): string | null {
-  if (!data) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(data)) return data;
-  const m = data.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  return null;
 }
 
 function execucaoFromPedido(p: PedidoSalvo, raw?: PedidoRow) {

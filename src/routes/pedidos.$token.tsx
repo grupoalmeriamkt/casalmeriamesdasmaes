@@ -81,6 +81,7 @@ import {
   type FiltrosPlanilha,
 } from "@/lib/planilhaFiltros";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
+import { dataEntregaParaIso } from "@/lib/dateUtils";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -130,6 +131,10 @@ const STATUS_ALIASES: Record<string, StatusKey> = {
 function getStatus(p: PedidoSalvo): StatusKey {
   const s = p.pagamento?.status || "";
   return STATUS_ALIASES[s] ?? STATUS_ALIASES[s.toLowerCase()] ?? "rascunho";
+}
+
+function entregaIsoDoPedido(p: PedidoSalvo, raw?: PedidoRow): string | null {
+  return dataEntregaParaIso(p.data ?? raw?.data_entrega);
 }
 
 function horaNow() {
@@ -341,6 +346,8 @@ function CozinhaPage() {
     [operacaoEnabled, pedidosOps],
   );
 
+  const rawRowsById = useMemo(() => new Map(rawRows.map((r) => [r.id, r])), [rawRows]);
+
   const pedidosSemFiltroData = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
     const filtered = pedidos.filter((p) => {
@@ -360,19 +367,38 @@ function CozinhaPage() {
     return sortPedidosPorCriadoDesc(filtered);
   }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
 
+  const pedidosParaCalendario = useMemo(() => {
+    const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
+    const filtered = pedidos.filter((p) => {
+      if (!mostrarArq && p.archivedAt) return false;
+      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
+      if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
+      if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
+      if (filtroTexto) {
+        const q = filtroTexto.toLowerCase();
+        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    return sortPedidosPorCriadoDesc(filtered);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto]);
+
   const pedidosFiltrados = useMemo(() => {
-    if (!filtroData) return pedidosSemFiltroData;
-    return pedidosSemFiltroData.filter((p) => p.data === filtroData);
-  }, [pedidosSemFiltroData, filtroData]);
+    const base = view === "calendario" ? pedidosParaCalendario : pedidosSemFiltroData;
+    if (!filtroData) return base;
+    return base.filter((p) => entregaIsoDoPedido(p, rawRowsById.get(p.id)) === filtroData);
+  }, [view, pedidosParaCalendario, pedidosSemFiltroData, filtroData, rawRowsById]);
 
   const contagemPorDiaEntrega = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const p of pedidosSemFiltroData) {
-      if (!p.data) continue;
-      map[p.data] = (map[p.data] ?? 0) + 1;
+    for (const p of pedidosParaCalendario) {
+      const iso = entregaIsoDoPedido(p, rawRowsById.get(p.id));
+      if (!iso) continue;
+      map[iso] = (map[iso] ?? 0) + 1;
     }
     return map;
-  }, [pedidosSemFiltroData]);
+  }, [pedidosParaCalendario, rawRowsById]);
 
   const listaVisivel = useMemo(
     () => (operacaoEnabled && view === "lista" ? pedidosOpsFiltrados : pedidosFiltrados),
@@ -430,8 +456,8 @@ function CozinhaPage() {
   );
 
   const pedidosComDataEntrega = useMemo(
-    () => pedidosSemFiltroData.filter((p) => !!p.data),
-    [pedidosSemFiltroData],
+    () => pedidosParaCalendario.filter((p) => !!entregaIsoDoPedido(p, rawRowsById.get(p.id))),
+    [pedidosParaCalendario, rawRowsById],
   );
 
   // ── useMemo antes de qualquer return condicional ───────────────────────────
