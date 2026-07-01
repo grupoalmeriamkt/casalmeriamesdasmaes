@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { criarTokenPedidos } from "@/lib/shareToken";
 
 export type UsuarioCozinha = {
   user_id: string;
@@ -23,11 +24,12 @@ export function urlModuloCozinha(): string {
 
 export async function obterTokenGeralCozinha(): Promise<string | null> {
   const { data, error } = await supabase.rpc("cozinha_token_geral");
-  if (error) {
-    console.error("cozinha_token_geral:", error);
-    return null;
-  }
-  return typeof data === "string" ? data : null;
+  if (!error && typeof data === "string" && data.length > 0) return data;
+  if (error) console.error("cozinha_token_geral:", error);
+
+  // Fallback: admin pode criar o token geral se ainda não existir no banco.
+  const criado = await criarTokenPedidos(undefined, undefined);
+  return criado?.token ?? null;
 }
 
 export async function listarUsuariosCozinha(): Promise<UsuarioCozinha[]> {
