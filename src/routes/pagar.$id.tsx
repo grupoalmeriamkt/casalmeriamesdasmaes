@@ -26,6 +26,7 @@ function PagarPage() {
   const [pedido, setPedido] = useState<PedidoPublico | null>(null);
   const [motivo, setMotivo] = useState<string>("");
   const [msgIndisponivel, setMsgIndisponivel] = useState<string>("");
+  const [desconto, setDesconto] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -87,9 +88,15 @@ function PagarPage() {
                       <span className="text-charcoal/70">{brl(it.preco * it.quantidade)}</span>
                     </div>
                   ))}
+                  {desconto > 0 && (
+                    <div className="flex items-center justify-between border-b px-4 py-2 text-sm">
+                      <span className="text-olive">Desconto</span>
+                      <span className="text-olive">−{brl(desconto)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between bg-charcoal px-4 py-3 text-white">
                     <span className="text-sm opacity-70">Total</span>
-                    <span className="font-serif text-xl">{brl(pedido.total)}</span>
+                    <span className="font-serif text-xl">{brl(Math.max(0, pedido.total - desconto))}</span>
                   </div>
                 </div>
 
@@ -101,6 +108,7 @@ function PagarPage() {
                     setMotivo(m);
                     setEstado("erro");
                   }}
+                  onDescontoChange={setDesconto}
                 />
               </div>
             )}

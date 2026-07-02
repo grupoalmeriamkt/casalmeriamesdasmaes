@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, Tag, CheckCircle2, X } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -40,11 +41,14 @@ export function CardPaymentForm({
   onEnviando,
   onSuccess,
   onError,
+  onDescontoChange,
 }: {
   pedido: PedidoPublico;
   onEnviando: () => void;
   onSuccess: () => void;
   onError: (motivo: string) => void;
+  /** Notifica a página do desconto aplicado, p/ atualizar o resumo/total. */
+  onDescontoChange?: (desconto: number) => void;
 }) {
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState(pedido.cliente_email ?? "");
@@ -57,6 +61,48 @@ export function CardPaymentForm({
   const [complemento, setComplemento] = useState("");
   const [erros, setErros] = useState<Erros>({});
   const [enviando, setEnviando] = useState(false);
+
+  // ── Cupom ──────────────────────────────────────────────────────────────
+  const [cupomInput, setCupomInput] = useState("");
+  const [cupomAplicado, setCupomAplicado] = useState<{ codigo: string; desconto: number } | null>(null);
+  const [validandoCupom, setValidandoCupom] = useState(false);
+
+  const totalComDesconto = Math.max(0, pedido.total - (cupomAplicado?.desconto ?? 0));
+  const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const aplicarCupom = async () => {
+    const codigo = cupomInput.trim();
+    if (codigo.length < 2 || validandoCupom) return;
+    setValidandoCupom(true);
+    try {
+      const res = await fetch("/api/public/cupom/validar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, total: pedido.total }),
+      });
+      const data = (await res.json()) as { valido?: boolean; motivo?: string; desconto?: number; codigo?: string };
+      if (res.ok && data.valido && (data.desconto ?? 0) > 0) {
+        const aplicado = { codigo: data.codigo ?? codigo, desconto: Number(data.desconto) };
+        setCupomAplicado(aplicado);
+        onDescontoChange?.(aplicado.desconto);
+        toast.success(`Cupom aplicado: −${brl(aplicado.desconto)}`);
+      } else {
+        setCupomAplicado(null);
+        onDescontoChange?.(0);
+        toast.error(data.motivo ?? "Cupom inválido");
+      }
+    } catch {
+      toast.error("Não foi possível validar o cupom.");
+    } finally {
+      setValidandoCupom(false);
+    }
+  };
+
+  const removerCupom = () => {
+    setCupomAplicado(null);
+    setCupomInput("");
+    onDescontoChange?.(0);
+  };
 
   const validar = (): boolean => {
     const e: Erros = {};
@@ -88,6 +134,7 @@ export function CardPaymentForm({
         },
         itens: pedido.itens,
         total: pedido.total,
+        cupomCodigo: cupomAplicado?.codigo,
         cartao: { holderName, number, expiry, ccv },
         endereco: { cep, numero, complemento },
       }),
@@ -189,12 +236,51 @@ export function CardPaymentForm({
         </div>
       </div>
 
+      {/* Cupom de desconto */}
+      <div className="flex flex-col gap-2">
+        <Label className="flex items-center gap-1.5 text-charcoal/70">
+          <Tag className="h-4 w-4 text-olive" /> Cupom de desconto
+        </Label>
+        {cupomAplicado ? (
+          <div className="flex items-center justify-between rounded-lg border border-olive/40 bg-olive/5 px-3 py-2.5">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-olive">
+              <CheckCircle2 className="h-4 w-4" /> {cupomAplicado.codigo}
+              <span className="font-normal text-charcoal/60">−{brl(cupomAplicado.desconto)}</span>
+            </span>
+            <button type="button" onClick={removerCupom}
+              className="text-charcoal/40 transition-colors hover:text-terracotta" aria-label="Remover cupom">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input placeholder="Digite o código" className={`${inputCls} uppercase`}
+              value={cupomInput}
+              onChange={(e) => setCupomInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); void aplicarCupom(); }
+              }} />
+            <Button type="button" variant="outline" disabled={cupomInput.trim().length < 2 || validandoCupom}
+              onClick={() => void aplicarCupom()} className="shrink-0">
+              {validandoCupom ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aplicar"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {cupomAplicado && (
+        <div className="flex items-center justify-between rounded-lg bg-charcoal/5 px-3 py-2 text-sm">
+          <span className="text-charcoal/60">Total com desconto</span>
+          <span className="font-serif text-lg text-charcoal">{brl(totalComDesconto)}</span>
+        </div>
+      )}
+
       <Button type="submit" disabled={enviando}
         className="h-12 w-full bg-charcoal text-base text-white hover:bg-charcoal/90">
         {enviando ? (
           <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando…</>
         ) : (
-          <>Pagar {pedido.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</>
+          <>Pagar {brl(totalComDesconto)}</>
         )}
       </Button>
       <p className="flex items-center justify-center gap-1.5 text-xs text-charcoal/40">

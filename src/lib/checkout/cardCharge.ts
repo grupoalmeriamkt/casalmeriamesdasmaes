@@ -34,6 +34,8 @@ export type CardChargeInput = {
   total: number;
   cartao: { holderName: string; number: string; expiry: string; ccv: string };
   endereco: { cep: string; numero: string; complemento?: string };
+  /** Código do cupom (o servidor revalida e aplica o desconto sobre `total`). */
+  cupomCodigo?: string;
 };
 
 export type CardChargeResult =
@@ -69,6 +71,7 @@ export async function submitCardCharge(input: CardChargeInput): Promise<CardChar
         },
         itens: input.itens,
         total: input.total,
+        cupomCodigo: input.cupomCodigo || undefined,
         metodo: "CREDIT_CARD",
         cartao: cardData,
         holderInfo,
