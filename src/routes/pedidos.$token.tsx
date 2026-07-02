@@ -16,6 +16,7 @@ import { buscarInfoToken } from "@/lib/shareToken";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
+import { PedidoManualModal } from "@/components/pedidoManual/PedidoManualModal";
 import {
   Dialog,
   DialogContent,
@@ -41,10 +42,9 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { labelStatusPagamento, labelTipoPedido } from "@/lib/asaasStatus";
+import { labelTipoPedido } from "@/lib/asaasStatus";
 import { isOperacaoPedidosEnabled } from "@/lib/featureFlags";
 import {
   agruparPorExecucao,
@@ -83,6 +83,19 @@ import {
 } from "@/lib/planilhaFiltros";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import { dataEntregaParaIso } from "@/lib/dateUtils";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  PedidosTokenMobileChip,
+  PedidosTokenMobileChips,
+  PedidosTokenMobileHeader,
+  PedidosTokenMobileNav,
+  PedidosTokenMobileSearch,
+  PedidosTokenMobileSheet,
+  type PedidosMobileView,
+} from "@/components/operacao/PedidosTokenMobileChrome";
+import { PedidosListaMobile } from "@/components/operacao/PedidosListaMobile";
+import { PedidoDetalheMobileSheet } from "@/components/operacao/PedidoDetalheMobileSheet";
+import { DetalhesPedido, destinatarioEntrega } from "@/components/operacao/PedidoDetalheContent";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -100,11 +113,11 @@ type ViewMode = "lista" | "kanban" | "planilha" | "calendario";
 
 type StatusKey = "aprovado" | "pendente" | "rascunho" | "abandonado";
 
-const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; header: string }> = {
-  aprovado:   { label: "Aprovado",            bg: "bg-olive/15 text-olive",               header: "bg-olive text-white" },
-  pendente:   { label: "Aguardando pagamento", bg: "bg-terracotta/20 text-charcoal",       header: "bg-terracotta text-white" },
-  rascunho:   { label: "Em preenchimento",     bg: "bg-charcoal/10 text-charcoal",         header: "bg-charcoal text-white" },
-  abandonado: { label: "Abandonado",           bg: "bg-terracotta/15 text-terracotta",     header: "bg-muted text-charcoal" },
+const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; header: string; dot: string }> = {
+  aprovado:   { label: "Aprovado",             bg: "bg-olive/15 text-olive",           header: "bg-olive text-white",           dot: "bg-olive" },
+  pendente:   { label: "Aguardando pagamento", bg: "bg-terracotta/20 text-charcoal",   header: "bg-terracotta text-white",      dot: "bg-terracotta" },
+  rascunho:   { label: "Em preenchimento",     bg: "bg-charcoal/10 text-charcoal",   header: "bg-charcoal text-white",        dot: "bg-charcoal" },
+  abandonado: { label: "Abandonado",           bg: "bg-terracotta/15 text-terracotta", header: "bg-muted text-charcoal",      dot: "bg-terracotta/60" },
 };
 
 const STATUS_ALIASES: Record<string, StatusKey> = {
@@ -149,6 +162,9 @@ function CozinhaPage() {
   const { user, loading: authLoading, canAccessCozinha } = useAuth();
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
+  const isMobile = useIsMobile();
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
   const [pedidos, setPedidos] = useState<PedidoSalvo[]>([]);
   const [pedidosOps, setPedidosOps] = useState<PedidoOperacional[]>([]);
@@ -837,343 +853,467 @@ function CozinhaPage() {
   const planilhaLayout = view === "planilha" || view === "calendario";
   const shellClass = planilhaLayout ? "w-full" : "mx-auto max-w-6xl";
   const padX = planilhaLayout ? "px-2 sm:px-3" : "px-4 sm:px-6";
+  const mobileTitle = campanhaInfo?.nome
+    ? `Pedidos · ${campanhaInfo.nome}`
+    : "Pedidos — Casa Almeria";
+  const mobileSubtitle = ultimaAtualizacao
+    ? `Atualizado às ${ultimaAtualizacao}`
+    : "Carregando…";
+
+  const renderFiltrosConteudo = () => (
+    <>
+      {operacaoEnabled && pendencias.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
+            <AlertTriangle className="h-4 w-4" />
+            Pendências de conciliação ({pendencias.length})
+          </p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-950">
+            {pendencias.map((p) => (
+              <li key={p.id}>
+                <span className="font-mono font-semibold">#{p.id.slice(-6).toUpperCase()}</span>
+                {" · "}
+                {p.cliente_nome}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className={`flex flex-wrap items-center gap-2 ${planilhaLayout ? "gap-1.5" : ""}`}>
+        {!isMobile && (
+          <input
+            type="search"
+            placeholder="🔍 Buscar por nome, telefone…"
+            value={filtroTexto}
+            onChange={(e) => setFiltroTexto(e.target.value)}
+            className={`rounded-lg border border-border bg-background py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-charcoal/30 ${
+              planilhaLayout ? "min-w-[10rem] flex-1 sm:max-w-xs" : "w-56 px-3"
+            } px-3`}
+          />
+        )}
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-muted-foreground whitespace-nowrap">Entrega:</label>
+          <input
+            type="date"
+            value={filtroData}
+            onChange={(e) => setFiltroData(e.target.value)}
+            className="h-10 rounded-xl border border-border bg-background px-3 text-xs"
+          />
+          {filtroData && (
+            <button onClick={() => setFiltroData("")} className="text-muted-foreground hover:text-charcoal">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        {!planilhaLayout && (
+          <button
+            onClick={() => setFiltroPolaroid((v) => !v)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+            }`}
+          >
+            📸 Polaroid
+          </button>
+        )}
+        {!operacaoEnabled && (
+          <label className="flex items-center gap-1.5 text-xs text-charcoal">
+            <input
+              type="checkbox"
+              checked={mostrarArquivados}
+              onChange={(e) => setMostrarArquivados(e.target.checked)}
+              className="rounded border-border"
+            />
+            Mostrar arquivados
+          </label>
+        )}
+        {!isMobile && (
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
+              {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={selecionarTodos}
+              className="text-xs font-semibold text-charcoal/60 hover:text-charcoal"
+            >
+              Selecionar todos
+            </button>
+            {temFiltro && (
+              <button
+                onClick={limparTodosFiltros}
+                className="text-xs font-semibold text-terracotta hover:text-terracotta/80"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 ${planilhaLayout ? "gap-y-1" : ""}`}>
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((s) => {
+            const active = filtroStatus.includes(s);
+            return (
+              <button
+                key={s}
+                onClick={() => toggleStatus(s)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:px-3 sm:py-1 sm:text-xs ${
+                  active ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                }`}
+              >
+                {STATUS_CONFIG[s].label}
+                {active && <X className="ml-1 inline h-3 w-3" />}
+              </button>
+            );
+          })}
+        </div>
+        <div className="hidden h-3 w-px bg-border sm:block" />
+        <div className="flex flex-wrap gap-1">
+          {(["", "delivery", "retirada"] as const).map((t) => (
+            <button
+              key={t || "todos"}
+              onClick={() => setFiltroTipo(t)}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors capitalize sm:px-3 sm:py-1 sm:text-xs ${
+                filtroTipo === t ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+              }`}
+            >
+              {t === "" ? "Todos" : labelTipoPedido(t)}
+            </button>
+          ))}
+        </div>
+        {planilhaLayout && (
+          <div className="flex flex-wrap items-center gap-1">
+            {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:text-xs ${
+                  filtroPeriodo === p ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                }`}
+              >
+                {{ hoje: "Hoje", ontem: "Ontem", semana: "Semana", mes: "Mês" }[p]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {operacaoEnabled && (
+        <OperacaoFiltrosBar
+          filtros={filtrosOps}
+          onChange={(patch) => setFiltrosOps((f) => ({ ...f, ...patch }))}
+          unidades={unidades.filter((u) => u.status === "ativa").map((u) => ({ id: u.id, nome: u.nome }))}
+          contagemAprovados={contagemAprovadosOps}
+        />
+      )}
+
+      {planilhaLayout && (
+        <PlanilhaFiltrosBar
+          filtros={filtrosPlanilha}
+          produtos={produtosOpcoes}
+          locais={locaisOpcoes.map((l) => ({ id: l.id, label: l.label }))}
+          onChange={(patch) => setFiltrosPlanilha((f) => ({ ...f, ...patch }))}
+          onLimpar={limparFiltrosPlanilha}
+        />
+      )}
+
+      {temFiltro && planilhaLayout && !isMobile && (
+        <button
+          type="button"
+          onClick={limparTodosFiltros}
+          className="text-xs font-medium text-terracotta hover:underline"
+        >
+          Limpar todos os filtros
+        </button>
+      )}
+
+      {!planilhaLayout && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
+          {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                filtroPeriodo === p ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+              }`}
+            >
+              {{ hoje: "Hoje", ontem: "Ontem", semana: "Esta semana", mes: "Este mês" }[p]}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const renderMobileActions = () => (
+    <div className="grid gap-2">
+      <button
+        type="button"
+        onClick={() => {
+          if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+          const next = !somAtivo;
+          setSomAtivo(next);
+          somAtivoRef.current = next;
+        }}
+        className="h-11 rounded-xl border border-black/8 px-4 text-left text-sm font-medium"
+      >
+        {somAtivo ? "🔔 Som ativo" : "🔕 Ativar som"}
+      </button>
+      <PedidoManualModal
+        onCriado={() => carregarRef.current?.()}
+        triggerClassName="inline-flex h-11 w-full items-center justify-start gap-1.5 rounded-md bg-olive px-4 text-sm font-semibold text-white transition-colors hover:bg-olive/90"
+      />
+      <Button
+        variant="outline"
+        className="h-11 w-full justify-start"
+        onClick={() =>
+          exportarCSV(operacaoEnabled ? pedidosOpsFiltrados : pedidosFiltrados)
+        }
+        disabled={
+          operacaoEnabled ? pedidosOpsFiltrados.length === 0 : pedidosFiltrados.length === 0
+        }
+      >
+        ⬇ Exportar visíveis
+      </Button>
+      <Button
+        className="h-11 w-full justify-start bg-terracotta text-white hover:bg-terracotta/90"
+        onClick={imprimirAprovadosHoje}
+        disabled={porStatus.aprovado.length === 0}
+      >
+        <Printer className="mr-2 h-4 w-4" />
+        Imprimir aprovados de hoje
+      </Button>
+      <Button
+        variant="outline"
+        className="h-11 w-full justify-start"
+        onClick={() => {
+          toggleView("kanban");
+          setMobileActionsOpen(false);
+        }}
+      >
+        <Columns className="mr-2 h-4 w-4" />
+        Abrir quadro Kanban
+      </Button>
+      <Button variant="outline" className="h-11 w-full justify-start" onClick={() => supabase.auth.signOut()}>
+        Sair
+      </Button>
+    </div>
+  );
 
   // ── View ──────────────────────────────────────────────────────────────────
   return (
-    <div className={planilhaLayout ? "flex min-h-dvh flex-col bg-linen" : "min-h-screen bg-linen"}>
-      <div className={planilhaLayout ? "flex min-h-0 flex-1 flex-col print:hidden" : "print:hidden"}>
+    <div
+      className={
+        isMobile
+          ? "flex min-h-dvh flex-col bg-[#f2f2f7]"
+          : planilhaLayout
+            ? "flex min-h-dvh flex-col bg-linen"
+            : "min-h-screen bg-linen"
+      }
+    >
+      <div className={planilhaLayout || isMobile ? "flex min-h-0 flex-1 flex-col print:hidden" : "print:hidden"}>
 
-        {/* Header */}
-        <header className="shrink-0 bg-charcoal text-white">
-          <div className={`${shellClass} flex flex-wrap items-center justify-between gap-3 py-3 ${padX}`}>
-            <div>
-              <h1 className="font-serif text-xl font-bold">
-                {campanhaInfo?.nome
-                  ? `Pedidos · ${campanhaInfo.nome}`
-                  : "Pedidos — Casa Almeria"}
-              </h1>
-              <p className="text-xs text-white/50">
-                {ultimaAtualizacao
-                  ? `Atualizado às ${ultimaAtualizacao} · ao vivo`
-                  : "Carregando…"}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Toggle lista/kanban */}
-              <div className="flex rounded-lg border border-white/20 p-0.5">
-                <button
-                  onClick={() => toggleView("planilha")}
-                  title="Planilha ENCOMENDAS"
-                  className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "planilha" ? "bg-white/20" : "hover:bg-white/10"}`}
-                >
-                  <Table2 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => toggleView("calendario")}
-                  title="Calendário de entregas"
-                  className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "calendario" ? "bg-white/20" : "hover:bg-white/10"}`}
-                >
-                  <CalendarDays className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => toggleView("lista")}
-                  title="Lista"
-                  className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "lista" ? "bg-white/20" : "hover:bg-white/10"}`}
-                >
-                  <LayoutList className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => toggleView("kanban")}
-                  title="Quadro"
-                  className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "kanban" ? "bg-white/20" : "hover:bg-white/10"}`}
-                >
-                  <Columns className="h-4 w-4" />
-                </button>
-              </div>
-
-              <button
-                onClick={() => {
-                  if (!audioCtxRef.current) {
-                    audioCtxRef.current = new AudioContext();
-                  }
-                  const next = !somAtivo;
-                  setSomAtivo(next);
-                  somAtivoRef.current = next;
-                }}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
-                  somAtivo
-                    ? "bg-white text-charcoal border-white"
-                    : "bg-transparent text-white border-white/30 hover:bg-white/10"
-                }`}
+        {isMobile ? (
+          <>
+            <PedidosTokenMobileHeader
+              title={mobileTitle}
+              subtitle={mobileSubtitle}
+              carregando={carregando}
+              filtrosAtivos={temFiltro}
+              onRefresh={() => carregarRef.current?.()}
+              onOpenFilters={() => setMobileFiltersOpen(true)}
+              onOpenActions={() => setMobileActionsOpen(true)}
+            />
+            <PedidosTokenMobileSearch
+              value={filtroTexto}
+              onChange={setFiltroTexto}
+              count={
+                view === "planilha"
+                  ? new Set(linhasVisiveis.map((l) => l.pedidoId)).size
+                  : view === "calendario"
+                    ? pedidosComDataEntrega.length
+                    : pedidosFiltrados.length
+              }
+              showCount={view !== "lista" && view !== "planilha" && view !== "calendario"}
+            />
+            <PedidosTokenMobileChips>
+              <PedidosTokenMobileChip
+                active={filtroPeriodo === "hoje"}
+                onClick={() => aplicarPeriodo(filtroPeriodo === "hoje" ? "" : "hoje")}
               >
-                {somAtivo ? "🔔 Som ativo" : "🔕 Ativar som"}
-              </button>
-
-              <Button variant="outline" onClick={() => carregarRef.current?.()} disabled={carregando}
-                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">
-                <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
-                Atualizar
-              </Button>
-              <Button asChild className="bg-olive text-white hover:bg-olive/90">
-                <a href="/pedidos/novo" target="_blank" rel="noopener noreferrer">＋ Novo Pedido</a>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  exportarCSV(
-                    operacaoEnabled
-                      ? pedidosOpsFiltrados
-                      : pedidosFiltrados,
-                  )
-                }
-                disabled={
-                  operacaoEnabled
-                    ? pedidosOpsFiltrados.length === 0
-                    : pedidosFiltrados.length === 0
-                }
-                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                Hoje
+              </PedidosTokenMobileChip>
+              <PedidosTokenMobileChip
+                active={filtroTipo === "delivery"}
+                onClick={() => setFiltroTipo(filtroTipo === "delivery" ? "" : "delivery")}
               >
-                ⬇ Exportar visíveis
-              </Button>
-              <Button onClick={imprimirAprovadosHoje} disabled={porStatus.aprovado.length === 0}
-                className="bg-terracotta text-white hover:bg-terracotta/90">
-                <Printer className="mr-2 h-4 w-4" />
-                Imprimir aprovados de hoje
-              </Button>
-              <Button variant="outline" onClick={() => supabase.auth.signOut()}
-                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white">
-                Sair
-              </Button>
-            </div>
-          </div>
-        </header>
+                Entrega
+              </PedidosTokenMobileChip>
+              <PedidosTokenMobileChip
+                active={filtroTipo === "retirada"}
+                onClick={() => setFiltroTipo(filtroTipo === "retirada" ? "" : "retirada")}
+              >
+                Retirada
+              </PedidosTokenMobileChip>
+              <PedidosTokenMobileChip
+                active={filtroStatus.includes("aprovado")}
+                onClick={() => toggleStatus("aprovado")}
+              >
+                Aprovados
+              </PedidosTokenMobileChip>
+              {temFiltro && (
+                <PedidosTokenMobileChip active={false} onClick={limparTodosFiltros}>
+                  Limpar
+                </PedidosTokenMobileChip>
+              )}
+            </PedidosTokenMobileChips>
 
-        {/* Filtros */}
-        <div className={`shrink-0 border-b border-border bg-white ${planilhaLayout ? "" : ""}`}>
-          <div className={`${shellClass} space-y-2 py-2 ${padX} ${planilhaLayout ? "space-y-1.5" : "py-3"}`}>
-
-            {operacaoEnabled && pendencias.length > 0 && (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
-                <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
-                  <AlertTriangle className="h-4 w-4" />
-                  Pendências de conciliação ({pendencias.length})
-                </p>
-                <ul className="mt-2 space-y-1 text-xs text-amber-950">
-                  {pendencias.map((p) => (
-                    <li key={p.id}>
-                      <span className="font-mono font-semibold">#{p.id.slice(-6).toUpperCase()}</span>
-                      {" · "}
-                      {p.cliente_nome}
-                      {" · "}
-                      bruto: {p.payment_status_raw ?? "—"}
-                      {" · "}
-                      normalizado: {p.payment_status_normalized ?? "—"}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Linha 1: busca + data entrega + polaroid + contagem */}
-            <div className={`flex flex-wrap items-center gap-2 ${planilhaLayout ? "gap-1.5" : ""}`}>
-              <input
-                type="search"
-                placeholder="🔍 Buscar por nome, telefone…"
-                value={filtroTexto}
-                onChange={(e) => setFiltroTexto(e.target.value)}
-                className={`rounded-lg border border-border bg-background py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-charcoal/30 ${
-                  planilhaLayout ? "min-w-[10rem] flex-1 sm:max-w-xs" : "w-56 px-3"
-                } px-3`}
-              />
-              <div className="flex items-center gap-1.5">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Entrega:</label>
-                <input
-                  type="date"
-                  value={filtroData}
-                  onChange={(e) => setFiltroData(e.target.value)}
-                  className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                />
-                {filtroData && (
-                  <button onClick={() => setFiltroData("")} className="text-muted-foreground hover:text-charcoal">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-              {!planilhaLayout && (
+            <PedidosTokenMobileSheet
+              open={mobileFiltersOpen}
+              onOpenChange={setMobileFiltersOpen}
+              title="Filtros"
+            >
+              {renderFiltrosConteudo()}
+              {temFiltro && (
                 <button
-                  onClick={() => setFiltroPolaroid((v) => !v)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                    filtroPolaroid ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
-                  }`}
+                  type="button"
+                  onClick={limparTodosFiltros}
+                  className="w-full rounded-xl border border-black/8 py-3 text-sm font-semibold text-terracotta"
                 >
-                  📸 Polaroid
+                  Limpar todos os filtros
                 </button>
               )}
-              {!operacaoEnabled && (
-                <label className="flex items-center gap-1.5 text-xs text-charcoal">
-                  <input
-                    type="checkbox"
-                    checked={mostrarArquivados}
-                    onChange={(e) => setMostrarArquivados(e.target.checked)}
-                    className="rounded border-border"
-                  />
-                  Mostrar arquivados
-                </label>
-              )}
-              <div className="ml-auto flex items-center gap-3">
-                <span className="text-xs text-muted-foreground">
-                  {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? "s" : ""}
-                </span>
-                <button
-                  onClick={selecionarTodos}
-                  className="text-xs font-semibold text-charcoal/60 hover:text-charcoal"
-                >
-                  Selecionar todos
-                </button>
-                {temFiltro && (
+            </PedidosTokenMobileSheet>
+
+            <PedidosTokenMobileSheet
+              open={mobileActionsOpen}
+              onOpenChange={setMobileActionsOpen}
+              title="Ações"
+            >
+              {renderMobileActions()}
+            </PedidosTokenMobileSheet>
+          </>
+        ) : (
+          <>
+            <header className="shrink-0 bg-charcoal text-white">
+              <div className={`${shellClass} flex flex-wrap items-center justify-between gap-3 py-3 ${padX}`}>
+                <div>
+                  <h1 className="font-serif text-xl font-bold">{mobileTitle}</h1>
+                  <p className="text-xs text-white/50">
+                    {ultimaAtualizacao
+                      ? `Atualizado às ${ultimaAtualizacao} · ao vivo`
+                      : "Carregando…"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex rounded-lg border border-white/20 p-0.5">
+                    <button
+                      onClick={() => toggleView("planilha")}
+                      title="Planilha ENCOMENDAS"
+                      className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "planilha" ? "bg-white/20" : "hover:bg-white/10"}`}
+                    >
+                      <Table2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => toggleView("calendario")}
+                      title="Calendário de entregas"
+                      className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "calendario" ? "bg-white/20" : "hover:bg-white/10"}`}
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => toggleView("lista")}
+                      title="Lista"
+                      className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "lista" ? "bg-white/20" : "hover:bg-white/10"}`}
+                    >
+                      <LayoutList className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => toggleView("kanban")}
+                      title="Quadro"
+                      className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${view === "kanban" ? "bg-white/20" : "hover:bg-white/10"}`}
+                    >
+                      <Columns className="h-4 w-4" />
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => {
-                      setFiltroStatus([]); setFiltroTipo(""); setFiltroData("");
-                      setFiltroPolaroid(false); setFiltroTexto("");
-                      aplicarPeriodo("");
+                      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+                      const next = !somAtivo;
+                      setSomAtivo(next);
+                      somAtivoRef.current = next;
                     }}
-                    className="text-xs font-semibold text-terracotta hover:text-terracotta/80"
-                  >
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Linha 2: status + tipo + período (compacto na planilha) */}
-            <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 ${planilhaLayout ? "gap-y-1" : ""}`}>
-              <div className="flex flex-wrap gap-1">
-                {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((s) => {
-                  const active = filtroStatus.includes(s);
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => toggleStatus(s)}
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:px-3 sm:py-1 sm:text-xs ${
-                        active ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
-                      }`}
-                    >
-                      {STATUS_CONFIG[s].label}
-                      {active && <X className="ml-1 inline h-3 w-3" />}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="hidden h-3 w-px bg-border sm:block" />
-              <div className="flex flex-wrap gap-1">
-                {(["", "delivery", "retirada"] as const).map((t) => (
-                  <button
-                    key={t || "todos"}
-                    onClick={() => setFiltroTipo(t)}
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors capitalize sm:px-3 sm:py-1 sm:text-xs ${
-                      filtroTipo === t ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      somAtivo
+                        ? "border-white bg-white text-charcoal"
+                        : "border-white/30 bg-transparent text-white hover:bg-white/10"
                     }`}
                   >
-                    {t === "" ? "Todos" : labelTipoPedido(t)}
+                    {somAtivo ? "🔔 Som ativo" : "🔕 Ativar som"}
                   </button>
-                ))}
+
+                  <Button
+                    variant="outline"
+                    onClick={() => carregarRef.current?.()}
+                    disabled={carregando}
+                    className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
+                    Atualizar
+                  </Button>
+                  <PedidoManualModal onCriado={() => carregarRef.current?.()} />
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      exportarCSV(operacaoEnabled ? pedidosOpsFiltrados : pedidosFiltrados)
+                    }
+                    disabled={
+                      operacaoEnabled
+                        ? pedidosOpsFiltrados.length === 0
+                        : pedidosFiltrados.length === 0
+                    }
+                    className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                  >
+                    ⬇ Exportar visíveis
+                  </Button>
+                  <Button
+                    onClick={imprimirAprovadosHoje}
+                    disabled={porStatus.aprovado.length === 0}
+                    className="bg-terracotta text-white hover:bg-terracotta/90"
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    Imprimir aprovados de hoje
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => supabase.auth.signOut()}
+                    className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                  >
+                    Sair
+                  </Button>
+                </div>
               </div>
-              {planilhaLayout && (
-                <>
-                  <div className="hidden h-3 w-px bg-border md:block" />
-                  <div className="flex flex-wrap items-center gap-1">
-                    {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:text-xs ${
-                          filtroPeriodo === p ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
-                        }`}
-                      >
-                        {{ hoje: "Hoje", ontem: "Ontem", semana: "Semana", mes: "Mês" }[p]}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+            </header>
+
+            <div className="shrink-0 border-b border-border bg-white">
+              <div className={`${shellClass} space-y-2 py-2 ${padX} ${planilhaLayout ? "space-y-1.5" : "py-3"}`}>
+                {renderFiltrosConteudo()}
+              </div>
             </div>
-
-            {operacaoEnabled && (
-              <OperacaoFiltrosBar
-                filtros={filtrosOps}
-                onChange={(patch) => setFiltrosOps((f) => ({ ...f, ...patch }))}
-                unidades={unidades.filter((u) => u.status === "ativa").map((u) => ({ id: u.id, nome: u.nome }))}
-                contagemAprovados={contagemAprovadosOps}
-              />
-            )}
-
-            {planilhaLayout && (
-              <PlanilhaFiltrosBar
-                filtros={filtrosPlanilha}
-                produtos={produtosOpcoes}
-                locais={locaisOpcoes.map((l) => ({ id: l.id, label: l.label }))}
-                onChange={(patch) => setFiltrosPlanilha((f) => ({ ...f, ...patch }))}
-                onLimpar={limparFiltrosPlanilha}
-              />
-            )}
-
-            {temFiltro && planilhaLayout && (
-              <button
-                type="button"
-                onClick={limparTodosFiltros}
-                className="text-xs font-medium text-terracotta hover:underline"
-              >
-                Limpar todos os filtros
-              </button>
-            )}
-
-            {!planilhaLayout && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">Período recebido:</span>
-              {(["hoje", "ontem", "semana", "mes"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => aplicarPeriodo(filtroPeriodo === p ? "" : p)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                    filtroPeriodo === p ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
-                  }`}
-                >
-                  {{ hoje: "Hoje", ontem: "Ontem", semana: "Esta semana", mes: "Este mês" }[p]}
-                </button>
-              ))}
-              <span className="text-xs text-muted-foreground">De</span>
-              <input
-                type="date"
-                value={filtroInicio}
-                onChange={(e) => { setFiltroInicio(e.target.value); setFiltroPeriodo(""); }}
-                className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-              />
-              <span className="text-xs text-muted-foreground">até</span>
-              <input
-                type="date"
-                value={filtroFim}
-                onChange={(e) => { setFiltroFim(e.target.value); setFiltroPeriodo(""); }}
-                className="rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-              />
-              {(filtroInicio || filtroFim || filtroPeriodo) && (
-                <button
-                  onClick={() => aplicarPeriodo("")}
-                  className="text-xs text-muted-foreground hover:text-terracotta"
-                >
-                  ✕ Limpar período
-                </button>
-              )}
-            </div>
-            )}
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Conteúdo */}
         <main
           className={
-            planilhaLayout
-              ? `flex min-h-0 flex-1 flex-col pb-2 pt-2 ${padX}`
-              : "mx-auto max-w-6xl px-4 py-6 sm:px-6"
+            isMobile
+              ? "flex min-h-0 flex-1 flex-col px-3 pb-24 pt-2"
+              : planilhaLayout
+                ? `flex min-h-0 flex-1 flex-col pb-2 pt-2 ${padX}`
+                : "mx-auto max-w-6xl px-4 py-6 sm:px-6"
           }
         >
           {carregando && pedidos.length === 0 ? (
@@ -1251,6 +1391,7 @@ function CozinhaPage() {
               onImprimir={imprimirUm}
               selectedIds={selectedIds}
               onToggle={toggleSelecionado}
+              isMobile={isMobile}
             />
           ) : (
             <KanbanView
@@ -1260,6 +1401,13 @@ function CozinhaPage() {
             />
           )}
         </main>
+
+        {isMobile && view !== "kanban" && (
+          <PedidosTokenMobileNav
+            view={view as PedidosMobileView}
+            onChange={(v) => toggleView(v)}
+          />
+        )}
       </div>
 
       {/* Impressão */}
@@ -1270,25 +1418,36 @@ function CozinhaPage() {
       )}
 
       {/* Modal detalhes */}
-      <Dialog open={!!detalhe} onOpenChange={(o) => !o && setDetalhe(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Pedido #{detalhe?.id.slice(0, 8)}</DialogTitle>
-          </DialogHeader>
-          {detalhe && <DetalhesPedido p={detalhe} />}
-          {detalhe && (
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => abrirEdicao(detalhe)}>
-                <Pencil className="mr-2 h-4 w-4" /> Editar
-              </Button>
-              <Button onClick={() => imprimirUm(detalhe)}
-                className="bg-charcoal text-white hover:bg-charcoal/90">
-                <Printer className="mr-2 h-4 w-4" /> Imprimir
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {isMobile ? (
+        <PedidoDetalheMobileSheet
+          pedido={detalhe}
+          onClose={() => setDetalhe(null)}
+          onEditar={abrirEdicao}
+          onImprimir={imprimirUm}
+        />
+      ) : (
+        <Dialog open={!!detalhe} onOpenChange={(o) => !o && setDetalhe(null)}>
+          <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Pedido #{detalhe?.id.slice(0, 8)}</DialogTitle>
+            </DialogHeader>
+            {detalhe && <DetalhesPedido p={detalhe} />}
+            {detalhe && (
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => abrirEdicao(detalhe)}>
+                  <Pencil className="mr-2 h-4 w-4" /> Editar
+                </Button>
+                <Button
+                  onClick={() => imprimirUm(detalhe)}
+                  className="bg-charcoal text-white hover:bg-charcoal/90"
+                >
+                  <Printer className="mr-2 h-4 w-4" /> Imprimir
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Modal de edição */}
       <Dialog open={!!editando} onOpenChange={(o) => !o && setEditando(null)}>
@@ -1407,7 +1566,9 @@ function CozinhaPage() {
 
       {/* Barra flutuante de seleção */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-2xl bg-charcoal px-5 py-3 shadow-xl text-white text-sm font-semibold">
+        <div className={`fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-charcoal px-5 py-3 text-sm font-semibold text-white shadow-xl ${
+          isMobile ? "bottom-20 max-w-[calc(100vw-2rem)] flex-wrap justify-center" : "bottom-6"
+        }`}>
           <span>✓ {selectedIds.size} selecionado{selectedIds.size !== 1 ? "s" : ""}</span>
           <button
             onClick={() => {
@@ -1577,6 +1738,7 @@ function ListView({
   onImprimir,
   selectedIds,
   onToggle,
+  isMobile = false,
 }: {
   porStatus: Record<StatusKey, PedidoSalvo[]>;
   pedidosFiltrados: PedidoSalvo[];
@@ -1585,7 +1747,24 @@ function ListView({
   onImprimir: (p: PedidoSalvo) => void;
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
+  isMobile?: boolean;
 }) {
+  if (isMobile) {
+    return (
+      <PedidosListaMobile
+        porStatus={porStatus}
+        pedidosFiltrados={pedidosFiltrados}
+        temFiltro={temFiltro}
+        selectedIds={selectedIds}
+        statusConfig={STATUS_CONFIG}
+        getStatus={getStatus}
+        onDetalhe={onDetalhe}
+        onImprimir={onImprimir}
+        onToggle={onToggle}
+      />
+    );
+  }
+
   if (temFiltro) {
     return (
       <div className="grid gap-3">
@@ -1848,209 +2027,6 @@ function PedidoCard({
         </div>
       </div>
     </article>
-  );
-}
-
-// ── Modal detalhes ─────────────────────────────────────────────────────────
-
-function destinatarioEntrega(p: PedidoSalvo): { nome: string; whatsapp: string } {
-  if (p.destinatario?.nome) {
-    return {
-      nome: p.destinatario.nome,
-      whatsapp: p.destinatario.whatsapp ?? "",
-    };
-  }
-  return {
-    nome: p.cliente.nome || "—",
-    whatsapp: p.cliente.whatsapp ?? "",
-  };
-}
-
-function formatDataEntregaLegivel(data?: string | null): string {
-  if (!data) return "—";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
-    const d = new Date(`${data}T12:00:00`);
-    if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleDateString("pt-BR", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      });
-    }
-  }
-  return data;
-}
-
-function DetalhesPedido({ p }: { p: PedidoSalvo }) {
-  const dest = destinatarioEntrega(p);
-  const telDest = dest.whatsapp.replace(/\D/g, "");
-  const isDelivery = p.tipo?.toLowerCase() === "delivery";
-  const cartoes = p.pagamento?.extras?.cartoes ?? [];
-  const polaroids = p.pagamento?.extras?.polaroids ?? [];
-  const desconto = Number(p.pagamento?.desconto ?? 0);
-  const cupom = p.pagamento?.cupom;
-  const metodo = p.pagamento?.metodo;
-  const metodoLabel =
-    metodo === "credit_card" || metodo === "CREDIT_CARD"
-      ? "Cartão de crédito"
-      : metodo?.toUpperCase() === "PIX"
-        ? "PIX"
-        : metodo ?? null;
-  const itensSoma =
-    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
-    + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
-    + cartoes.reduce((a, c) => a + c.preco, 0)
-    + polaroids.reduce((a, po) => a + po.preco, 0)
-    - desconto;
-  const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
-  const s = getStatus(p);
-
-  return (
-    <div className="space-y-4 text-sm">
-      {/* Cabeçalho: status + ID + data */}
-      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-border">
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CONFIG[s].bg}`}>
-          {STATUS_CONFIG[s].label}
-        </span>
-        <span className="font-mono text-sm font-bold text-charcoal">
-          #{p.id.slice(-6).toUpperCase()}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          {new Date(p.criadoEm).toLocaleString("pt-BR")}
-        </span>
-      </div>
-
-      {/* Destinatário — foco para entrega */}
-      <div className="rounded-xl border-2 border-terracotta/40 bg-terracotta/10 px-4 py-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-terracotta">
-          {isDelivery ? "🛵 Entregar para" : "🎁 Pedido para"}
-        </p>
-        <p className="mt-1 text-lg font-bold text-charcoal">{dest.nome}</p>
-        {telDest && (
-          <a
-            href={`https://wa.me/55${telDest}`}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-0.5 inline-block text-base font-semibold text-olive hover:underline"
-          >
-            📞 {dest.whatsapp}
-          </a>
-        )}
-      </div>
-
-      {/* Logística */}
-      <div className="rounded-lg border border-border bg-linen/60 px-4 py-3 space-y-2">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            {isDelivery ? "📍 Endereço de entrega" : "📍 Local de retirada"}
-          </p>
-          <p className="mt-0.5 text-base font-semibold text-charcoal leading-snug">
-            {p.enderecoOuUnidade || "—"}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 pt-1 border-t border-border/60">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              {isDelivery ? "📅 Entregar em" : "📅 Retirar em"}
-            </p>
-            <p className="mt-0.5 font-semibold text-charcoal capitalize">
-              {formatDataEntregaLegivel(p.data)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">🕐 Horário</p>
-            <p className="mt-0.5 font-semibold text-charcoal">{p.horario || "—"}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Itens com preços individuais */}
-      <div>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Itens</p>
-        <div className="mt-1 space-y-1 text-charcoal">
-          {p.cesta && (
-            <div className="flex justify-between">
-              <span>{p.cesta.nome} × {p.cesta.quantidade}</span>
-              <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
-            </div>
-          )}
-          {p.sobremesas.map((s, i) => (
-            <div key={i} className="flex justify-between">
-              <span>{s.nome} × {s.quantidade}</span>
-              <span className="font-semibold">{formatBRL(s.preco * s.quantidade)}</span>
-            </div>
-          ))}
-          {cartoes.map((c, i) => (
-            <div key={`c-${i}`} className="flex justify-between">
-              <span>💌 {c.nome}</span>
-              <span className="font-semibold">{formatBRL(c.preco)}</span>
-            </div>
-          ))}
-          {polaroids.map((pol, i) => (
-            <div key={`p-${i}`} className="flex justify-between">
-              <span>📸 {pol.nome}</span>
-              <span className="font-semibold">{formatBRL(pol.preco)}</span>
-            </div>
-          ))}
-          {!p.cesta && p.sobremesas.length === 0 && cartoes.length === 0 && polaroids.length === 0 && (
-            <p className="text-muted-foreground">— sem itens —</p>
-          )}
-        </div>
-      </div>
-
-      {/* Desconto + Frete + Total */}
-      <div className="space-y-1 border-t border-border pt-2">
-        {desconto > 0 && (
-          <>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span>
-              <span>{formatBRL(itensSoma + desconto)}</span>
-            </div>
-            <div className="flex justify-between text-emerald-700">
-              <span>Desconto{cupom ? ` (${cupom})` : ""}</span>
-              <span>−{formatBRL(desconto)}</span>
-            </div>
-          </>
-        )}
-        {frete > 0 && (
-          <div className="flex justify-between text-sm text-charcoal/70">
-            <span>🚚 Taxa de entrega</span>
-            <span className="font-semibold">{formatBRL(frete)}</span>
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-charcoal">Total</span>
-          <span className="font-serif text-lg font-bold text-terracotta">{formatBRL(p.total)}</span>
-        </div>
-        {metodoLabel && (
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Forma de pagamento</span>
-            <span>{metodoLabel}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Fotos e Mensagens */}
-      {(cartoes.length > 0 || polaroids.length > 0) && (
-        <div>
-          <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Fotos e Mensagens</p>
-          <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
-        </div>
-      )}
-
-      {/* Pagamento (referência interna) */}
-      <div className="border-t border-border pt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-        <div>
-          <p className="uppercase tracking-wide">Tipo</p>
-          <p className="text-sm text-charcoal">{labelTipoPedido(p.tipo)}</p>
-        </div>
-        <div>
-          <p className="uppercase tracking-wide">Pagamento</p>
-          <p className="text-sm text-charcoal">{labelStatusPagamento(p.pagamento?.status)}</p>
-        </div>
-      </div>
-    </div>
   );
 }
 

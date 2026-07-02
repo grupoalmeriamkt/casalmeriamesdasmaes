@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { EncomendasTable, type LocalOpcao } from "@/components/operacao/EncomendasTable";
+import { EncomendasCalendarioMobile } from "@/components/operacao/EncomendasCalendarioMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { EncomendaLinha } from "@/lib/encomendasTable";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import { ptBR } from "date-fns/locale";
@@ -45,6 +47,7 @@ export function EncomendasCalendario({
   onAlterarSetor,
   onAlterarLocal,
 }: Props) {
+  const isMobile = useIsMobile();
   const selected = useMemo(() => isoToDate(dataSelecionada), [dataSelecionada]);
 
   const diasComPedidos = useMemo(
@@ -55,6 +58,24 @@ export function EncomendasCalendario({
         .filter((d): d is Date => !!d),
     [contagemPorDia],
   );
+
+  if (isMobile) {
+    return (
+      <EncomendasCalendarioMobile
+        contagemPorDia={contagemPorDia}
+        dataSelecionada={dataSelecionada}
+        onSelecionarData={onSelecionarData}
+        linhas={linhas}
+        selectedIds={selectedIds}
+        locaisOpcoes={locaisOpcoes}
+        salvandoPedidoId={salvandoPedidoId}
+        onTogglePedido={onTogglePedido}
+        onAbrirPedido={onAbrirPedido}
+        onAlterarSetor={onAlterarSetor}
+        onAlterarLocal={onAlterarLocal}
+      />
+    );
+  }
 
   const totalNoDia = dataSelecionada ? (contagemPorDia[dataSelecionada] ?? 0) : 0;
 

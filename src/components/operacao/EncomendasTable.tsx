@@ -6,6 +6,7 @@ import {
   SETORES_OPCOES,
 } from "@/lib/encomendasTable";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
+import { EncomendasPlanilhaMobile } from "@/components/operacao/EncomendasPlanilhaMobile";
 
 export type LocalOpcao = { id: string; label: string; key: string };
 
@@ -56,18 +57,30 @@ export function EncomendasTable({
     );
   }
 
-  const outerClass = fillViewport
-    ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm"
-    : "overflow-x-auto rounded-xl border border-border shadow-sm";
-
-  const scrollClass = fillViewport
-    ? "min-h-0 flex-1 overflow-auto"
-    : "overflow-x-auto";
-
   return (
-    <div className={outerClass}>
-      <div className={scrollClass}>
-        <table className="w-full min-w-[800px] border-collapse text-sm xl:min-w-0 xl:table-fixed">
+    <>
+      <div className="md:hidden">
+        <EncomendasPlanilhaMobile
+          linhas={linhas}
+          selectedIds={selectedIds}
+          locaisOpcoes={locaisOpcoes}
+          salvandoPedidoId={salvandoPedidoId}
+          onTogglePedido={onTogglePedido}
+          onAbrirPedido={onAbrirPedido}
+          onAlterarSetor={onAlterarSetor}
+          onAlterarLocal={onAlterarLocal}
+        />
+      </div>
+
+      <div
+        className={
+          fillViewport
+            ? "hidden min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-white shadow-sm md:flex"
+            : "hidden overflow-x-auto rounded-xl border border-border shadow-sm md:block"
+        }
+      >
+        <div className={fillViewport ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto"}>
+          <table className="w-full min-w-[800px] border-collapse text-sm xl:min-w-0 xl:table-fixed">
           <colgroup>
             <col className="w-10" />
             <col className="w-[5.5rem] sm:w-[6.5rem]" />
@@ -222,7 +235,8 @@ export function EncomendasTable({
             })}
           </tbody>
         </table>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
