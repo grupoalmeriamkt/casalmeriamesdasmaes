@@ -86,9 +86,9 @@ export function UserProfileWidget() {
 
   return (
     <>
-      <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
+      <div className="flex min-h-11 items-center gap-2.5 rounded-xl px-1 py-1">
         {/* Avatar */}
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-charcoal text-xs font-semibold text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-charcoal text-xs font-semibold text-white">
           {avatarLetters}
         </div>
 
@@ -106,7 +106,7 @@ export function UserProfileWidget() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0 text-charcoal/60 hover:text-charcoal"
+              className="h-9 w-9 shrink-0 rounded-full text-charcoal/60 hover:text-charcoal"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>

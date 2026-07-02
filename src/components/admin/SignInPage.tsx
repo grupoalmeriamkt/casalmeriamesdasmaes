@@ -26,9 +26,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="flex h-[100dvh] w-[100dvw] flex-col font-sans md:flex-row">
-      <section className="flex flex-1 items-center justify-center p-8">
-        <div className="w-full max-w-md">
+    <div className="admin-shell flex h-[100dvh] w-full flex-col bg-[#f2f2f7] font-sans md:flex-row">
+      <section className="flex flex-1 items-center justify-center p-6 sm:p-8">
+        <div className="admin-card w-full max-w-md p-6 sm:p-8">
           <div className="flex flex-col gap-6">
             <div className="animate-element animate-delay-100">
               {title ?? <Logo className="h-14 sm:h-16" />}
@@ -82,7 +82,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="animate-element animate-delay-600 w-full rounded-2xl bg-charcoal py-4 font-medium text-white transition-colors hover:bg-charcoal/90 disabled:opacity-60"
+                className="animate-element animate-delay-600 h-12 w-full rounded-2xl bg-charcoal py-4 font-medium text-white transition-colors hover:bg-charcoal/90 disabled:opacity-60"
               >
                 {loading ? "Entrando..." : "Entrar"}
               </button>

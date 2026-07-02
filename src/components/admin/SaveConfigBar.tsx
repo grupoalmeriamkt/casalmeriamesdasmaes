@@ -4,6 +4,7 @@ import { Save, Check } from "lucide-react";
 import { toast } from "sonner";
 import { saveCloudConfig, loadCloudConfig } from "@/lib/cloudConfig";
 import { useAdmin } from "@/store/admin";
+import { cn } from "@/lib/utils";
 
 const KEYS_OBSERVADAS = [
   "tema",
@@ -37,8 +38,6 @@ export function SaveConfigBar() {
   const [pendentes, setPendentes] = useState(false);
   const ultimoPublicado = useRef<string>("");
 
-  // Inicializa snapshot publicado com o estado atual (assume que o que está
-  // carregado veio do servidor).
   useEffect(() => {
     ultimoPublicado.current = snapshot(useAdmin.getState() as Record<string, unknown>);
     setPendentes(false);
@@ -77,47 +76,57 @@ export function SaveConfigBar() {
   };
 
   return (
-    <div className="sticky top-0 z-30 -mx-5 mb-6 flex items-center justify-between gap-3 border-b border-border bg-card/95 px-5 py-3 backdrop-blur md:-mx-10 md:px-10">
-      <div className="flex items-center gap-2 text-xs">
-        {pendentes ? (
-          <>
-            <span className="inline-block h-2 w-2 rounded-full bg-terracotta animate-pulse" />
-            <span className="font-medium text-terracotta">
-              Há alterações não publicadas
-            </span>
-            <span className="text-muted-foreground hidden sm:inline">
-              — clique em "Publicar" para enviar ao servidor.
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="inline-block h-2 w-2 rounded-full bg-olive" />
-            <span className="text-muted-foreground">
-              Tudo publicado. Suas alterações ficam locais até você publicá-las.
-            </span>
-          </>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={handleReload} disabled={saving}>
-          Recarregar do servidor
-        </Button>
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={saving || (!pendentes && !justSaved)}
-          className="bg-charcoal text-white hover:bg-charcoal/90"
-        >
-          {justSaved ? (
+    <div className="sticky top-0 z-20 -mx-4 mb-6 border-b border-black/6 bg-white/85 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2 text-xs sm:items-center">
+          {pendentes ? (
             <>
-              <Check className="mr-2 h-4 w-4" /> Publicado
+              <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-terracotta animate-pulse sm:mt-0" />
+              <div className="min-w-0">
+                <span className="font-semibold text-terracotta">Alterações não publicadas</span>
+                <span className="mt-0.5 block text-muted-foreground sm:mt-0 sm:ml-1 sm:inline">
+                  Publique para enviar ao servidor.
+                </span>
+              </div>
             </>
           ) : (
             <>
-              <Save className="mr-2 h-4 w-4" /> {saving ? "Publicando…" : "Publicar alterações"}
+              <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-olive sm:mt-0" />
+              <span className="text-muted-foreground">
+                Tudo publicado. Alterações ficam locais até você publicá-las.
+              </span>
             </>
           )}
-        </Button>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleReload}
+            disabled={saving}
+            className="h-10 justify-center rounded-xl sm:h-9"
+          >
+            Recarregar
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || (!pendentes && !justSaved)}
+            className={cn(
+              "h-10 rounded-xl bg-charcoal text-white hover:bg-charcoal/90 sm:h-9",
+            )}
+          >
+            {justSaved ? (
+              <>
+                <Check className="mr-2 h-4 w-4" /> Publicado
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" /> {saving ? "Publicando…" : "Publicar alterações"}
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

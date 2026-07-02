@@ -121,10 +121,10 @@ export function QuizPreviewMobile({ campanhaId }: Props) {
       </div>
 
       {/* Moldura de celular */}
-      <div className="mx-auto" style={{ width: 380 }}>
+      <div className="mx-auto w-full max-w-[380px]">
         <div
-          className="relative overflow-hidden rounded-[2.2rem] border-[10px] border-charcoal bg-charcoal shadow-elevated"
-          style={{ height: 760 }}
+          className="relative mx-auto overflow-hidden rounded-[2.2rem] border-[10px] border-charcoal bg-charcoal shadow-elevated"
+          style={{ height: "min(760px, 80dvh)", width: "min(380px, 100%)" }}
         >
           {/* Notch */}
           <div className="pointer-events-none absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-charcoal" />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminSection } from "./AdminField";
+import { AdminResponsiveTable } from "./AdminResponsiveTable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -144,72 +145,90 @@ export function AbaEmails() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        {carregando ? (
-          <p className="p-6 text-sm text-muted-foreground">Carregando envios…</p>
-        ) : logs.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            Nenhum envio registrado ainda. Confirmações de pedido aparecem aqui após o pagamento.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-linen/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-4 py-3">Data</th>
-                  <th className="px-4 py-3">Tipo</th>
-                  <th className="px-4 py-3">Destinatário</th>
-                  <th className="px-4 py-3">Assunto</th>
-                  <th className="px-4 py-3">Pedido</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
-                      {new Date(log.criado_em).toLocaleString("pt-BR")}
-                    </td>
-                    <td className="px-4 py-3">{EMAIL_TIPO_LABEL[log.tipo]}</td>
-                    <td className="px-4 py-3 max-w-[180px] truncate">{log.destinatario}</td>
-                    <td className="px-4 py-3 max-w-[220px] truncate" title={log.assunto}>
-                      {log.assunto}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {log.pedido_id ? log.pedido_id.slice(0, 8) : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(log.status)}`}
-                      >
-                        {EMAIL_STATUS_LABEL[log.status]}
-                      </span>
-                      {log.erro && (
-                        <p className="mt-1 max-w-[200px] truncate text-xs text-red-600" title={log.erro}>
-                          {log.erro}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {log.status === "failed" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={reenviandoId === log.id}
-                          onClick={() => handleReenviar(log)}
-                        >
-                          <RotateCcw className="mr-1 h-3 w-3" />
-                          {reenviandoId === log.id ? "…" : "Reenviar"}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      <div className="admin-card overflow-hidden p-0">
+        <AdminResponsiveTable
+          rows={logs}
+          rowKey={(log) => log.id}
+          loading={carregando}
+          emptyMessage="Nenhum envio registrado ainda. Confirmações de pedido aparecem aqui após o pagamento."
+          columns={[
+            {
+              key: "data",
+              header: "Data",
+              mobileLabel: "Data",
+              cell: (log) => (
+                <span className="whitespace-nowrap text-xs text-muted-foreground">
+                  {new Date(log.criado_em).toLocaleString("pt-BR")}
+                </span>
+              ),
+            },
+            {
+              key: "tipo",
+              header: "Tipo",
+              cell: (log) => EMAIL_TIPO_LABEL[log.tipo],
+            },
+            {
+              key: "dest",
+              header: "Destinatário",
+              cell: (log) => <span className="max-w-[180px] truncate">{log.destinatario}</span>,
+            },
+            {
+              key: "assunto",
+              header: "Assunto",
+              hideOnMobile: true,
+              cell: (log) => (
+                <span className="max-w-[220px] truncate" title={log.assunto}>
+                  {log.assunto}
+                </span>
+              ),
+            },
+            {
+              key: "pedido",
+              header: "Pedido",
+              cell: (log) => (
+                <span className="font-mono text-xs">
+                  {log.pedido_id ? log.pedido_id.slice(0, 8) : "—"}
+                </span>
+              ),
+            },
+            {
+              key: "status",
+              header: "Status",
+              cell: (log) => (
+                <div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(log.status)}`}>
+                    {EMAIL_STATUS_LABEL[log.status]}
+                  </span>
+                  {log.erro && (
+                    <p className="mt-1 max-w-[200px] truncate text-xs text-red-600" title={log.erro}>
+                      {log.erro}
+                    </p>
+                  )}
+                </div>
+              ),
+            },
+            {
+              key: "acao",
+              header: "",
+              className: "text-right",
+              cell: (log) =>
+                log.status === "failed" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reenviandoId === log.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleReenviar(log);
+                    }}
+                  >
+                    <RotateCcw className="mr-1 h-3 w-3" />
+                    {reenviandoId === log.id ? "…" : "Reenviar"}
+                  </Button>
+                ) : null,
+            },
+          ]}
+        />
       </div>
     </AdminSection>
   );

@@ -218,7 +218,7 @@ export function AbaUnidades() {
                         return (
                           <div
                             key={d.id}
-                            className="grid grid-cols-[60px_auto_1fr_1fr] items-center gap-3 rounded-md border border-border bg-background/40 px-3 py-2"
+                            className="admin-card grid grid-cols-1 gap-3 p-3 sm:grid-cols-[60px_auto_1fr_1fr] sm:items-center sm:gap-3"
                           >
                             <span className="text-sm font-medium text-charcoal">
                               {d.label}

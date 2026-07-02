@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AbaGeral } from "./AbaGeral";
 import { AbaUnidades } from "./AbaUnidades";
 import { AbaAparencia } from "./AbaAparencia";
 import { AbaPagamento } from "./AbaPagamento";
 import { AbaIntegracoes } from "./AbaIntegracoes";
+import { AdminSegmentedTabs } from "./AdminShell";
 
 const SUBABAS = [
   { id: "geral", label: "Geral", Comp: AbaGeral },
@@ -16,20 +16,16 @@ const SUBABAS = [
 
 export function AbaConfiguracoes() {
   const [aba, setAba] = useState<(typeof SUBABAS)[number]["id"]>("geral");
+  const Atual = SUBABAS.find((s) => s.id === aba)!.Comp;
+
   return (
-    <Tabs value={aba} onValueChange={(v) => setAba(v as typeof aba)}>
-      <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-charcoal/5">
-        {SUBABAS.map((s) => (
-          <TabsTrigger key={s.id} value={s.id} className="px-4">
-            {s.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {SUBABAS.map((s) => (
-        <TabsContent key={s.id} value={s.id}>
-          <s.Comp />
-        </TabsContent>
-      ))}
-    </Tabs>
+    <div>
+      <AdminSegmentedTabs
+        value={aba}
+        onValueChange={(v) => setAba(v as typeof aba)}
+        items={SUBABAS.map((s) => ({ id: s.id, label: s.label }))}
+      />
+      <Atual />
+    </div>
   );
 }

@@ -86,20 +86,22 @@ export function CampanhaForm({ campanha }: Props) {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="info">
-        <TabsList className="bg-charcoal/5">
-          <TabsTrigger value="info" className="gap-2">
-            <Settings className="h-4 w-4" /> Informações Gerais
+        <div className="admin-segmented-scroll">
+          <TabsList className="admin-segmented h-auto w-max min-w-full justify-start bg-transparent p-1 shadow-none">
+          <TabsTrigger value="info" className="admin-segmented-item gap-2 shadow-none data-[state=active]:shadow-none">
+            <Settings className="h-4 w-4 shrink-0" /> <span className="whitespace-nowrap">Informações</span>
           </TabsTrigger>
-          <TabsTrigger value="delivery" className="gap-2">
-            <Truck className="h-4 w-4" /> Delivery
+          <TabsTrigger value="delivery" className="admin-segmented-item gap-2 shadow-none data-[state=active]:shadow-none">
+            <Truck className="h-4 w-4 shrink-0" /> Delivery
           </TabsTrigger>
-          <TabsTrigger value="retirada" className="gap-2">
-            <Store className="h-4 w-4" /> Retirada
+          <TabsTrigger value="retirada" className="admin-segmented-item gap-2 shadow-none data-[state=active]:shadow-none">
+            <Store className="h-4 w-4 shrink-0" /> Retirada
           </TabsTrigger>
-          <TabsTrigger value="links" className="gap-2">
-            <Link2 className="h-4 w-4" /> Links
+          <TabsTrigger value="links" className="admin-segmented-item gap-2 shadow-none data-[state=active]:shadow-none">
+            <Link2 className="h-4 w-4 shrink-0" /> Links
           </TabsTrigger>
-        </TabsList>
+          </TabsList>
+        </div>
 
         <TabsContent value="info" className="mt-4">
           <InfoGeralTab

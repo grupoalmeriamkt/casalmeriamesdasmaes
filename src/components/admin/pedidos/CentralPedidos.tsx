@@ -32,6 +32,7 @@ import { PedidoDrawer } from "./PedidoDrawer";
 
 const SERIF = { fontFamily: "Spectral, serif" } as const;
 const GRID = "34px 108px 1.15fr 1.3fr 96px 122px 122px 104px";
+const GRID_CLASS = "hidden lg:grid";
 
 type TabKey = "todos" | "hoje" | "entregas" | "retiradas" | "aberto";
 type Linha = { row: PedidoRow; op: PedidoOperacional };
@@ -233,149 +234,137 @@ export function CentralPedidos() {
   }
 
   return (
-    <div style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif", color: "#1C2A39" }}>
-      {/* Cabeçalho */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="admin-shell text-charcoal">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-[26px] font-bold leading-tight" style={{ ...SERIF, color: "#1C2A39" }}>
+          <h2 className="text-2xl font-semibold tracking-tight text-charcoal" style={SERIF}>
             Pedidos recebidos
           </h2>
-          <p className="mt-1 text-[13px]" style={{ color: "#8A8170" }}>
+          <p className="mt-1 text-sm text-muted-foreground">
             {carregando ? "Carregando…" : `${base.length} pedidos · atualizado às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => void carregar()}
-            className="inline-flex items-center gap-1.5 rounded-[9px] border px-3 py-2 text-[13px] font-semibold"
-            style={{ borderColor: "#D9CDB6", color: "#1C2A39" }}
+            className="admin-card inline-flex h-10 items-center gap-1.5 px-3 py-2 text-sm font-semibold text-charcoal transition-colors hover:bg-black/[0.02]"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${carregando ? "animate-spin" : ""}`} /> Atualizar
+            <RefreshCw className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`} /> Atualizar
           </button>
           <button
             onClick={exportarCsv}
-            className="inline-flex items-center gap-1.5 rounded-[9px] border px-3 py-2 text-[13px] font-semibold"
-            style={{ borderColor: "#D9CDB6", color: "#1C2A39" }}
+            className="admin-card inline-flex h-10 items-center gap-1.5 px-3 py-2 text-sm font-semibold text-charcoal transition-colors hover:bg-black/[0.02]"
           >
-            <Download className="h-3.5 w-3.5" /> Exportar CSV
+            <Download className="h-4 w-4" /> Exportar CSV
           </button>
         </div>
       </div>
 
-      {/* Link público da cozinha */}
       {url && (
-        <div
-          className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed px-4 py-3"
-          style={{ borderColor: "#D8CBB2", backgroundColor: "#FCF9F2" }}
-        >
-          <Link2 className="h-4 w-4" style={{ color: "#9A917F" }} />
+        <div className="admin-card mt-4 flex flex-col gap-3 border-dashed p-4 sm:flex-row sm:items-center">
+          <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold">Link público da cozinha</div>
-            <div className="truncate text-[12px]" style={{ color: "#9A917F" }}>{url}</div>
+            <div className="text-sm font-semibold text-charcoal">Link público da cozinha</div>
+            <div className="truncate text-xs text-muted-foreground">{url}</div>
           </div>
-          <button
-            onClick={() => window.open(url, "_blank")}
-            className="inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-1.5 text-[12px] font-semibold"
-            style={{ borderColor: "#D9CDB6" }}
-          >
-            <ExternalLink className="h-3.5 w-3.5" /> Abrir
-          </button>
-          <button
-            onClick={() => { void navigator.clipboard.writeText(url); toast.success("Link copiado"); }}
-            className="inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-1.5 text-[12px] font-semibold"
-            style={{ borderColor: "#D9CDB6" }}
-          >
-            <Copy className="h-3.5 w-3.5" /> Copiar
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => window.open(url, "_blank")}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-black/8 px-3 text-xs font-semibold"
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Abrir
+            </button>
+            <button
+              onClick={() => { void navigator.clipboard.writeText(url); toast.success("Link copiado"); }}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-black/8 px-3 text-xs font-semibold"
+            >
+              <Copy className="h-3.5 w-3.5" /> Copiar
+            </button>
+          </div>
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="mt-5 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+      <div className="admin-kpi-grid mt-5">
         <KpiCard bar="#2A5C8A" label="Pedidos hoje" valor={String(kpis.hoje)} sub={kpis.hojeSub} />
         <KpiCard bar="#97700F" label="Para preparar" valor={String(kpis.prep)} sub={kpis.prepSub} />
         <KpiCard bar="#B0414C" label="Pagamentos em aberto" valor={formatBRL(kpis.valAberto)} sub={kpis.abertoSub} />
         <KpiCard bar="#1E7A4F" label="Arrecadado no mês" valor={formatBRL(kpis.arrecadado)} sub={kpis.arrecadadoSub} />
       </div>
 
-      {/* Abas */}
-      <div className="mt-5 flex flex-wrap gap-2">
-        {TABS.map((t) => {
-          const ativo = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className="inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[13px] font-semibold"
-              style={ativo ? { borderColor: "#16202C", backgroundColor: "#16202C", color: "#F7F2E8" } : { borderColor: "#E0D6C3", color: "#6E6655" }}
-            >
-              {t.label}
-              <span
-                className="rounded-full px-[7px] py-px text-[11px] font-bold"
-                style={ativo ? { backgroundColor: "rgba(255,255,255,.18)" } : { backgroundColor: "#EBE2D1" }}
+      <div className="admin-segmented-scroll mt-5">
+        <div className="admin-segmented">
+          {TABS.map((t) => {
+            const ativo = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`admin-segmented-item inline-flex items-center gap-2 ${ativo ? "admin-segmented-item-active" : ""}`}
               >
-                {contagens[t.key]}
-              </span>
-            </button>
-          );
-        })}
+                {t.label}
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${ativo ? "bg-charcoal/10" : "bg-black/5"}`}>
+                  {contagens[t.key]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Filtros */}
-      <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-        <div
-          className="flex min-w-[240px] flex-1 items-center gap-2 rounded-[10px] border px-3 py-2"
-          style={{ borderColor: "#E4DAC8", backgroundColor: "#FCF9F2" }}
-        >
-          <Search className="h-4 w-4" style={{ color: "#A99F8A" }} />
+      <div className="mt-3.5 flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-center">
+        <div className="admin-card flex min-h-11 flex-1 items-center gap-2 px-3 py-2 lg:min-w-[240px]">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por cliente, telefone, ID ou produto…"
-            className="w-full bg-transparent text-[14px] outline-none"
-            style={{ color: "#1C2A39" }}
+            className="w-full bg-transparent text-sm outline-none"
           />
         </div>
-        <SelectFiltro value={fPag} onChange={(v) => setFPag(v as "" | PaymentStatusNormalized)} placeholder="Pagamento: todos"
-          opcoes={[["aprovado", "Pago"], ["aguardando", "Aguardando"], ["vencido", "Vencido"], ["cancelado", "Cancelado"]]} />
-        <SelectFiltro value={fEtapa} onChange={(v) => setFEtapa(v as "" | FulfillmentStage)} placeholder="Etapa: todas"
-          opcoes={STAGE_ORDER.map((s) => [s, STAGE_LABEL[s]])} />
-        <SelectFiltro value={fCamp} onChange={setFCamp} placeholder="Campanha: todas"
-          opcoes={campanhas.map((c) => [c.id, c.nome])} />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap">
+          <SelectFiltro value={fPag} onChange={(v) => setFPag(v as "" | PaymentStatusNormalized)} placeholder="Pagamento: todos"
+            opcoes={[["aprovado", "Pago"], ["aguardando", "Aguardando"], ["vencido", "Vencido"], ["cancelado", "Cancelado"]]} />
+          <SelectFiltro value={fEtapa} onChange={(v) => setFEtapa(v as "" | FulfillmentStage)} placeholder="Etapa: todas"
+            opcoes={STAGE_ORDER.map((s) => [s, STAGE_LABEL[s]])} />
+          <SelectFiltro value={fCamp} onChange={setFCamp} placeholder="Campanha: todas"
+            opcoes={campanhas.map((c) => [c.id, c.nome])} />
+        </div>
       </div>
 
-      {/* Barra de ações em massa */}
       {sel.size > 0 && (
-        <div
-          className="mt-3 flex flex-wrap items-center gap-3 rounded-[10px] px-4 py-3"
-          style={{ backgroundColor: "#16202C", color: "#F7F2E8" }}
-        >
-          <span className="text-[13px] font-bold">{sel.size} selecionados</span>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <button onClick={pagarLote} disabled={salvando} className="rounded-[8px] px-3 py-1.5 text-[12px] font-bold disabled:opacity-50" style={{ backgroundColor: "#F7F2E8", color: "#16202C" }}>Marcar como pago</button>
-            <button onClick={avancarLote} disabled={salvando} className="rounded-[8px] px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50" style={{ backgroundColor: "rgba(255,255,255,.12)", color: "#F7F2E8" }}>Avançar etapa</button>
-            <button onClick={limparSel} className="rounded-[8px] px-2.5 py-1.5 text-[12px] font-semibold" style={{ color: "#C9BFA9" }}>Limpar</button>
+        <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-charcoal px-4 py-3 text-white sm:flex-row sm:items-center">
+          <span className="text-sm font-bold">{sel.size} selecionados</span>
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            <button onClick={pagarLote} disabled={salvando} className="h-9 rounded-xl bg-white px-3 text-xs font-bold text-charcoal disabled:opacity-50">Marcar como pago</button>
+            <button onClick={avancarLote} disabled={salvando} className="h-9 rounded-xl bg-white/15 px-3 text-xs font-semibold disabled:opacity-50">Avançar etapa</button>
+            <button onClick={limparSel} className="h-9 rounded-xl px-2.5 text-xs font-semibold text-white/70">Limpar</button>
           </div>
         </div>
       )}
 
-      {/* Tabela */}
-      <div className="mt-4 overflow-hidden rounded-xl border" style={{ borderColor: "#EAE0CE", backgroundColor: "#FCF9F2" }}>
+      <div className="admin-card mt-4 overflow-hidden p-0">
         <div
-          className="grid items-center gap-3 border-b px-[18px] py-3 text-[11px] font-bold uppercase tracking-[0.06em]"
-          style={{ gridTemplateColumns: GRID, borderColor: "#EAE0CE", color: "#9A917F" }}
+          className={`${GRID_CLASS} items-center gap-3 border-b border-black/6 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground`}
+          style={{ gridTemplateColumns: GRID }}
         >
-          <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} className="h-4 w-4 accent-[#16202C]" />
+          <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} className="h-4 w-4 accent-charcoal" />
           <span>Recebido</span><span>Cliente</span><span>Produto</span><span>Tipo</span><span>Pagamento</span><span>Etapa</span>
           <span className="text-right">Total</span>
         </div>
         {carregando ? (
-          <div className="px-[18px] py-10 text-center text-sm" style={{ color: "#9A917F" }}>Carregando…</div>
+          <div className="admin-empty-state border-0 shadow-none">Carregando…</div>
         ) : filtradas.length === 0 ? (
-          <div className="px-[18px] py-10 text-center text-sm" style={{ color: "#9A917F" }}>Nenhum pedido nesta visão.</div>
+          <div className="admin-empty-state border-0 shadow-none">Nenhum pedido nesta visão.</div>
         ) : (
           filtradas.map(({ row, op }) => (
-            <LinhaTabela key={row.id} row={row} op={op} selecionado={sel.has(row.id)} onToggle={() => toggle(row.id)} onAbrir={() => setDrawerRow(row)} />
+            <LinhaPedido
+              key={row.id}
+              row={row}
+              op={op}
+              selecionado={sel.has(row.id)}
+              onToggle={() => toggle(row.id)}
+              onAbrir={() => setDrawerRow(row)}
+            />
           ))
         )}
       </div>
@@ -395,11 +384,11 @@ export function CentralPedidos() {
 
 function KpiCard({ bar, label, valor, sub }: { bar: string; label: string; valor: string; sub: string }) {
   return (
-    <div className="rounded-[14px] border p-4" style={{ backgroundColor: "#FCF9F2", borderColor: "#EAE0CE" }}>
-      <div className="mb-3 h-1 w-[30px] rounded-full" style={{ backgroundColor: bar }} />
-      <div className="text-[13px] font-semibold" style={{ color: "#8A8170" }}>{label}</div>
-      <div className="mt-1.5 text-[25px] font-bold leading-none" style={{ ...SERIF, color: "#1C2A39" }}>{valor}</div>
-      <div className="mt-2 text-[12px]" style={{ color: "#9A917F" }}>{sub}</div>
+    <div className="admin-card p-4">
+      <div className="mb-3 h-1 w-8 rounded-full" style={{ backgroundColor: bar }} />
+      <div className="text-sm font-medium text-muted-foreground">{label}</div>
+      <div className="mt-1.5 text-2xl font-bold leading-none text-charcoal" style={SERIF}>{valor}</div>
+      <div className="mt-2 text-xs text-muted-foreground">{sub}</div>
     </div>
   );
 }
@@ -419,8 +408,7 @@ function SelectFiltro({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-[10px] border px-2.5 py-2 text-[13px]"
-      style={{ borderColor: "#E4DAC8", backgroundColor: "#FCF9F2", color: "#3A4452" }}
+      className="admin-card h-11 w-full rounded-xl px-3 text-sm text-charcoal lg:w-auto"
     >
       <option value="">{placeholder}</option>
       {opcoes.map(([v, l]) => (
@@ -430,7 +418,7 @@ function SelectFiltro({
   );
 }
 
-function LinhaTabela({
+function LinhaPedido({
   row,
   op,
   selecionado,
@@ -444,34 +432,71 @@ function LinhaTabela({
   onAbrir: () => void;
 }) {
   const pay = op.paymentStatusNormalized ? PAY_CHIP[op.paymentStatusNormalized] : null;
+
   return (
-    <div
-      onClick={onAbrir}
-      className="grid cursor-pointer items-center gap-3 border-b px-[18px] py-3.5 transition-colors hover:bg-[#F6EFDF]"
-      style={{ gridTemplateColumns: GRID, borderColor: "#F0E9DA" }}
-    >
-      <input
-        type="checkbox"
-        checked={selecionado}
-        onChange={onToggle}
-        onClick={(e) => e.stopPropagation()}
-        className="h-4 w-4 accent-[#16202C]"
-      />
-      <div>
-        <div className="text-[13px] font-semibold" style={{ color: "#1C2A39" }}>
-          {new Date(row.criado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+    <>
+      <div
+        onClick={onAbrir}
+        className={`${GRID_CLASS} cursor-pointer items-center gap-3 border-b border-black/4 px-4 py-3.5 transition-colors hover:bg-black/[0.02]`}
+        style={{ gridTemplateColumns: GRID }}
+      >
+        <input
+          type="checkbox"
+          checked={selecionado}
+          onChange={onToggle}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 accent-charcoal"
+        />
+        <div>
+          <div className="text-sm font-semibold text-charcoal">
+            {new Date(row.criado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+          </div>
+          <div className="font-mono text-[11px] text-muted-foreground">#{row.id.slice(0, 8)}</div>
         </div>
-        <div className="text-[11px]" style={{ fontFamily: "monospace", color: "#9A917F" }}>#{row.id.slice(0, 8)}</div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-charcoal">{op.recipientName}</div>
+          <div className="truncate text-xs text-muted-foreground">{op.recipientPhone}</div>
+        </div>
+        <div className="min-w-0 truncate text-sm text-charcoal">{row.cesta?.nome ?? "—"}</div>
+        <div><Chip chip={typeChip(row.tipo)} /></div>
+        <div><Chip chip={pay} /></div>
+        <div><Chip chip={stageChip(op.fulfillmentStage)} /></div>
+        <div className="text-right text-sm font-bold text-charcoal">{formatBRL(Number(row.total))}</div>
       </div>
-      <div className="min-w-0">
-        <div className="truncate text-[13px] font-semibold" style={{ color: "#1C2A39" }}>{op.recipientName}</div>
-        <div className="truncate text-[12px]" style={{ color: "#9A917F" }}>{op.recipientPhone}</div>
-      </div>
-      <div className="min-w-0 truncate text-[13px]" style={{ color: "#3A4452" }}>{row.cesta?.nome ?? "—"}</div>
-      <div><Chip chip={typeChip(row.tipo)} /></div>
-      <div><Chip chip={pay} /></div>
-      <div><Chip chip={stageChip(op.fulfillmentStage)} /></div>
-      <div className="text-right text-[13px] font-bold" style={{ color: "#1C2A39" }}>{formatBRL(Number(row.total))}</div>
-    </div>
+
+      <button
+        type="button"
+        onClick={onAbrir}
+        className="admin-card m-3 block w-[calc(100%-1.5rem)] p-4 text-left transition-transform active:scale-[0.99] lg:hidden"
+      >
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selecionado}
+            onChange={onToggle}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 h-4 w-4 accent-charcoal"
+          />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-charcoal">{op.recipientName}</p>
+                <p className="truncate text-xs text-muted-foreground">{op.recipientPhone}</p>
+              </div>
+              <p className="shrink-0 text-sm font-bold text-charcoal">{formatBRL(Number(row.total))}</p>
+            </div>
+            <p className="text-sm text-charcoal">{row.cesta?.nome ?? "—"}</p>
+            <div className="flex flex-wrap gap-2">
+              <Chip chip={typeChip(row.tipo)} />
+              <Chip chip={pay} />
+              <Chip chip={stageChip(op.fulfillmentStage)} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {new Date(row.criado_em).toLocaleDateString("pt-BR")} · #{row.id.slice(0, 8)}
+            </p>
+          </div>
+        </div>
+      </button>
+    </>
   );
 }

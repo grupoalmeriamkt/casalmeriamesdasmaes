@@ -15,15 +15,19 @@ export function AccessDenied({
   onSignOut,
 }: Props) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-linen p-6 text-center">
-      <ShieldAlert className="mb-4 h-10 w-10 text-terracotta" />
-      <h1 className="text-xl font-bold text-charcoal">{title}</h1>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
-      {showSignOut && onSignOut && (
-        <Button variant="outline" className="mt-6" onClick={onSignOut}>
-          Sair e tentar outra conta
-        </Button>
-      )}
+    <div className="admin-shell flex min-h-[100dvh] flex-col items-center justify-center bg-[#f2f2f7] p-6 text-center">
+      <div className="admin-card max-w-md p-8">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-terracotta/10">
+          <ShieldAlert className="h-7 w-7 text-terracotta" />
+        </div>
+        <h1 className="text-xl font-semibold text-charcoal">{title}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+        {showSignOut && onSignOut && (
+          <Button variant="outline" className="mt-6 h-11 w-full rounded-xl" onClick={onSignOut}>
+            Sair e tentar outra conta
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
