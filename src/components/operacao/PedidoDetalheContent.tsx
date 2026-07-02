@@ -53,7 +53,7 @@ export function destinatarioEntrega(p: PedidoSalvo): { nome: string; whatsapp: s
   };
 }
 
-function formatDataEntregaLegivel(data?: string | null, compact = false): string {
+export function formatDataEntregaLegivel(data?: string | null, compact = false): string {
   if (!data) return "—";
   if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     const d = new Date(`${data}T12:00:00`);

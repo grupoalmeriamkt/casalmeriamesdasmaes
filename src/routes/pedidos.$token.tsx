@@ -95,7 +95,7 @@ import {
 } from "@/components/operacao/PedidosTokenMobileChrome";
 import { PedidosListaMobile } from "@/components/operacao/PedidosListaMobile";
 import { PedidoDetalheMobileSheet } from "@/components/operacao/PedidoDetalheMobileSheet";
-import { DetalhesPedido, destinatarioEntrega } from "@/components/operacao/PedidoDetalheContent";
+import { DetalhesPedido, destinatarioEntrega, formatDataEntregaLegivel } from "@/components/operacao/PedidoDetalheContent";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
