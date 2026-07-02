@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ENTREGA_MOTOBOY_ID,
   flattenPedidosParaLinhas,
   LOCAIS_RETIRADA_OPCOES,
+  locaisPlanilhaOpcoes,
   resolveLocalOptionId,
 } from "@/lib/encomendasTable";
 import type { PedidoRow } from "@/lib/pedidos";
@@ -31,10 +33,7 @@ const baseRow = (): PedidoRow => ({
   pagamentos: [],
 });
 
-const locaisOpcoes = [
-  { id: "asa-sul", label: "Asa Sul", key: "asa sul" },
-  { id: "noroeste", label: "Noroeste", key: "noroeste" },
-];
+const locaisOpcoes = locaisPlanilhaOpcoes();
 
 describe("flattenPedidosParaLinhas", () => {
   it("gera linha no formato ENCOMENDAS", () => {
@@ -49,7 +48,7 @@ describe("flattenPedidosParaLinhas", () => {
     expect(linhas[0].produto).toBe("CHOCOFEE P");
     expect(linhas[0].qtd).toBe(1);
     expect(linhas[0].setor).toBe("Confeitaria");
-    expect(linhas[0].localRetirada).toBe("Asa Sul");
+    expect(linhas[0].localRetirada).toBe("Retirada 104");
     expect(linhas[0].unidadeId).toBe("asa-sul");
     expect(linhas[0].dataChegada).toBe("29/06/2026");
     expect(linhas[0].dataRetirada).toBe("29/06/2026");
@@ -64,21 +63,59 @@ describe("flattenPedidosParaLinhas", () => {
     ]);
 
     expect(linhas[0].unidadeId).toBe("noroeste");
-    expect(linhas[0].localRetirada).toBe("Noroeste");
+    expect(linhas[0].localRetirada).toBe("Retirada Noroeste");
+    expect(resolveLocalOptionId(linhas[0].unidadeId, linhas[0].localRetirada, linhas[0].localKey, locaisOpcoes)).toBe(
+      "noroeste",
+    );
+  });
+
+  it("exibe Entrega Motoboy para pedidos delivery", () => {
+    const row = {
+      ...baseRow(),
+      tipo: "delivery",
+      unidade_id: null,
+      endereco_ou_unidade: "SQN 102 Bloco A — Asa Norte",
+    };
+    const pedido = rowToPedidoSalvo(row);
+    const linhas = flattenPedidosParaLinhas([pedido], [row], []);
+
+    expect(linhas[0].localRetirada).toBe("Entrega Motoboy");
+    expect(linhas[0].localKey).toBe("entrega motoboy");
+    expect(linhas[0].unidadeId).toBeNull();
+    expect(resolveLocalOptionId(linhas[0].unidadeId, linhas[0].localRetirada, linhas[0].localKey, locaisOpcoes)).toBe(
+      ENTREGA_MOTOBOY_ID,
+    );
+  });
+
+  it("mapeia unidadeId em rowToPedidoSalvo", () => {
+    const row = baseRow();
+    expect(rowToPedidoSalvo(row).unidadeId).toBe("asa-sul");
   });
 });
 
 describe("resolveLocalOptionId", () => {
   it("resolve por unidadeId", () => {
-    expect(resolveLocalOptionId("asa-sul", "Asa Sul", "asa sul", locaisOpcoes)).toBe("asa-sul");
+    expect(resolveLocalOptionId("asa-sul", "Retirada 104", "retirada 104", locaisOpcoes)).toBe("asa-sul");
   });
 
   it("resolve por label quando unidade_id é null", () => {
-    expect(resolveLocalOptionId(null, "Noroeste", "noroeste", locaisOpcoes)).toBe("noroeste");
+    expect(resolveLocalOptionId(null, "Retirada Noroeste", "retirada noroeste", locaisOpcoes)).toBe("noroeste");
+  });
+
+  it("resolve entrega motoboy", () => {
+    expect(resolveLocalOptionId(null, "Entrega Motoboy", "entrega motoboy", locaisOpcoes)).toBe(ENTREGA_MOTOBOY_ID);
   });
 });
 
 describe("LOCAIS_RETIRADA_OPCOES", () => {
+  it("tem as três opções da planilha", () => {
+    expect(LOCAIS_RETIRADA_OPCOES.map((l) => l.label)).toEqual([
+      "Retirada 104",
+      "Retirada Noroeste",
+      "Entrega Motoboy",
+    ]);
+  });
+
   it("não inclui SAAN", () => {
     expect(LOCAIS_RETIRADA_OPCOES.some((l) => l.id === "saan")).toBe(false);
   });

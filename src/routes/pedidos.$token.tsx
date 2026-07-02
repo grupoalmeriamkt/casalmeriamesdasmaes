@@ -71,7 +71,8 @@ import {
   ENCOMENDAS_CSV_HEAD,
   flattenPedidosParaLinhas,
   linhasParaCsvRows,
-  LOCAIS_RETIRADA_OPCOES,
+  ENTREGA_MOTOBOY_ID,
+  locaisPlanilhaOpcoes,
 } from "@/lib/encomendasTable";
 import {
   FILTROS_PLANILHA_VAZIOS,
@@ -427,18 +428,7 @@ function CozinhaPage() {
 
   const mostrarArquivadosAtivo = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
 
-  const locaisOpcoes = useMemo(() => {
-    const map = new Map<string, { id: string; label: string; key: string }>();
-    for (const u of unidades.filter((x) => x.status === "ativa")) {
-      map.set(u.id, { id: u.id, label: u.nome, key: u.nome.toLowerCase() });
-    }
-    for (const loc of LOCAIS_RETIRADA_OPCOES) {
-      if (![...map.values()].some((v) => v.label.toLowerCase() === loc.label.toLowerCase())) {
-        map.set(loc.id, { id: loc.id, label: loc.label, key: loc.key });
-      }
-    }
-    return [...map.values()];
-  }, [unidades]);
+  const locaisOpcoes = useMemo(() => locaisPlanilhaOpcoes(), []);
 
   const linhasEncomenda = useMemo(
     () => flattenPedidosParaLinhas(pedidosFiltrados, rawRows, unidades),
@@ -770,13 +760,31 @@ function CozinhaPage() {
     toast.success("Setor atualizado.");
   };
 
-  const alterarLocalPedido = async (pedidoId: string, unidadeId: string, label: string) => {
+  const alterarLocalPedido = async (pedidoId: string, localId: string, label: string) => {
     const atual = rawRows.find((r) => r.id === pedidoId);
-    if (atual?.unidade_id === unidadeId && atual.endereco_ou_unidade === label) return;
+    const isEntrega = localId === ENTREGA_MOTOBOY_ID;
+    const unidadeId = isEntrega ? null : localId;
+    const tipo = isEntrega ? "delivery" : "retirada";
+    const endereco =
+      isEntrega && atual?.tipo === "delivery" && atual.endereco_ou_unidade?.trim()
+        ? atual.endereco_ou_unidade
+        : label;
+
+    if (isEntrega) {
+      if (atual?.tipo === "delivery" && (atual.unidade_id == null || atual.unidade_id === "")) return;
+    } else if (
+      atual?.tipo === "retirada" &&
+      atual.unidade_id === unidadeId &&
+      atual.endereco_ou_unidade === label
+    ) {
+      return;
+    }
+
     setSalvandoOperacaoId(pedidoId);
     const res = await atualizarPedidoOperacao(pedidoId, {
       unidade_id: unidadeId,
-      endereco_ou_unidade: label,
+      endereco_ou_unidade: endereco,
+      tipo,
     });
     setSalvandoOperacaoId(null);
     if (!res.ok) {
@@ -785,16 +793,26 @@ function CozinhaPage() {
     }
     setRawRows((prev) =>
       prev.map((r) =>
-        r.id === pedidoId ? { ...r, unidade_id: unidadeId, endereco_ou_unidade: label } : r,
+        r.id === pedidoId
+          ? { ...r, unidade_id: unidadeId, endereco_ou_unidade: endereco, tipo }
+          : r,
       ),
     );
     setPedidos((prev) =>
-      prev.map((p) => (p.id === pedidoId ? { ...p, enderecoOuUnidade: label } : p)),
+      prev.map((p) =>
+        p.id === pedidoId
+          ? { ...p, unidadeId: unidadeId ?? undefined, enderecoOuUnidade: endereco, tipo }
+          : p,
+      ),
     );
     setPedidosOps((prev) =>
-      prev.map((p) => (p.id === pedidoId ? { ...p, unidadeId, enderecoOuUnidade: label } : p)),
+      prev.map((p) =>
+        p.id === pedidoId
+          ? { ...p, unidadeId: unidadeId ?? undefined, enderecoOuUnidade: endereco, tipo }
+          : p,
+      ),
     );
-    toast.success("Local de retirada atualizado.");
+    toast.success("Local atualizado.");
   };
 
   const temFiltro =

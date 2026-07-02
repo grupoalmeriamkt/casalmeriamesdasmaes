@@ -269,6 +269,7 @@ export type PedidoSalvo = {
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
   enderecoOuUnidade: string;
+  unidadeId?: string;
   data?: string;
   horario?: string;
   pagamento: {

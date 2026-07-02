@@ -202,7 +202,7 @@ export function EncomendasTable({
                       className={selectBadgeClass(
                         badgeClass(LOCAL_BADGE, localMeta?.key ?? l.localKey),
                       )}
-                      aria-label="Local de retirada"
+                      aria-label="Retirada ou entrega"
                     >
                       <option value="" disabled>
                         Local

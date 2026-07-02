@@ -108,7 +108,7 @@ function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: strin
     recipient_name: recipientName,
     recipient_phone: recipientPhone,
     recipient_is_buyer: recipientIsBuyer,
-    unidade_id: (p as { unidadeId?: string }).unidadeId ?? null,
+    unidade_id: p.unidadeId ?? null,
     production_sector: productionSector,
     execution_at: computeExecutionAt(p.data ?? null, p.horario ?? null),
   };
@@ -363,6 +363,7 @@ export async function atualizarPedidoOperacao(
     production_sector?: SetorOperacional;
     unidade_id?: string | null;
     endereco_ou_unidade?: string;
+    tipo?: "delivery" | "retirada";
   },
 ): Promise<{ ok: boolean; error?: string }> {
   const token = await getAuthToken();
@@ -425,6 +426,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     sobremesas: r.sobremesas ?? [],
     tipo: r.tipo,
     enderecoOuUnidade: r.endereco_ou_unidade,
+    unidadeId: r.unidade_id ?? undefined,
     data: r.data_entrega ?? undefined,
     horario: r.horario ?? undefined,
     pagamento: {

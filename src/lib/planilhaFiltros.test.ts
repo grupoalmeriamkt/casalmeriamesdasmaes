@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EncomendaLinha } from "@/lib/encomendasTable";
+import { locaisPlanilhaOpcoes } from "@/lib/encomendasTable";
 import {
   filtrarLinhasEncomenda,
   filtrosPlanilhaAtivos,
@@ -19,16 +20,13 @@ const linha = (overrides: Partial<EncomendaLinha> = {}): EncomendaLinha => ({
   productionSector: "COZINHA",
   produto: "Cesta Café",
   qtd: 1,
-  localRetirada: "Noroeste",
-  localKey: "noroeste",
+  localRetirada: "Retirada Noroeste",
+  localKey: "retirada noroeste",
   unidadeId: "noroeste",
   ...overrides,
 });
 
-const locais = [
-  { id: "noroeste", label: "Noroeste", key: "noroeste" },
-  { id: "asa-sul", label: "Asa Sul", key: "asa sul" },
-];
+const locais = locaisPlanilhaOpcoes();
 
 describe("filtrarLinhasEncomenda", () => {
   const linhas = [
@@ -40,8 +38,8 @@ describe("filtrarLinhasEncomenda", () => {
       setorKey: "confeitaria",
       produto: "Bolo",
       unidadeId: "asa-sul",
-      localRetirada: "Asa Sul",
-      localKey: "asa sul",
+      localRetirada: "Retirada 104",
+      localKey: "retirada 104",
     }),
   ];
 
@@ -68,7 +66,7 @@ describe("filtrarLinhasEncomenda", () => {
       locais,
     );
     expect(out).toHaveLength(1);
-    expect(out[0].localRetirada).toBe("Noroeste");
+    expect(out[0].localRetirada).toBe("Retirada Noroeste");
   });
 });
 

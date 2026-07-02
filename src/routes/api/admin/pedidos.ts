@@ -27,6 +27,7 @@ const BodySchema = z.discriminatedUnion("action", [
       .optional(),
     unidade_id: z.string().nullable().optional(),
     endereco_ou_unidade: z.string().optional(),
+    tipo: z.enum(["delivery", "retirada"]).optional(),
   }),
   z.object({
     action: z.literal("set_etapa"),
@@ -125,11 +126,12 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         }
 
         if (action === "atualizar_operacao") {
-          const { id, production_sector, unidade_id, endereco_ou_unidade } = parsed.data;
+          const { id, production_sector, unidade_id, endereco_ou_unidade, tipo } = parsed.data;
           const patch: Record<string, string | null> = {};
           if (production_sector !== undefined) patch.production_sector = production_sector;
           if (unidade_id !== undefined) patch.unidade_id = unidade_id;
           if (endereco_ou_unidade !== undefined) patch.endereco_ou_unidade = endereco_ou_unidade;
+          if (tipo !== undefined) patch.tipo = tipo;
           if (Object.keys(patch).length === 0) {
             return Response.json({ error: "nenhum_campo" }, { status: 400 });
           }

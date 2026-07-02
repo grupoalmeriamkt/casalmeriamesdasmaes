@@ -34,23 +34,22 @@ export type EncomendaLinha = {
   unidadeId: string | null;
 };
 
+export const ENTREGA_MOTOBOY_ID = "entrega-motoboy" as const;
+
 export const LOCAIS_RETIRADA_OPCOES = [
-  { id: "asa-sul", label: "Asa Sul", key: "asa sul" },
-  { id: "noroeste", label: "Noroeste", key: "noroeste" },
-  { id: "beira-lago", label: "Beira Lago", key: "beira lago" },
-  { id: "wine-garden", label: "Wine Garden", key: "wine garden" },
+  { id: "asa-sul", label: "Retirada 104", key: "retirada 104", aliases: ["asa sul", "104 sul", "104"] },
+  { id: "noroeste", label: "Retirada Noroeste", key: "retirada noroeste", aliases: ["noroeste"] },
+  { id: ENTREGA_MOTOBOY_ID, label: "Entrega Motoboy", key: "entrega motoboy", aliases: ["entrega", "delivery", "motoboy"] },
 ] as const;
 
-const LOCAIS_CONHECIDOS = LOCAIS_RETIRADA_OPCOES.map((l) => ({
-  keys: [l.key, l.id],
-  label: l.label,
-}));
+export function locaisPlanilhaOpcoes(): LocalOpcaoRef[] {
+  return LOCAIS_RETIRADA_OPCOES.map((l) => ({ id: l.id, label: l.label, key: l.key }));
+}
 
 export const LOCAL_BADGE: Record<string, string> = {
-  "asa sul": "bg-blue-600 text-white",
-  noroeste: "bg-amber-400 text-charcoal",
-  "beira lago": "bg-green-600 text-white",
-  "wine garden": "bg-purple-600 text-white",
+  "retirada 104": "bg-blue-600 text-white",
+  "retirada noroeste": "bg-amber-400 text-charcoal",
+  "entrega motoboy": "bg-emerald-600 text-white",
   outro: "bg-charcoal/10 text-charcoal",
 };
 
@@ -93,26 +92,38 @@ function execucaoFromPedido(p: PedidoSalvo, raw?: PedidoRow) {
   return isoToPartsSP(execIso);
 }
 
+function planilhaLocalFromOpcao(id: string): { label: string; key: string } | null {
+  const opt = LOCAIS_RETIRADA_OPCOES.find((l) => l.id === id);
+  return opt ? { label: opt.label, key: opt.key } : null;
+}
+
 function resolveLocal(
   p: PedidoSalvo,
   raw: PedidoRow | undefined,
-  unidades: UnidadeCadastrada[],
+  _unidades: UnidadeCadastrada[],
 ): { label: string; key: string } {
-  const unidadeId = raw?.unidade_id;
-  if (unidadeId) {
-    const u = unidades.find((x) => x.id === unidadeId);
-    if (u) return { label: u.nome, key: u.nome.toLowerCase() };
+  const tipo = (p.tipo ?? raw?.tipo ?? "").toLowerCase();
+  if (tipo === "delivery") {
+    return planilhaLocalFromOpcao(ENTREGA_MOTOBOY_ID)!;
   }
 
-  const texto = (p.enderecoOuUnidade ?? raw?.endereco_ou_unidade ?? "").toLowerCase();
-  for (const loc of LOCAIS_CONHECIDOS) {
-    if (loc.keys.some((k) => texto.includes(k))) {
-      return { label: loc.label, key: loc.label.toLowerCase() };
+  const texto = (p.enderecoOuUnidade ?? raw?.endereco_ou_unidade ?? "").toLowerCase().trim();
+  if (texto === "entrega motoboy") {
+    return planilhaLocalFromOpcao(ENTREGA_MOTOBOY_ID)!;
+  }
+
+  const unidadeId = raw?.unidade_id ?? p.unidadeId;
+  if (unidadeId && unidadeId !== ENTREGA_MOTOBOY_ID) {
+    const fromId = planilhaLocalFromOpcao(unidadeId);
+    if (fromId) return fromId;
+  }
+
+  for (const loc of LOCAIS_RETIRADA_OPCOES) {
+    if (loc.id === ENTREGA_MOTOBOY_ID) continue;
+    const keys = [loc.key, loc.id, ...(loc.aliases ?? [])];
+    if (keys.some((k) => texto.includes(k))) {
+      return { label: loc.label, key: loc.key };
     }
-  }
-
-  if (p.tipo?.toLowerCase() === "delivery") {
-    return { label: p.enderecoOuUnidade || "Entrega", key: "outro" };
   }
 
   const label = p.enderecoOuUnidade || "—";
@@ -133,6 +144,12 @@ export function resolveLocalOptionId(
   }
 
   const labelNorm = localRetirada.trim().toLowerCase();
+  const keyNorm = localKey.trim().toLowerCase();
+
+  if (labelNorm === "entrega motoboy" || keyNorm === "entrega motoboy") {
+    return ENTREGA_MOTOBOY_ID;
+  }
+
   if (labelNorm && labelNorm !== "—") {
     const byLabel = opcoes.find((o) => o.label.toLowerCase() === labelNorm);
     if (byLabel) return byLabel.id;
@@ -143,18 +160,18 @@ export function resolveLocalOptionId(
     if (byLabelPartial) return byLabelPartial.id;
   }
 
-  const keyNorm = localKey.trim().toLowerCase();
   if (keyNorm && keyNorm !== "outro") {
     const byKey = opcoes.find((o) => o.key === keyNorm || o.id === keyNorm);
     if (byKey) return byKey.id;
   }
 
   for (const loc of LOCAIS_RETIRADA_OPCOES) {
-    if (
+    const aliasHit =
+      (loc.aliases ?? []).some((a) => labelNorm.includes(a) || keyNorm === a) ||
       labelNorm.includes(loc.key) ||
       labelNorm === loc.label.toLowerCase() ||
-      keyNorm === loc.key
-    ) {
+      keyNorm === loc.key;
+    if (aliasHit) {
       const inOpcoes = opcoes.find(
         (o) => o.id === loc.id || o.label.toLowerCase() === loc.label.toLowerCase(),
       );
@@ -169,18 +186,15 @@ export function resolveLocalOptionId(
 function inferUnidadeId(
   rawId: string | null | undefined,
   local: { label: string; key: string },
-  unidades: UnidadeCadastrada[],
+  _unidades: UnidadeCadastrada[],
 ): string | null {
-  if (rawId) return rawId;
-
-  const fromUnidades = unidades.find(
-    (u) => u.nome.toLowerCase() === local.label.toLowerCase(),
-  );
-  if (fromUnidades) return fromUnidades.id;
+  if (local.key === "entrega motoboy" || local.label === "Entrega Motoboy") return null;
+  if (rawId && rawId !== ENTREGA_MOTOBOY_ID) return rawId;
 
   const fromLocais = LOCAIS_RETIRADA_OPCOES.find(
     (l) =>
-      l.label.toLowerCase() === local.label.toLowerCase() || l.key === local.key,
+      l.id !== ENTREGA_MOTOBOY_ID &&
+      (l.label.toLowerCase() === local.label.toLowerCase() || l.key === local.key),
   );
   return fromLocais?.id ?? null;
 }
