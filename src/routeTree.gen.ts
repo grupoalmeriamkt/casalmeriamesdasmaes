@@ -16,6 +16,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SucessoIdRouteImport } from './routes/sucesso.$id'
+import { Route as PedidosNovoRouteImport } from './routes/pedidos.novo'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
 import { Route as ApiDisponibilidadeRouteImport } from './routes/api/disponibilidade'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
@@ -24,6 +25,7 @@ import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedid
 import { Route as ApiCozinhaTokenRouteImport } from './routes/api/cozinha/token'
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
 import { Route as ApiAdminPedidosRouteImport } from './routes/api/admin/pedidos'
+import { Route as ApiAdminOperatorsRouteImport } from './routes/api/admin/operators'
 import { Route as ApiAdminEmailLogsRouteImport } from './routes/api/admin/email-logs'
 import { Route as ApiAdminEmailRouteImport } from './routes/api/admin/email'
 import { Route as ApiAdminCuponsRouteImport } from './routes/api/admin/cupons'
@@ -73,6 +75,11 @@ const SucessoIdRoute = SucessoIdRouteImport.update({
   path: '/sucesso/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PedidosNovoRoute = PedidosNovoRouteImport.update({
+  id: '/pedidos/novo',
+  path: '/pedidos/novo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PedidosTokenRoute = PedidosTokenRouteImport.update({
   id: '/pedidos/$token',
   path: '/pedidos/$token',
@@ -112,6 +119,11 @@ const ApiAdminSaveConfigRoute = ApiAdminSaveConfigRouteImport.update({
 const ApiAdminPedidosRoute = ApiAdminPedidosRouteImport.update({
   id: '/api/admin/pedidos',
   path: '/api/admin/pedidos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminOperatorsRoute = ApiAdminOperatorsRouteImport.update({
+  id: '/api/admin/operators',
+  path: '/api/admin/operators',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminEmailLogsRoute = ApiAdminEmailLogsRouteImport.update({
@@ -190,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/pedido': typeof PedidoRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/pedidos/novo': typeof PedidosNovoRoute
   '/sucesso/$id': typeof SucessoIdRoute
   '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
   '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
@@ -198,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/email': typeof ApiAdminEmailRoute
   '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
+  '/api/admin/operators': typeof ApiAdminOperatorsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/cozinha/token': typeof ApiCozinhaTokenRoute
@@ -220,6 +234,7 @@ export interface FileRoutesByTo {
   '/pedido': typeof PedidoRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/pedidos/novo': typeof PedidosNovoRoute
   '/sucesso/$id': typeof SucessoIdRoute
   '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
   '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
@@ -228,6 +243,7 @@ export interface FileRoutesByTo {
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/email': typeof ApiAdminEmailRoute
   '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
+  '/api/admin/operators': typeof ApiAdminOperatorsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/cozinha/token': typeof ApiCozinhaTokenRoute
@@ -251,6 +267,7 @@ export interface FileRoutesById {
   '/pedido': typeof PedidoRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pedidos/$token': typeof PedidosTokenRoute
+  '/pedidos/novo': typeof PedidosNovoRoute
   '/sucesso/$id': typeof SucessoIdRoute
   '/api/admin/arquivar-pedidos': typeof ApiAdminArquivarPedidosRoute
   '/api/admin/conciliacao-pendencias': typeof ApiAdminConciliacaoPendenciasRoute
@@ -259,6 +276,7 @@ export interface FileRoutesById {
   '/api/admin/cupons': typeof ApiAdminCuponsRoute
   '/api/admin/email': typeof ApiAdminEmailRoute
   '/api/admin/email-logs': typeof ApiAdminEmailLogsRoute
+  '/api/admin/operators': typeof ApiAdminOperatorsRoute
   '/api/admin/pedidos': typeof ApiAdminPedidosRoute
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/cozinha/token': typeof ApiCozinhaTokenRoute
@@ -283,6 +301,7 @@ export interface FileRouteTypes {
     | '/pedido'
     | '/api/disponibilidade'
     | '/pedidos/$token'
+    | '/pedidos/novo'
     | '/sucesso/$id'
     | '/api/admin/arquivar-pedidos'
     | '/api/admin/conciliacao-pendencias'
@@ -291,6 +310,7 @@ export interface FileRouteTypes {
     | '/api/admin/cupons'
     | '/api/admin/email'
     | '/api/admin/email-logs'
+    | '/api/admin/operators'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
     | '/api/cozinha/token'
@@ -313,6 +333,7 @@ export interface FileRouteTypes {
     | '/pedido'
     | '/api/disponibilidade'
     | '/pedidos/$token'
+    | '/pedidos/novo'
     | '/sucesso/$id'
     | '/api/admin/arquivar-pedidos'
     | '/api/admin/conciliacao-pendencias'
@@ -321,6 +342,7 @@ export interface FileRouteTypes {
     | '/api/admin/cupons'
     | '/api/admin/email'
     | '/api/admin/email-logs'
+    | '/api/admin/operators'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
     | '/api/cozinha/token'
@@ -343,6 +365,7 @@ export interface FileRouteTypes {
     | '/pedido'
     | '/api/disponibilidade'
     | '/pedidos/$token'
+    | '/pedidos/novo'
     | '/sucesso/$id'
     | '/api/admin/arquivar-pedidos'
     | '/api/admin/conciliacao-pendencias'
@@ -351,6 +374,7 @@ export interface FileRouteTypes {
     | '/api/admin/cupons'
     | '/api/admin/email'
     | '/api/admin/email-logs'
+    | '/api/admin/operators'
     | '/api/admin/pedidos'
     | '/api/admin/save-config'
     | '/api/cozinha/token'
@@ -374,6 +398,7 @@ export interface RootRouteChildren {
   PedidoRoute: typeof PedidoRoute
   ApiDisponibilidadeRoute: typeof ApiDisponibilidadeRoute
   PedidosTokenRoute: typeof PedidosTokenRoute
+  PedidosNovoRoute: typeof PedidosNovoRoute
   SucessoIdRoute: typeof SucessoIdRoute
   ApiAdminArquivarPedidosRoute: typeof ApiAdminArquivarPedidosRoute
   ApiAdminConciliacaoPendenciasRoute: typeof ApiAdminConciliacaoPendenciasRoute
@@ -382,6 +407,7 @@ export interface RootRouteChildren {
   ApiAdminCuponsRoute: typeof ApiAdminCuponsRoute
   ApiAdminEmailRoute: typeof ApiAdminEmailRoute
   ApiAdminEmailLogsRoute: typeof ApiAdminEmailLogsRoute
+  ApiAdminOperatorsRoute: typeof ApiAdminOperatorsRoute
   ApiAdminPedidosRoute: typeof ApiAdminPedidosRoute
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
   ApiCozinhaTokenRoute: typeof ApiCozinhaTokenRoute
@@ -447,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SucessoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pedidos/novo': {
+      id: '/pedidos/novo'
+      path: '/pedidos/novo'
+      fullPath: '/pedidos/novo'
+      preLoaderRoute: typeof PedidosNovoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pedidos/$token': {
       id: '/pedidos/$token'
       path: '/pedidos/$token'
@@ -501,6 +534,13 @@ declare module '@tanstack/react-router' {
       path: '/api/admin/pedidos'
       fullPath: '/api/admin/pedidos'
       preLoaderRoute: typeof ApiAdminPedidosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/operators': {
+      id: '/api/admin/operators'
+      path: '/api/admin/operators'
+      fullPath: '/api/admin/operators'
+      preLoaderRoute: typeof ApiAdminOperatorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/email-logs': {
@@ -606,6 +646,7 @@ const rootRouteChildren: RootRouteChildren = {
   PedidoRoute: PedidoRoute,
   ApiDisponibilidadeRoute: ApiDisponibilidadeRoute,
   PedidosTokenRoute: PedidosTokenRoute,
+  PedidosNovoRoute: PedidosNovoRoute,
   SucessoIdRoute: SucessoIdRoute,
   ApiAdminArquivarPedidosRoute: ApiAdminArquivarPedidosRoute,
   ApiAdminConciliacaoPendenciasRoute: ApiAdminConciliacaoPendenciasRoute,
@@ -614,6 +655,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminCuponsRoute: ApiAdminCuponsRoute,
   ApiAdminEmailRoute: ApiAdminEmailRoute,
   ApiAdminEmailLogsRoute: ApiAdminEmailLogsRoute,
+  ApiAdminOperatorsRoute: ApiAdminOperatorsRoute,
   ApiAdminPedidosRoute: ApiAdminPedidosRoute,
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
   ApiCozinhaTokenRoute: ApiCozinhaTokenRoute,

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
+import type { ManualOrderInput } from "@/lib/orderForm/types";
 import { pagamentoRelevante } from "@/lib/asaasStatus";
 import { computeExecutionAt } from "@/lib/executionAt";
 import {
@@ -13,13 +14,14 @@ import type { FulfillmentStage } from "@/lib/etapaPedido";
 export type PagamentoAsaasRow = {
   id: string;
   asaas_payment_id: string;
-  metodo: "PIX" | "CREDIT_CARD" | "BOLETO";
+  metodo: "PIX" | "CREDIT_CARD" | "BOLETO" | null;
   status: string; // PENDING | CONFIRMED | RECEIVED | OVERDUE | REFUNDED | ...
   valor: number;
   cupom_codigo: string | null;
   cupom_desconto: number | null;
   cartao_brand: string | null;
   cartao_last4: string | null;
+  invoice_url?: string | null;
   criado_em: string;
 };
 
@@ -65,6 +67,9 @@ export type PedidoRow = {
   conciliacao_pendente?: boolean | null;
   fulfillment_stage?: string | null;
   fulfillment_stage_at?: string | null;
+  origin?: string | null;
+  operator_id?: string | null;
+  operador?: { id: string; name: string; short_name: string | null } | null;
   pagamentos?: PagamentoAsaasRow[];
 };
 
@@ -187,7 +192,11 @@ export async function conciliarPagamentosAsaas(): Promise<{
 /** Lista pedidos via endpoint server-side (que usa service_role e bypassa RLS). */
 export async function listarPedidos(): Promise<PedidoRow[]> {
   try {
-    const res = await fetch("/api/public/admin/pedidos");
+    const token = await getAuthToken();
+    if (!token) return [];
+    const res = await fetch("/api/public/admin/pedidos", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) {
       console.error("Erro ao listar pedidos:", res.status);
       return [];
@@ -436,6 +445,129 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     total: Number(r.total),
     archivedAt: r.archived_at ?? null,
   };
+}
+
+/** Cria um pedido manual (origem = manual). Requer admin autenticado. */
+export async function criarPedidoManual(
+  pedido: ManualOrderInput,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Nao autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "criar_manual", pedido }),
+    });
+    const json = (await res.json()) as { ok?: boolean; id?: string; error?: string };
+    return res.ok ? { ok: true, id: json.id } : { ok: false, error: json.error ?? "Erro" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Gera um link de pagamento Asaas para o pedido. Requer admin autenticado. */
+export async function gerarLinkPagamento(
+  id: string,
+  cpf: string,
+): Promise<{ ok: boolean; invoiceUrl?: string; pagamentoId?: string; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Nao autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "gerar_link", id, cpf }),
+    });
+    const json = (await res.json()) as {
+      ok?: boolean; invoiceUrl?: string; pagamentoId?: string; error?: string;
+    };
+    return res.ok
+      ? { ok: true, invoiceUrl: json.invoiceUrl, pagamentoId: json.pagamentoId }
+      : { ok: false, error: json.error ?? "Erro" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Marca pedido como pago em dinheiro (offline). Requer admin autenticado. */
+export async function pagarDinheiro(id: string): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Nao autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "pagar_dinheiro", id }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Gera cobranca PIX via Asaas para o pedido. Requer admin autenticado. */
+export async function gerarPix(
+  id: string,
+  cpf: string,
+): Promise<{
+  ok: boolean;
+  pagamentoId?: string;
+  qrImage?: string;
+  payload?: string;
+  expiraEm?: string | null;
+  error?: string;
+}> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Nao autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "gerar_pix", id, cpf }),
+    });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      pagamentoId?: string;
+      qrImage?: string;
+      payload?: string;
+      expiraEm?: string | null;
+      error?: string;
+    };
+    return res.ok
+      ? {
+          ok: true,
+          pagamentoId: json.pagamentoId,
+          qrImage: json.qrImage,
+          payload: json.payload,
+          expiraEm: json.expiraEm,
+        }
+      : { ok: false, error: json.error ?? "Erro" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Envia o link de pagamento por e-mail para o cliente. Requer admin autenticado. */
+export async function enviarLinkPorEmail(
+  to: string,
+  invoiceUrl: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  const html = `<p>Olá! Segue o link para pagamento do seu pedido:</p><p><a href="${invoiceUrl}">${invoiceUrl}</a></p><p>Casa Almeria</p>`;
+  try {
+    const res = await fetch("/api/admin/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "send", to, subject: "Link de pagamento — Casa Almeria", html }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
 }
 
 export { rowToPedidoOperacional } from "@/lib/operacaoPedido";

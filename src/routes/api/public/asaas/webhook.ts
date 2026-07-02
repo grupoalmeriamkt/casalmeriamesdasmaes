@@ -5,6 +5,7 @@ import { sendCapiEventServer } from "@/lib/metaCapiServer";
 import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID } from "@/lib/asaasStatus";
 import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
 import { enviarConfirmacaoPedido } from "@/lib/emailDispatch.server";
+import { mapBillingTypeToMetodo } from "@/lib/asaasBillingType";
 
 async function dispatchPurchaseCapi(
   admin: ReturnType<typeof getAdminClient>,
@@ -124,12 +125,18 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
         try {
           const newStatus = event.payment.status;
 
+          const metodoDerivado = mapBillingTypeToMetodo(
+            (event.payment as { billingType?: string }).billingType,
+          );
+          const updatePatch: Record<string, unknown> = {
+            status: newStatus,
+            raw_response: event.payment as unknown as Record<string, unknown>,
+          };
+          if (metodoDerivado) updatePatch.metodo = metodoDerivado;
+
           const { data: pagamento, error: payErr } = await admin
             .from("pagamentos")
-            .update({
-              status: newStatus,
-              raw_response: event.payment as unknown as Record<string, unknown>,
-            })
+            .update(updatePatch)
             .eq("asaas_payment_id", event.payment.id)
             .select("id, pedido_id, cupom_codigo, status")
             .maybeSingle();

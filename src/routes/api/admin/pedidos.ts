@@ -1,6 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { authenticateRequest, requireAdmin } from "@/lib/authServer";
+import { manualOrderSchema } from "@/lib/orderForm/schema";
+import { buildPedidoManualPayload } from "@/lib/orderForm/buildPayload";
+import { ensureOperator } from "@/lib/operatorsServer";
+import { getAppSecrets } from "@/integrations/supabase/client.server";
+import { makeAsaasClient } from "@/integrations/asaas/client.server";
+import type { AsaasCreatePayment } from "@/integrations/asaas/types";
+
+function deriveDueDate(dataEntrega: string | null): string {
+  // Asaas exige YYYY-MM-DD. Usa a data de entrega se valida; senao hoje + 2 dias.
+  if (dataEntrega && /^\d{4}-\d{2}-\d{2}$/.test(dataEntrega)) return dataEntrega;
+  const d = new Date();
+  d.setDate(d.getDate() + 2);
+  return d.toISOString().slice(0, 10);
+}
 
 const BodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancelar"), id: z.string().uuid() }),
@@ -12,6 +26,32 @@ const BodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("desarquivar"),
     ids: z.array(z.string().uuid()).min(1).max(200),
+  }),
+  z.object({
+    action: z.literal("criar_manual"),
+    pedido: manualOrderSchema,
+  }),
+  z.object({
+    action: z.literal("gerar_link"),
+    id: z.string().uuid(),
+    cpf: z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/\D/g, ""))
+      .pipe(z.string().regex(/^\d{11}$/, "CPF invalido")),
+  }),
+  z.object({
+    action: z.literal("pagar_dinheiro"),
+    id: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal("gerar_pix"),
+    id: z.string().uuid(),
+    cpf: z
+      .string()
+      .trim()
+      .transform((v) => v.replace(/\D/g, ""))
+      .pipe(z.string().regex(/^\d{11}$/, "CPF invalido")),
   }),
   z.object({
     action: z.literal("atualizar_operacao"),
@@ -207,6 +247,222 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             return Response.json({ error: error.message }, { status: 500 });
           }
           return Response.json({ ok: true, pagos: data?.length ?? 0 });
+        }
+
+        if (action === "criar_manual") {
+          const { pedido } = parsed.data;
+          const op = await ensureOperator(auth.admin, auth.user.id, {
+            name: (auth.user.user_metadata?.name as string) ?? auth.user.email ?? "Operador",
+            email: auth.user.email ?? null,
+          });
+          const payload = buildPedidoManualPayload(pedido, op?.id ?? null);
+          const { data, error } = await auth.admin
+            .from("pedidos")
+            .insert(payload)
+            .select("id")
+            .single();
+          if (error) {
+            console.error("[admin/pedidos] criar_manual error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true, id: data.id });
+        }
+
+        if (action === "gerar_link") {
+          const { id, cpf } = parsed.data;
+
+          const secrets = await getAppSecrets();
+          if (!secrets.asaasApiKey) {
+            return Response.json({ error: "asaas_not_configured" }, { status: 503 });
+          }
+          const asaas = makeAsaasClient(secrets.asaasApiKey);
+
+          const { data: pedido, error: pedidoErr } = await auth.admin
+            .from("pedidos")
+            .select("id, cliente_nome, cliente_whatsapp, cliente_email, total, data_entrega")
+            .eq("id", id)
+            .maybeSingle();
+          if (pedidoErr || !pedido) {
+            return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+          }
+          if (!pedido.total || Number(pedido.total) <= 0) {
+            return Response.json({ error: "total_invalido" }, { status: 400 });
+          }
+
+          let customer;
+          try {
+            customer = await asaas.upsertCustomer({
+              name: pedido.cliente_nome,
+              cpfCnpj: cpf,
+              email: pedido.cliente_email ?? undefined,
+              mobilePhone: pedido.cliente_whatsapp ?? undefined,
+              externalReference: id,
+            });
+          } catch (e) {
+            console.error("[admin/pedidos] gerar_link customer error", e);
+            return Response.json({ error: "asaas_customer_error" }, { status: 502 });
+          }
+
+          const paymentInput: AsaasCreatePayment = {
+            customer: customer.id,
+            billingType: "UNDEFINED",
+            value: Number(pedido.total),
+            dueDate: deriveDueDate(pedido.data_entrega),
+            description: `Pedido ${id.slice(0, 8)} - Casa Almeria`,
+            externalReference: id,
+          };
+
+          let payment;
+          try {
+            payment = await asaas.createPayment(paymentInput);
+          } catch (e) {
+            console.error("[admin/pedidos] gerar_link payment error", e);
+            return Response.json({ error: "asaas_payment_error" }, { status: 502 });
+          }
+
+          const { data: pagamento, error: insErr } = await auth.admin
+            .from("pagamentos")
+            .insert({
+              pedido_id: id,
+              asaas_payment_id: payment.id,
+              asaas_customer_id: customer.id,
+              metodo: null,
+              status: payment.status,
+              valor: Number(pedido.total),
+              invoice_url: payment.invoiceUrl ?? null,
+              raw_response: payment as unknown as Record<string, unknown>,
+            })
+            .select("id, invoice_url")
+            .single();
+          if (insErr) {
+            console.error("[admin/pedidos] gerar_link insert error", insErr);
+            return Response.json({ error: "db_insert_error" }, { status: 500 });
+          }
+
+          return Response.json({
+            ok: true,
+            pagamentoId: pagamento.id,
+            invoiceUrl: pagamento.invoice_url,
+          });
+        }
+
+        if (action === "pagar_dinheiro") {
+          const { id } = parsed.data;
+          const { data: pedido, error: pErr } = await auth.admin
+            .from("pedidos")
+            .select("pagamento")
+            .eq("id", id)
+            .maybeSingle();
+          if (pErr || !pedido) {
+            return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+          }
+          const pagAtual = (pedido.pagamento as Record<string, unknown>) ?? {};
+          const { error } = await auth.admin
+            .from("pedidos")
+            .update({
+              status: "pago",
+              payment_confirmed_at: new Date().toISOString(),
+              pagamento: { ...pagAtual, metodo: "dinheiro", status: "pago" },
+            })
+            .eq("id", id);
+          if (error) {
+            console.error("[admin/pedidos] pagar_dinheiro", error);
+            return Response.json({ error: "db_error" }, { status: 500 });
+          }
+          return Response.json({ ok: true });
+        }
+
+        if (action === "gerar_pix") {
+          const { id, cpf } = parsed.data;
+
+          const secrets = await getAppSecrets();
+          if (!secrets.asaasApiKey) {
+            return Response.json({ error: "asaas_not_configured" }, { status: 503 });
+          }
+          const asaas = makeAsaasClient(secrets.asaasApiKey);
+
+          const { data: pedido, error: pedidoErr } = await auth.admin
+            .from("pedidos")
+            .select("id, cliente_nome, cliente_whatsapp, cliente_email, total, data_entrega")
+            .eq("id", id)
+            .maybeSingle();
+          if (pedidoErr || !pedido) {
+            return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+          }
+          if (!pedido.total || Number(pedido.total) <= 0) {
+            return Response.json({ error: "total_invalido" }, { status: 400 });
+          }
+
+          let customer;
+          try {
+            customer = await asaas.upsertCustomer({
+              name: pedido.cliente_nome,
+              cpfCnpj: cpf,
+              email: pedido.cliente_email ?? undefined,
+              mobilePhone: pedido.cliente_whatsapp ?? undefined,
+              externalReference: id,
+            });
+          } catch (e) {
+            console.error("[admin/pedidos] gerar_pix customer error", e);
+            return Response.json({ error: "asaas_customer_error" }, { status: 502 });
+          }
+
+          const paymentInput: AsaasCreatePayment = {
+            customer: customer.id,
+            billingType: "PIX",
+            value: Number(pedido.total),
+            dueDate: deriveDueDate(pedido.data_entrega),
+            description: `Pedido ${id.slice(0, 8)} - Casa Almeria`,
+            externalReference: id,
+          };
+
+          let payment;
+          try {
+            payment = await asaas.createPayment(paymentInput);
+          } catch (e) {
+            console.error("[admin/pedidos] gerar_pix payment error", e);
+            return Response.json({ error: "asaas_payment_error" }, { status: 502 });
+          }
+
+          let qr;
+          try {
+            qr = await asaas.getPixQrCode(payment.id);
+          } catch (e) {
+            console.error("[admin/pedidos] gerar_pix qrcode error", e);
+            return Response.json({ error: "asaas_pix_error" }, { status: 502 });
+          }
+
+          const pixExpiraEm = qr.expirationDate ? new Date(qr.expirationDate).toISOString() : null;
+
+          const { data: pagamento, error: insErr } = await auth.admin
+            .from("pagamentos")
+            .insert({
+              pedido_id: id,
+              asaas_payment_id: payment.id,
+              asaas_customer_id: customer.id,
+              metodo: "PIX",
+              status: payment.status,
+              valor: Number(pedido.total),
+              invoice_url: payment.invoiceUrl ?? null,
+              pix_qrcode_payload: qr.payload,
+              pix_qrcode_image: qr.encodedImage,
+              pix_expira_em: pixExpiraEm,
+              raw_response: payment as unknown as Record<string, unknown>,
+            })
+            .select("id")
+            .single();
+          if (insErr) {
+            console.error("[admin/pedidos] gerar_pix insert error", insErr);
+            return Response.json({ error: "db_insert_error" }, { status: 500 });
+          }
+
+          return Response.json({
+            ok: true,
+            pagamentoId: pagamento.id,
+            qrImage: qr.encodedImage,
+            payload: qr.payload,
+            expiraEm: pixExpiraEm,
+          });
         }
 
         return Response.json({ error: "unknown_action" }, { status: 400 });
