@@ -83,6 +83,7 @@ import {
 } from "@/lib/planilhaFiltros";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import { dataEntregaParaIso } from "@/lib/dateUtils";
+import { PedidoManualModal } from "@/components/pedidoManual/PedidoManualModal";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -914,9 +915,10 @@ function CozinhaPage() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
                 Atualizar
               </Button>
-              <Button asChild className="bg-olive text-white hover:bg-olive/90">
-                <a href="/pedidos/novo" target="_blank" rel="noopener noreferrer">＋ Novo Pedido</a>
-              </Button>
+              <PedidoManualModal
+                onCriado={() => carregarRef.current?.()}
+                triggerClassName="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-olive px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-olive/90"
+              />
               <Button
                 variant="outline"
                 onClick={() =>
