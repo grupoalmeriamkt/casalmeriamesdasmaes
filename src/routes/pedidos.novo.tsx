@@ -34,7 +34,7 @@ function PedidoNovoPage() {
     );
   }
   return (
-    <div className="min-h-screen bg-linen">
+    <div className="h-screen bg-linen">
       <PedidoManualStepper onFinalizado={() => navigate({ to: "/admin" })} />
       <Toaster position="bottom-right" />
     </div>
