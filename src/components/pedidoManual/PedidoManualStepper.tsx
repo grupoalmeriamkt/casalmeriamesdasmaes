@@ -20,6 +20,7 @@ import {
 } from "@/lib/pedidos";
 import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas } from "@/store/admin";
 import { calcularTotal } from "@/lib/orderForm/buildPayload";
+import { particionarCestas } from "@/lib/produtoGrupos";
 import { buscarCep, formatarEndereco } from "@/lib/cep";
 import { cpfParaLinkSchema } from "@/lib/orderForm/schema";
 import {
@@ -67,6 +68,7 @@ export function PedidoManualStepper({
 
   const [criando, setCriando] = useState(false);
   const [pedidoId, setPedidoId] = useState<string | null>(null);
+  const [pedidoAccessToken, setPedidoAccessToken] = useState<string | null>(null);
   const [cpf, setCpf] = useState("");
   const [cpfConfirmado, setCpfConfirmado] = useState("");
   const [gerando, setGerando] = useState(false);
@@ -158,6 +160,7 @@ export function PedidoManualStepper({
       return;
     }
     setPedidoId(res.id);
+    if (res.accessToken) setPedidoAccessToken(res.accessToken);
     toast.success("Pedido criado! Escolha a forma de pagamento.");
   };
 
@@ -314,8 +317,21 @@ export function PedidoManualStepper({
         {/* Produto */}
         {etapa === "produto" && (
           <div className="flex flex-col gap-4">
-            <ProdutoGrupo titulo="Cestas" itens={cestas} getQtd={getQtd}
-              onQtd={(c, q) => setQuantidade({ produto_id: c.id, produto_tipo: "cesta", nome: c.nome, preco: c.preco }, q)} />
+            {(() => {
+              const { padrao, especiais } = particionarCestas(cestas);
+              return (
+                <>
+                  {padrao.length > 0 && (
+                    <ProdutoGrupo titulo="Cestas" itens={padrao} getQtd={getQtd}
+                      onQtd={(c, q) => setQuantidade({ produto_id: c.id, produto_tipo: "cesta", nome: c.nome, preco: c.preco }, q)} />
+                  )}
+                  {especiais.length > 0 && (
+                    <ProdutoGrupo titulo="Cestas Especiais / Campanha" itens={especiais} getQtd={getQtd}
+                      onQtd={(c, q) => setQuantidade({ produto_id: c.id, produto_tipo: "cesta", nome: c.nome, preco: c.preco }, q)} />
+                  )}
+                </>
+              );
+            })()}
             <ProdutoGrupo titulo="Sobremesas" itens={sobremesas} getQtd={getQtd}
               onQtd={(s, q) => setQuantidade({ produto_id: s.id, produto_tipo: "sobremesa", nome: s.nome, preco: s.preco }, q)} />
             <div className="field-anim flex items-center justify-between rounded-lg bg-foreground px-4 py-3 text-background">
@@ -458,7 +474,11 @@ export function PedidoManualStepper({
                 <Button className="w-full" onClick={() => onFinalizado(pedidoId)}>Concluir</Button>
               </>
             ) : metodo === "cartao_qr" ? (
-              <CartaoQrDisplay pedidoId={pedidoId} onPago={() => setCartaoQrPago(true)} />
+              <CartaoQrDisplay
+                pedidoId={pedidoId}
+                accessToken={pedidoAccessToken}
+                onPago={() => setCartaoQrPago(true)}
+              />
             ) : metodo === "pix" || metodo === "cartao" ? (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-muted-foreground">
