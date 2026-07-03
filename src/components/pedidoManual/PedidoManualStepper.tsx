@@ -22,6 +22,7 @@ import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas } from "@/store
 import { calcularTotal } from "@/lib/orderForm/buildPayload";
 import { particionarCestas } from "@/lib/produtoGrupos";
 import { buscarCep, formatarEndereco } from "@/lib/cep";
+import { montarEnderecoFinal } from "@/lib/enderecoEntrega";
 import { cpfParaLinkSchema } from "@/lib/orderForm/schema";
 import {
   buildRegrasForItens,
@@ -136,6 +137,8 @@ export function PedidoManualStepper({
 
   const [cep, setCep] = useState("");
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [tipoLocal, setTipoLocal] = useState<"casa" | "apartamento">("casa");
+  const [numeroUnidade, setNumeroUnidade] = useState("");
   const preencherPorCep = async (valor: string) => {
     const limpo = valor.replace(/\D/g, "");
     if (limpo.length !== 8) return;
@@ -225,6 +228,19 @@ export function PedidoManualStepper({
 
   const pagamentoResolvido = pagoDinheiro || cartaoQrPago || !!invoiceUrl || !!pixResult;
   const mostrarNav = !(etapa === "pagamento" && (pedidoId || pagamentoResolvido));
+
+  const handleAvancar = () => {
+    if (etapa === "entrega" && state.tipo === "delivery") {
+      patch({
+        enderecoOuUnidade: montarEnderecoFinal({
+          endereco: state.enderecoOuUnidade,
+          tipoLocal,
+          numeroUnidade,
+        }),
+      });
+    }
+    avancar();
+  };
 
   return (
     <div className="mx-auto flex max-h-[88vh] w-full max-w-md flex-col gap-6 overflow-y-auto p-6">
@@ -397,6 +413,23 @@ export function PedidoManualStepper({
                 <Input id="pm-end" placeholder="Rua, número, complemento, bairro…" value={state.enderecoOuUnidade}
                   onChange={(e) => patch({ enderecoOuUnidade: e.target.value })} />
               </div>
+              <div className="field-anim grid grid-cols-2 gap-1.5 rounded-lg bg-muted p-1">
+                {(["casa", "apartamento"] as const).map((t) => (
+                  <button key={t} type="button"
+                    onClick={() => setTipoLocal(t)}
+                    className={cn(
+                      "rounded-md py-2 text-sm font-medium transition-all",
+                      tipoLocal === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+                    )}>
+                    {t === "casa" ? "Casa" : "Apartamento"}
+                  </button>
+                ))}
+              </div>
+              <div className="field-anim flex flex-col gap-1.5">
+                <Label htmlFor="pm-numero-unidade">Número (do ap ou da casa)</Label>
+                <Input id="pm-numero-unidade" placeholder="Ex: 302" value={numeroUnidade}
+                  onChange={(e) => setNumeroUnidade(e.target.value)} />
+              </div>
               </>
             )}
 
@@ -520,7 +553,7 @@ export function PedidoManualStepper({
             Voltar
           </Button>
           {etapa !== "pagamento" && (
-            <Button onClick={avancar} disabled={erros.length > 0}>
+            <Button onClick={handleAvancar} disabled={erros.length > 0}>
               Avançar
             </Button>
           )}
