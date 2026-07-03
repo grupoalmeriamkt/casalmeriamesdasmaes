@@ -11,7 +11,14 @@ import { useManualOrder, ETAPAS, type Etapa } from "./useManualOrder";
 import { LinkPagamentoAcoes } from "./LinkPagamentoAcoes";
 import { PixQrCode } from "./PixQrCode";
 import { CartaoQrDisplay } from "./CartaoQrDisplay";
-import { obterOperadorAtual } from "@/lib/operators";
+import { obterOperadorAtual, listarOperadores, type Operator } from "@/lib/operators";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   criarPedidoManual,
   gerarLinkPagamento,
@@ -84,10 +91,25 @@ export function PedidoManualStepper({
 
   const stepRef = useRef<HTMLDivElement>(null);
 
+  const [operadores, setOperadores] = useState<Operator[]>([]);
+  const [carregandoOperadores, setCarregandoOperadores] = useState(true);
+
   useEffect(() => {
     (async () => {
-      const op = await obterOperadorAtual();
-      if (op) patch({ operador: op });
+      // Carrega a lista e o operador atual em paralelo. O atual é apenas
+      // pré-seleção — se o auto-provisionamento falhar, o usuário ainda
+      // pode escolher manualmente no dropdown.
+      const [lista, atual] = await Promise.all([
+        listarOperadores(),
+        obterOperadorAtual(),
+      ]);
+      setOperadores(lista);
+      setCarregandoOperadores(false);
+      if (atual) {
+        patch({ operador: atual });
+      } else if (lista.length === 1) {
+        patch({ operador: lista[0] });
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -269,22 +291,49 @@ export function PedidoManualStepper({
 
         {/* Operador */}
         {etapa === "operador" && (
-          <div className="field-anim flex items-center gap-3 rounded-lg border bg-muted/40 p-4">
-            {state.operador ? (
-              <>
+          <div className="field-anim flex flex-col gap-3">
+            {state.operador && (
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-4">
                 <div className="grid h-10 w-10 place-items-center rounded-full bg-olive/15 font-semibold text-olive">
                   {(state.operador.short_name || state.operador.name || "?").slice(0, 1).toUpperCase()}
                 </div>
-                <div>
-                  <p className="font-medium">{state.operador.short_name || state.operador.name}</p>
-                  <p className="text-xs text-muted-foreground">{state.operador.email}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{state.operador.short_name || state.operador.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{state.operador.email}</p>
                 </div>
-              </>
-            ) : (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Identificando operador…
-              </p>
+              </div>
             )}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="pm-operador">Selecione o operador</Label>
+              <Select
+                value={state.operador?.id ?? ""}
+                disabled={carregandoOperadores}
+                onValueChange={(id) => {
+                  const op = operadores.find((o) => o.id === id);
+                  if (op) patch({ operador: op });
+                }}
+              >
+                <SelectTrigger id="pm-operador">
+                  <SelectValue
+                    placeholder={carregandoOperadores ? "Carregando operadores…" : "Escolha quem está atendendo"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {operadores.map((op) => (
+                    <SelectItem key={op.id} value={op.id}>
+                      {op.short_name || op.name}
+                      {op.email ? ` — ${op.email}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!carregandoOperadores && operadores.length === 0 && (
+                <p className="text-xs text-destructive">
+                  Nenhum operador encontrado. Verifique sua conexão e recarregue a página.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
