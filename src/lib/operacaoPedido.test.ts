@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { filtrarPedidosOperacionais, rowToPedidoOperacional } from "@/lib/operacaoPedido";
+import {
+  agruparPorExecucao,
+  filtrarPedidosOperacionais,
+  rowToPedidoOperacional,
+} from "@/lib/operacaoPedido";
 import type { PedidoRow } from "@/lib/pedidos";
 
 const baseRow = (patch: Partial<PedidoRow> = {}): PedidoRow => ({
@@ -59,5 +63,22 @@ describe("filtrarPedidosOperacionais", () => {
     const out = filtrarPedidosOperacionais(lista, { status: ["aprovado"] });
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe("abc-123");
+  });
+});
+
+describe("agruparPorExecucao", () => {
+  it("ordena grupos por data de execução ascendente (mais próxima primeiro), sem-data por último", () => {
+    const pedidos = [
+      rowToPedidoOperacional(
+        baseRow({ id: "later", execution_at: "2099-07-05T11:00:00.000Z" }),
+      ),
+      rowToPedidoOperacional(baseRow({ id: "sem-data", execution_at: null })),
+      rowToPedidoOperacional(
+        baseRow({ id: "sooner", execution_at: "2099-07-01T11:00:00.000Z" }),
+      ),
+    ];
+    const grupos = agruparPorExecucao(pedidos);
+    const keys = grupos.map(([key]) => key);
+    expect(keys).toEqual(["2099-07-01", "2099-07-05", "sem-data"]);
   });
 });

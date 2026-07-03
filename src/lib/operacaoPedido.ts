@@ -190,7 +190,7 @@ export function agruparPorExecucao(pedidos: PedidoOperacional[]) {
     grupos.get(key)!.push(p);
   }
   return [...grupos.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
+    .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, items]) => [key, sortPedidosPorCriadoDesc(items)] as const);
 }
 
