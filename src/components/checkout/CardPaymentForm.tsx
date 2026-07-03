@@ -15,6 +15,7 @@ import {
   pollStatus,
   type CardChargeResult,
 } from "@/lib/checkout/cardCharge";
+import { checkoutAccessHeaders } from "@/lib/checkoutAccess";
 
 export type PedidoPublico = {
   id: string;
@@ -77,7 +78,10 @@ export function CardPaymentForm({
     try {
       const res = await fetch("/api/public/cupom/validar", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...checkoutAccessHeaders(pedido.id),
+        },
         body: JSON.stringify({ codigo, total: pedido.total }),
       });
       const data = (await res.json()) as { valido?: boolean; motivo?: string; desconto?: number; codigo?: string };
@@ -153,7 +157,7 @@ export function CardPaymentForm({
       return;
     }
     // Status não-final (raro em cartão) — poll de fallback
-    const final = await pollStatus(res.pagamentoId, { intervalMs: 3000, maxAttempts: 5 });
+    const final = await pollStatus(res.pagamentoId, pedido.id, { intervalMs: 3000, maxAttempts: 5 });
     setEnviando(false);
     if (final?.pago) onSuccess();
     else onError("Pagamento em análise. O atendente confirmará em instantes.");

@@ -4,6 +4,10 @@ import type { ManualOrderInput } from "@/lib/orderForm/types";
 import { pagamentoRelevante } from "@/lib/asaasStatus";
 import { computeExecutionAt } from "@/lib/executionAt";
 import {
+  parseUpsertPedidoResult,
+  saveCheckoutAccess,
+} from "@/lib/checkoutAccess";
+import {
   buildRegrasForItens,
   resolveProductionSector,
   type CarrinhoItem,
@@ -133,7 +137,10 @@ export async function upsertRascunho(
   if (error) {
     return { id: "", error: error as unknown as Error };
   }
-  return { id: data as unknown as string, error: null };
+  const parsed = parseUpsertPedidoResult(data);
+  if (!parsed) return { id: "", error: new Error("Resposta inválida do servidor") };
+  if (parsed.accessToken) saveCheckoutAccess(parsed.id, parsed.accessToken);
+  return { id: parsed.id, error: null };
 }
 
 /** Finaliza um pedido (status = aprovado/pendente). Atualiza rascunho se houver id. */
@@ -148,7 +155,10 @@ export async function finalizarPedido(
     _payload: payload,
   });
   if (error) return { id: "", error: error as unknown as Error };
-  return { id: data as unknown as string, error: null };
+  const parsed = parseUpsertPedidoResult(data);
+  if (!parsed) return { id: "", error: new Error("Resposta inválida do servidor") };
+  if (parsed.accessToken) saveCheckoutAccess(parsed.id, parsed.accessToken);
+  return { id: parsed.id, error: null };
 }
 
 /** Mantido por compatibilidade — usa finalizarPedido. */
@@ -450,7 +460,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
 /** Cria um pedido manual (origem = manual). Requer admin autenticado. */
 export async function criarPedidoManual(
   pedido: ManualOrderInput,
-): Promise<{ ok: boolean; id?: string; error?: string }> {
+): Promise<{ ok: boolean; id?: string; accessToken?: string; error?: string }> {
   const token = await getAuthToken();
   if (!token) return { ok: false, error: "Nao autenticado" };
   try {
@@ -459,8 +469,18 @@ export async function criarPedidoManual(
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action: "criar_manual", pedido }),
     });
-    const json = (await res.json()) as { ok?: boolean; id?: string; error?: string };
-    return res.ok ? { ok: true, id: json.id } : { ok: false, error: json.error ?? "Erro" };
+    const json = (await res.json()) as {
+      ok?: boolean;
+      id?: string;
+      accessToken?: string;
+      error?: string;
+    };
+    if (res.ok && json.id && json.accessToken) {
+      saveCheckoutAccess(json.id, json.accessToken);
+    }
+    return res.ok
+      ? { ok: true, id: json.id, accessToken: json.accessToken }
+      : { ok: false, error: json.error ?? "Erro" };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
   }

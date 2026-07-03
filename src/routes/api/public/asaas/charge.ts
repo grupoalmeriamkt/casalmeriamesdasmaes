@@ -14,6 +14,12 @@ import {
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
 import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
+import {
+  checkoutAccessDenied,
+  readCheckoutAccessToken,
+  verifyPedidoAccess,
+} from "@/lib/checkoutAccess.server";
+import { rateLimit } from "@/lib/rateLimit.server";
 
 /** Converte data_entrega (rótulo PT-BR ou ISO) para "YYYY-MM-DD" em SP. */
 function dataEntregaParaISO(d: string | null | undefined): string | undefined {
@@ -85,6 +91,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const limited = rateLimit(request, "public/asaas/charge", { max: 20, windowMs: 60_000 });
+        if (limited) return limited;
+
         let json: unknown;
         try {
           json = await request.json();
@@ -106,11 +115,41 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           return Response.json({ error: "supabase_not_configured" }, { status: 503 });
         }
 
+        const accessToken = readCheckoutAccessToken(request);
+        if (!(await verifyPedidoAccess(admin, body.pedidoId, accessToken))) {
+          return checkoutAccessDenied();
+        }
+
         const secrets = await getAppSecrets();
         if (!secrets.asaasApiKey) {
           return Response.json({ error: "asaas_not_configured" }, { status: 503 });
         }
         const asaas = makeAsaasClient(secrets.asaasApiKey);
+
+        // Confere pedido existe e pertence ao fluxo
+        const { data: pedido, error: pedErr } = await admin
+          .from("pedidos")
+          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, campanha_id")
+          .eq("id", body.pedidoId)
+          .maybeSingle();
+        if (pedErr || !pedido) {
+          return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+        }
+        if (pedido.status === "pago") {
+          return Response.json({ error: "ja_pago" }, { status: 409 });
+        }
+        if (pedido.status === "cancelado") {
+          return Response.json({ error: "cancelado" }, { status: 410 });
+        }
+
+        const totalPedido = Number(pedido.total ?? 0);
+        if (totalPedido <= 0) {
+          return Response.json({ error: "total_invalido" }, { status: 400 });
+        }
+        // Usa o total gravado no pedido — rejeita manipulação do cliente.
+        if (Math.abs(body.total - totalPedido) > 0.01) {
+          return Response.json({ error: "total_mismatch" }, { status: 400 });
+        }
 
         // Valida cupom server-side (defesa contra manipulação do total no cliente)
         let descontoAplicado = 0;
@@ -118,7 +157,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         if (body.cupomCodigo) {
           const { data: cupomRes, error: cupomErr } = await admin.rpc("validar_cupom", {
             _codigo: body.cupomCodigo,
-            _valor: body.total,
+            _valor: totalPedido,
           });
           if (cupomErr) {
             console.error("[asaas/charge] validar_cupom erro", cupomErr);
@@ -137,17 +176,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           cupomValido = row.codigo;
         }
 
-        const valorFinal = Math.max(1, Number((body.total - descontoAplicado).toFixed(2)));
-
-        // Confere pedido existe e pertence ao fluxo
-        const { data: pedido, error: pedErr } = await admin
-          .from("pedidos")
-          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, campanha_id")
-          .eq("id", body.pedidoId)
-          .maybeSingle();
-        if (pedErr || !pedido) {
-          return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
-        }
+        const valorFinal = Math.max(1, Number((totalPedido - descontoAplicado).toFixed(2)));
 
         const carrinhoItens: CarrinhoItem[] = [];
         const cesta = pedido.cesta as { nome: string } | null;
@@ -395,7 +424,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               (e.body as { errors?: { description?: string }[] })?.errors?.[0]?.description ??
               "Falha no processamento do pagamento";
             return Response.json(
-              { error: "asaas_error", status: e.status, motivo, body: e.body },
+              { error: "asaas_error", status: e.status, motivo },
               { status: e.status === 400 ? 400 : 502 },
             );
           }

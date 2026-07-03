@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
+import { checkoutAccessHeaders } from "@/lib/checkoutAccess";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackBeginCheckout, trackLeadStart, trackLeadComplete, trackPurchase } from "@/lib/gtm";
@@ -1524,16 +1525,20 @@ export function Quiz({
                   ];
                   try {
                     // Token NUNCA é enviado pelo cliente — servidor lê do banco.
+                    const pedidoRef = id || st.pedidoId;
                     const res = await fetch("/api/public/mp-preference", {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...(pedidoRef ? checkoutAccessHeaders(pedidoRef) : {}),
+                      },
                       body: JSON.stringify({
                         items,
                         payer: {
                           name: cliente.nome,
                           phone: cliente.whatsapp,
                         },
-                        externalReference: id || st.pedidoId,
+                        externalReference: pedidoRef,
                         installments: pagamento.parcelasMax,
                       }),
                     });

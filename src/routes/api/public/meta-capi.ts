@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { createHash } from "crypto";
-import { getAppSecrets } from "@/integrations/supabase/client.server";
+import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
+import { rateLimit } from "@/lib/rateLimit.server";
 
 const BodySchema = z.object({
   pixelId: z.string().regex(/^\d{6,20}$/),
@@ -30,6 +31,9 @@ export const Route = createFileRoute("/api/public/meta-capi")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const limited = rateLimit(request, "public/meta-capi", { max: 60, windowMs: 60_000 });
+        if (limited) return limited;
+
         let json: unknown;
         try {
           json = await request.json();
@@ -53,6 +57,29 @@ export const Route = createFileRoute("/api/public/meta-capi")({
             { error: "meta_not_configured" },
             { status: 503 },
           );
+        }
+
+        const admin = getAdminClient();
+        if (!admin) {
+          return Response.json({ error: "db_unavailable" }, { status: 503 });
+        }
+        const { data: configRow } = await admin
+          .from("app_config")
+          .select("payload")
+          .eq("id", "default")
+          .maybeSingle();
+        const configuredPixelId =
+          (
+            (configRow?.payload as Record<string, unknown> | null)?.integracoes as
+              | Record<string, unknown>
+              | undefined
+          )?.metaPixelId;
+        if (
+          typeof configuredPixelId !== "string" ||
+          !/^\d{6,20}$/.test(configuredPixelId) ||
+          parsed.data.pixelId !== configuredPixelId
+        ) {
+          return Response.json({ error: "pixel_not_allowed" }, { status: 403 });
         }
 
         const {
@@ -108,7 +135,7 @@ export const Route = createFileRoute("/api/public/meta-capi")({
           if (!res.ok) {
             console.error("[meta-capi] erro Meta API", res.status, body);
             return Response.json(
-              { error: "meta_api_error", status: res.status, body },
+              { error: "meta_api_error", status: res.status },
               { status: 502 },
             );
           }

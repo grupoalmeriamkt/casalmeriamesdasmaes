@@ -259,13 +259,17 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const { data, error } = await auth.admin
             .from("pedidos")
             .insert(payload)
-            .select("id")
+            .select("id, access_token")
             .single();
           if (error) {
             console.error("[admin/pedidos] criar_manual error", error);
             return Response.json({ error: error.message }, { status: 500 });
           }
-          return Response.json({ ok: true, id: data.id });
+          return Response.json({
+            ok: true,
+            id: data.id,
+            accessToken: data.access_token as string,
+          });
         }
 
         if (action === "gerar_link") {

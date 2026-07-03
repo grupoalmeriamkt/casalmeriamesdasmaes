@@ -7,19 +7,30 @@ import {
   ASAAS_FINAL_PAID,
   pedidoStatusFromAsaas,
 } from "@/lib/asaasStatus";
+import {
+  checkoutAccessDenied,
+  verifyPagamentoAccessOrStaff,
+} from "@/lib/checkoutAccess.server";
+import { rateLimit } from "@/lib/rateLimit.server";
 
 const ParamSchema = z.string().uuid();
 
 export const Route = createFileRoute("/api/public/asaas/status/$id")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
+        const limited = rateLimit(request, "public/asaas/status", { max: 120, windowMs: 60_000 });
+        if (limited) return limited;
+
         const parsed = ParamSchema.safeParse(params.id);
         if (!parsed.success) {
           return Response.json({ error: "invalid_id" }, { status: 400 });
         }
         const admin = getAdminClient();
         if (!admin) return Response.json({ error: "db" }, { status: 503 });
+
+        const access = await verifyPagamentoAccessOrStaff(request, admin, parsed.data);
+        if (!access.ok) return checkoutAccessDenied();
 
         const { data: row, error } = await admin
           .from("pagamentos")

@@ -2,7 +2,7 @@
 // Requer Authorization: Bearer <supabase_access_token> — verifica que o usuário está autenticado.
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getAdminClient } from "@/integrations/supabase/client.server";
+import { authenticateRequest, requireAdmin } from "@/lib/authServer";
 
 const BodySchema = z.object({
   publicPayload: z.record(z.string(), z.unknown()),
@@ -19,21 +19,12 @@ export const Route = createFileRoute("/api/admin/save-config")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Verifica autenticação via Bearer token
-        const authHeader = request.headers.get("authorization") ?? "";
-        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-        if (!token) {
-          return new Response("unauthorized", { status: 401 });
+        const auth = await authenticateRequest(request);
+        if (!auth) return new Response("unauthorized", { status: 401 });
+        if (!(await requireAdmin(auth.admin, auth.user.id))) {
+          return new Response("forbidden", { status: 403 });
         }
-
-        const admin = getAdminClient();
-        if (!admin) return new Response("db unavailable", { status: 503 });
-
-        // Valida o JWT com o Supabase (sem expor a service role key ao cliente)
-        const { data: userData, error: userErr } = await admin.auth.getUser(token);
-        if (userErr || !userData?.user) {
-          return new Response("unauthorized", { status: 401 });
-        }
+        const { admin } = auth;
 
         let json: unknown;
         try {

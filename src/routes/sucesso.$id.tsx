@@ -10,6 +10,7 @@ import { usePedido } from "@/store/pedido";
 import { CheckCircle2, Copy, Loader2, MessageCircle, Clock, ArrowLeft } from "lucide-react";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackPurchase } from "@/lib/gtm";
+import { checkoutAccessHeadersForPagamento } from "@/lib/checkoutAccess";
 
 export const Route = createFileRoute("/sucesso/$id")({
   head: () => ({
@@ -56,7 +57,9 @@ function SucessoPage() {
     let cancelled = false;
     async function fetchPagamento() {
       try {
-        const res = await fetch(`/api/public/pagamento/${id}`);
+        const res = await fetch(`/api/public/pagamento/${id}`, {
+          headers: checkoutAccessHeadersForPagamento(null, id),
+        });
         if (cancelled) return;
         if (!res.ok) {
           setCarregando(false);
@@ -85,7 +88,9 @@ function SucessoPage() {
     if (PAGO_STATUSES.has(statusLive ?? "")) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/public/asaas/status/${id}`);
+        const res = await fetch(`/api/public/asaas/status/${id}`, {
+          headers: checkoutAccessHeadersForPagamento(pagamento?.pedido_id, id),
+        });
         if (!res.ok) return;
         const data = await res.json();
         setStatusLive(data.status);

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getAdminClient } from "@/integrations/supabase/client.server";
+import { rateLimit } from "@/lib/rateLimit.server";
 
 const BodySchema = z.object({
   codigo: z.string().trim().min(2).max(40),
@@ -11,6 +12,9 @@ export const Route = createFileRoute("/api/public/cupom/validar")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const limited = rateLimit(request, "public/cupom/validar", { max: 30, windowMs: 60_000 });
+        if (limited) return limited;
+
         let json: unknown;
         try {
           json = await request.json();

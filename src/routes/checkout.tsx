@@ -11,6 +11,7 @@ import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { upsertRascunho } from "@/lib/pedidos";
+import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
 import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock } from "lucide-react";
 import { useAdmin } from "@/store/admin";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
@@ -311,7 +312,10 @@ function CheckoutPage() {
       // 2. dispara cobrança
       const res = await fetch("/api/public/asaas/charge", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...checkoutAccessHeaders(pedidoId),
+        },
         body: JSON.stringify({
           pedidoId,
           cliente: {
@@ -334,6 +338,7 @@ function CheckoutPage() {
         return;
       }
 
+      linkPagamentoAccess(pedidoId, data.pagamentoId as string);
       clear();
       navigate({
         to: "/sucesso/$id",

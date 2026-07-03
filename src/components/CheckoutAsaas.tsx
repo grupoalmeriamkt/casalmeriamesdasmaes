@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { useCampanhaAtiva, calcTaxaEntrega } from "@/store/admin";
 import { finalizarPedido } from "@/lib/pedidos";
+import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
@@ -286,7 +287,10 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
 
       const res = await fetch("/api/public/asaas/charge", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...checkoutAccessHeaders(pedidoId),
+        },
         body: JSON.stringify({
           pedidoId,
           cliente: {
@@ -315,6 +319,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         return;
       }
 
+      linkPagamentoAccess(pedidoId, data.pagamentoId as string);
       navigate({ to: "/sucesso/$id", params: { id: data.pagamentoId as string } });
     } catch (e) {
       console.error("[checkout] exceção inesperada:", e);

@@ -2,17 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Copy, Smartphone } from "lucide-react";
+import {
+  checkoutAccessHeaders,
+  pagarUrl,
+  saveCheckoutAccess,
+} from "@/lib/checkoutAccess";
 
 /**
- * Exibe um QR Code apontando para o checkout transparente (/pagar/{pedidoId}).
+ * Exibe um QR Code apontando para o checkout transparente (/pagar/{pedidoId}?access=...).
  * O cliente escaneia, paga no próprio celular; este componente faz polling do
  * status do pedido e chama onPago() quando confirma.
  */
 export function CartaoQrDisplay({
   pedidoId,
+  accessToken,
   onPago,
 }: {
   pedidoId: string;
+  accessToken?: string | null;
   onPago: () => void;
 }) {
   const [url, setUrl] = useState("");
@@ -20,14 +27,18 @@ export function CartaoQrDisplay({
   onPagoRef.current = onPago;
 
   useEffect(() => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    setUrl(`${origin}/pagar/${pedidoId}`);
-  }, [pedidoId]);
+    if (accessToken) saveCheckoutAccess(pedidoId, accessToken);
+    if (accessToken) {
+      setUrl(pagarUrl(pedidoId, accessToken));
+    } else {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      setUrl(`${origin}/pagar/${pedidoId}`);
+    }
+  }, [pedidoId, accessToken]);
 
-  // Polling do status do pedido enquanto o QR está visível.
   useEffect(() => {
     let attempts = 0;
-    const MAX = 150; // ~10 min a cada 4s
+    const MAX = 150;
     const timer = setInterval(async () => {
       attempts += 1;
       if (attempts > MAX) {
@@ -35,7 +46,9 @@ export function CartaoQrDisplay({
         return;
       }
       try {
-        const res = await fetch(`/api/public/pedido/${pedidoId}`);
+        const res = await fetch(`/api/public/pedido/${pedidoId}`, {
+          headers: checkoutAccessHeaders(pedidoId),
+        });
         if (res.status === 409) {
           clearInterval(timer);
           onPagoRef.current();
@@ -60,32 +73,25 @@ export function CartaoQrDisplay({
     toast.success("Link copiado!");
   };
 
+  if (!url) return null;
+
   return (
-    <div className="flex flex-col items-center gap-4 rounded-xl border bg-muted/30 p-5 text-center">
+    <div className="flex flex-col items-center gap-4 rounded-xl border bg-white p-5">
       <div className="flex items-center gap-2 text-sm font-medium text-charcoal">
         <Smartphone className="h-4 w-4 text-olive" />
-        Peça para o cliente escanear
+        Cliente paga no celular
       </div>
-      <div className="rounded-xl border bg-white p-3">
-        {url ? (
-          <QRCodeSVG value={url} size={200} level="M" marginSize={1} />
-        ) : (
-          <div className="h-[200px] w-[200px]" />
-        )}
-      </div>
-      <p className="max-w-[16rem] text-xs text-muted-foreground">
-        O cliente digita o próprio cartão numa página segura. Esta tela confirma o pagamento
-        automaticamente.
+      <QRCodeSVG value={url} size={180} level="M" />
+      <p className="max-w-xs text-center text-xs text-muted-foreground">
+        Escaneie o QR Code ou copie o link para o cliente finalizar o pagamento no cartão.
       </p>
-      <div className="flex items-center gap-2 text-xs font-medium text-olive">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-olive" />
-        Aguardando o cliente pagar…
-      </div>
       <button
+        type="button"
         onClick={copiar}
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-charcoal"
+        className="inline-flex items-center gap-2 text-sm font-medium text-olive hover:underline"
       >
-        <Copy className="h-3 w-3" /> Copiar link
+        <Copy className="h-4 w-4" />
+        Copiar link de pagamento
       </button>
     </div>
   );

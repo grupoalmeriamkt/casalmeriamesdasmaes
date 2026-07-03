@@ -14,6 +14,7 @@ type CampoPermitido = (typeof CAMPOS_PERMITIDOS)[number];
 
 const BodySchema = z.object({
   token: z.string().min(1),
+  senha: z.string().nullable().optional(),
   pedido_id: z.string().uuid(),
   campos: z.record(z.string(), z.string().nullable()),
   destinatario: z
@@ -41,15 +42,41 @@ export const Route = createFileRoute("/api/pedidos/editar-por-token")({
           return Response.json({ error: "invalid_body" }, { status: 400 });
         }
 
-        const { token, pedido_id, campos, destinatario } = parsed.data;
+        const { token, senha, pedido_id, campos, destinatario } = parsed.data;
 
-        // Valida token
+        // Valida token (e senha, se exigida)
         const { data: tokenValido, error: tokenError } = await admin.rpc(
           "validar_token_pedidos",
-          { _token: token, _senha: null },
+          { _token: token, _senha: senha ?? null },
         );
         if (tokenError || !tokenValido) {
           return Response.json({ error: "token_invalido" }, { status: 403 });
+        }
+
+        // Verifica escopo do token (campanha) antes de alterar o pedido
+        const { data: tokenRow, error: tokenRowErr } = await admin
+          .from("share_tokens")
+          .select("campanha_id")
+          .eq("token", token)
+          .eq("scope", "pedidos")
+          .maybeSingle();
+        if (tokenRowErr || !tokenRow) {
+          return Response.json({ error: "token_invalido" }, { status: 403 });
+        }
+
+        const { data: pedidoScope, error: pedidoScopeErr } = await admin
+          .from("pedidos")
+          .select("campanha_id, pagamento")
+          .eq("id", pedido_id)
+          .maybeSingle();
+        if (pedidoScopeErr || !pedidoScope) {
+          return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+        }
+        if (
+          tokenRow.campanha_id &&
+          pedidoScope.campanha_id !== tokenRow.campanha_id
+        ) {
+          return Response.json({ error: "pedido_fora_do_escopo" }, { status: 403 });
         }
 
         // Filtra apenas campos permitidos
@@ -66,18 +93,8 @@ export const Route = createFileRoute("/api/pedidos/editar-por-token")({
 
         // Se destinatario veio, atualiza dentro do JSON pagamento
         if (destinatario !== undefined) {
-          const { data: pedidoAtual, error: fetchError } = await admin
-            .from("pedidos")
-            .select("pagamento")
-            .eq("id", pedido_id)
-            .single();
-
-          if (fetchError || !pedidoAtual) {
-            return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
-          }
-
           const pagamentoAtualizado = {
-            ...(pedidoAtual.pagamento as object),
+            ...(pedidoScope.pagamento as object),
             destinatario,
           };
 

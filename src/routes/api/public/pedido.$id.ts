@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getAdminClient } from "@/integrations/supabase/client.server";
+import {
+  checkoutAccessDenied,
+  verifyPedidoAccessOrStaff,
+} from "@/lib/checkoutAccess.server";
+import { rateLimit } from "@/lib/rateLimit.server";
 
 const ParamSchema = z.string().uuid();
 
@@ -19,7 +24,10 @@ function maskCpf(cpf: string | null | undefined): string | null {
 export const Route = createFileRoute("/api/public/pedido/$id")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
+        const limited = rateLimit(request, "public/pedido", { max: 60, windowMs: 60_000 });
+        if (limited) return limited;
+
         const parsed = ParamSchema.safeParse(params.id);
         if (!parsed.success) {
           return Response.json({ error: "invalid_id" }, { status: 400 });
@@ -27,6 +35,10 @@ export const Route = createFileRoute("/api/public/pedido/$id")({
         const admin = getAdminClient();
         if (!admin) {
           return Response.json({ error: "db_unavailable" }, { status: 503 });
+        }
+
+        if (!(await verifyPedidoAccessOrStaff(request, admin, parsed.data))) {
+          return checkoutAccessDenied();
         }
 
         const { data, error } = await admin

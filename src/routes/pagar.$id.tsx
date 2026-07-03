@@ -1,12 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { useEffect, useState } from "react";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeApplier } from "@/components/ThemeApplier";
 import { Button } from "@/components/ui/button";
 import { CardPaymentForm, type PedidoPublico } from "@/components/checkout/CardPaymentForm";
+import {
+  checkoutAccessHeaders,
+  saveCheckoutAccess,
+} from "@/lib/checkoutAccess";
+
+const searchSchema = z.object({
+  access: z.string().optional(),
+});
 
 export const Route = createFileRoute("/pagar/$id")({
+  validateSearch: searchSchema,
   head: () => ({
     meta: [
       { title: "Pagamento — Casa Almeria" },
@@ -22,6 +32,7 @@ type Estado = "loading" | "form" | "aguarde" | "sucesso" | "erro" | "indisponive
 
 function PagarPage() {
   const { id } = Route.useParams();
+  const { access: accessFromUrl } = Route.useSearch();
   const [estado, setEstado] = useState<Estado>("loading");
   const [pedido, setPedido] = useState<PedidoPublico | null>(null);
   const [motivo, setMotivo] = useState<string>("");
@@ -29,9 +40,12 @@ function PagarPage() {
   const [desconto, setDesconto] = useState(0);
 
   useEffect(() => {
+    if (accessFromUrl) saveCheckoutAccess(id, accessFromUrl);
     (async () => {
       try {
-        const res = await fetch(`/api/public/pedido/${id}`);
+        const res = await fetch(`/api/public/pedido/${id}`, {
+          headers: checkoutAccessHeaders(id),
+        });
         if (res.status === 409) {
           setEstado("sucesso"); // já pago — mostra confirmação
           return;
@@ -42,7 +56,11 @@ function PagarPage() {
           return;
         }
         if (!res.ok) {
-          setMsgIndisponivel("Pedido não encontrado ou link inválido.");
+          setMsgIndisponivel(
+            res.status === 403
+              ? "Link de pagamento inválido ou expirado."
+              : "Pedido não encontrado ou link inválido.",
+          );
           setEstado("indisponivel");
           return;
         }
@@ -54,7 +72,7 @@ function PagarPage() {
         setEstado("indisponivel");
       }
     })();
-  }, [id]);
+  }, [id, accessFromUrl]);
 
   return (
     <>

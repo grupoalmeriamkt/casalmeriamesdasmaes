@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getAppSecrets } from "@/integrations/supabase/client.server";
+import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
+import { rateLimit } from "@/lib/rateLimit.server";
+import {
+  checkoutAccessDenied,
+  readCheckoutAccessToken,
+  verifyPedidoAccess,
+} from "@/lib/checkoutAccess.server";
 
 const ItemSchema = z.object({
   title: z.string().min(1).max(256),
@@ -16,7 +22,7 @@ const BodySchema = z.object({
       phone: z.string().max(32).optional(),
     })
     .optional(),
-  externalReference: z.string().max(128).optional(),
+  externalReference: z.string().uuid(),
   backUrls: z
     .object({
       success: z.string().url(),
@@ -32,6 +38,9 @@ export const Route = createFileRoute("/api/public/mp-preference")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const limited = rateLimit(request, "public/mp-preference", { max: 20, windowMs: 60_000 });
+        if (limited) return limited;
+
         let json: unknown;
         try {
           json = await request.json();
@@ -65,6 +74,36 @@ export const Route = createFileRoute("/api/public/mp-preference")({
           installments,
           notificationUrl,
         } = parsed.data;
+
+        const admin = getAdminClient();
+        if (!admin) {
+          return Response.json({ error: "db_unavailable" }, { status: 503 });
+        }
+
+        const checkoutAccess = readCheckoutAccessToken(request);
+        if (!(await verifyPedidoAccess(admin, externalReference, checkoutAccess))) {
+          return checkoutAccessDenied();
+        }
+
+        const { data: pedido, error: pedidoErr } = await admin
+          .from("pedidos")
+          .select("total, status")
+          .eq("id", externalReference)
+          .maybeSingle();
+        if (pedidoErr || !pedido) {
+          return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+        }
+        if (pedido.status === "pago" || pedido.status === "cancelado") {
+          return Response.json({ error: "pedido_indisponivel" }, { status: 409 });
+        }
+
+        const itemsTotal = Number(
+          items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0).toFixed(2),
+        );
+        const totalPedido = Number(pedido.total ?? 0);
+        if (totalPedido <= 0 || Math.abs(itemsTotal - totalPedido) > 0.01) {
+          return Response.json({ error: "total_mismatch" }, { status: 400 });
+        }
 
         const [firstName, ...rest] = (payer?.name ?? "").trim().split(/\s+/);
         const phoneDigits = (payer?.phone ?? "").replace(/\D/g, "");
@@ -117,7 +156,7 @@ export const Route = createFileRoute("/api/public/mp-preference")({
           if (!res.ok) {
             console.error("[mp-preference] erro MP", res.status, body);
             return Response.json(
-              { error: "mp_api_error", status: res.status, body },
+              { error: "mp_api_error", status: res.status },
               { status: 502 },
             );
           }

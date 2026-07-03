@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { FileText, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { checkoutAccessHeaders } from "@/lib/checkoutAccess";
 
 /**
  * Botão que abre o comprovante de pagamento do Asaas (transactionReceiptUrl) do pedido.
@@ -18,7 +20,15 @@ export function ComprovanteAsaas({ pedidoId }: { pedidoId: string }) {
     }
     setCarregando(true);
     try {
-      const res = await fetch(`/api/public/comprovante/${pedidoId}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/public/comprovante/${pedidoId}`, {
+        headers: {
+          ...checkoutAccessHeaders(pedidoId),
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+      });
       const json = (await res.json()) as { receiptUrl?: string | null };
       const receipt = json.receiptUrl ?? null;
       if (!res.ok || !receipt) {

@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { getAdminClient } from "@/integrations/supabase/client.server";
+import {
+  checkoutAccessDenied,
+  verifyPedidoAccessOrStaff,
+} from "@/lib/checkoutAccess.server";
+import { rateLimit } from "@/lib/rateLimit.server";
 
 const ParamSchema = z.string().uuid();
 
@@ -10,7 +15,10 @@ const ParamSchema = z.string().uuid();
 export const Route = createFileRoute("/api/public/comprovante/$id")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
+        const limited = rateLimit(request, "public/comprovante", { max: 30, windowMs: 60_000 });
+        if (limited) return limited;
+
         const parsed = ParamSchema.safeParse(params.id);
         if (!parsed.success) {
           return Response.json({ error: "invalid_id" }, { status: 400 });
@@ -18,6 +26,10 @@ export const Route = createFileRoute("/api/public/comprovante/$id")({
         const admin = getAdminClient();
         if (!admin) {
           return Response.json({ error: "db_unavailable" }, { status: 503 });
+        }
+
+        if (!(await verifyPedidoAccessOrStaff(request, admin, parsed.data))) {
+          return checkoutAccessDenied();
         }
 
         const { data, error } = await admin

@@ -4,6 +4,11 @@
  * que valida itens/total/cupom server-side contra o pedido do banco.
  */
 
+import {
+  checkoutAccessHeaders,
+  checkoutAccessHeadersForPagamento,
+} from "@/lib/checkoutAccess";
+
 export const onlyDigits = (s: string) => s.replace(/\D/g, "");
 
 export function maskCard(v: string) {
@@ -60,7 +65,10 @@ export async function submitCardCharge(input: CardChargeInput): Promise<CardChar
   try {
     const res = await fetch("/api/public/asaas/charge", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...checkoutAccessHeaders(input.pedidoId),
+      },
       body: JSON.stringify({
         pedidoId: input.pedidoId,
         cliente: {
@@ -104,11 +112,14 @@ export async function submitCardCharge(input: CardChargeInput): Promise<CardChar
 /** Consulta o status até virar final (pago) ou esgotar as tentativas. */
 export async function pollStatus(
   pagamentoId: string,
+  pedidoId?: string | null,
   { intervalMs = 3000, maxAttempts = 5 } = {},
 ): Promise<{ status: string; pago: boolean } | null> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const res = await fetch(`/api/public/asaas/status/${pagamentoId}`);
+      const res = await fetch(`/api/public/asaas/status/${pagamentoId}`, {
+        headers: checkoutAccessHeadersForPagamento(pedidoId, pagamentoId),
+      });
       if (res.ok) {
         const d = (await res.json()) as { status: string; pago: boolean };
         if (d.pago) return d;
