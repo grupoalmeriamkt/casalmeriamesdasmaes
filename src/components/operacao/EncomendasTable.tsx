@@ -7,6 +7,22 @@ import {
 } from "@/lib/encomendasTable";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import { EncomendasPlanilhaMobile } from "@/components/operacao/EncomendasPlanilhaMobile";
+import { prazoStatus, PRAZO_LABEL, type PrazoStatus } from "@/lib/pedidoPrazo";
+
+const PRAZO_BADGE: Record<Exclude<PrazoStatus, null>, string> = {
+  concluido: "bg-olive/15 text-olive",
+  atrasado: "bg-red-100 text-red-700",
+  hoje: "bg-amber-100 text-amber-800",
+  no_prazo: "bg-emerald-50 text-emerald-700",
+};
+
+function hojeIsoLocal(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export type LocalOpcao = { id: string; label: string; key: string };
 
@@ -49,6 +65,8 @@ export function EncomendasTable({
   onAlterarSetor,
   onAlterarLocal,
 }: Props) {
+  const hojeIso = hojeIsoLocal();
+
   if (linhas.length === 0) {
     return (
       <p className="py-16 text-center text-sm text-muted-foreground">
@@ -92,6 +110,7 @@ export function EncomendasTable({
             <col />
             <col className="w-12" />
             <col className="w-[8.5rem] lg:w-[10rem]" />
+            <col className="w-[7rem] lg:w-[8rem]" />
           </colgroup>
           <thead className="sticky top-0 z-10">
             <tr className="bg-[#1e1b4b] text-left text-[10px] font-semibold uppercase tracking-wide text-white sm:text-[11px]">
@@ -125,6 +144,7 @@ export function EncomendasTable({
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Produto</th>
               <th className="px-2 py-2 text-center sm:px-3 sm:py-2.5">Qtd</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Local</th>
+              <th className="px-2 py-2 sm:px-3 sm:py-2.5">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -141,6 +161,7 @@ export function EncomendasTable({
                 locaisOpcoes.find((o) => o.id === localAtual) ??
                 locaisOpcoes.find((o) => o.label.toLowerCase() === l.localRetirada.toLowerCase());
               const salvando = salvandoPedidoId === l.pedidoId;
+              const prazo = prazoStatus({ data: l.dataIso, concluidoAt: l.concluidoAt }, hojeIso);
 
               return (
                 <tr
@@ -229,6 +250,15 @@ export function EncomendasTable({
                         <option value={l.localRetirada}>{l.localRetirada}</option>
                       )}
                     </select>
+                  </td>
+                  <td className="px-2 py-1.5 sm:px-3 sm:py-2">
+                    {prazo && (
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PRAZO_BADGE[prazo]}`}
+                      >
+                        {PRAZO_LABEL[prazo]}
+                      </span>
+                    )}
                   </td>
                 </tr>
               );

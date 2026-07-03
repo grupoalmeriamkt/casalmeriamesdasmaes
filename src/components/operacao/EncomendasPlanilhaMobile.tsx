@@ -9,6 +9,22 @@ import {
 } from "@/lib/encomendasTable";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import { cn } from "@/lib/utils";
+import { prazoStatus, PRAZO_LABEL, type PrazoStatus } from "@/lib/pedidoPrazo";
+
+const PRAZO_BADGE: Record<Exclude<PrazoStatus, null>, string> = {
+  concluido: "bg-olive/15 text-olive",
+  atrasado: "bg-red-100 text-red-700",
+  hoje: "bg-amber-100 text-amber-800",
+  no_prazo: "bg-emerald-50 text-emerald-700",
+};
+
+function hojeIsoLocal(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 type Props = {
   linhas: EncomendaLinha[];
@@ -162,6 +178,7 @@ function PlanilhaMobileCard({
   const localState = resolveLocalSelectValue(l, locaisOpcoes);
   const salvando = salvandoPedidoId === pedidoId;
   const selecionado = selectedIds.has(pedidoId);
+  const prazo = prazoStatus({ data: l.dataIso, concluidoAt: l.concluidoAt }, hojeIsoLocal());
   const resumoProdutos =
     itens.length === 1
       ? `${itens[0].produto} × ${itens[0].qtd}`
@@ -193,6 +210,16 @@ function PlanilhaMobileCard({
             <span className="font-mono text-[10px] text-muted-foreground">
               #{pedidoId.slice(-6).toUpperCase()}
             </span>
+            {prazo && (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  PRAZO_BADGE[prazo],
+                )}
+              >
+                {PRAZO_LABEL[prazo]}
+              </span>
+            )}
           </div>
           <div className="shrink-0 text-right text-xs text-muted-foreground">
             <p className="font-semibold text-charcoal">{l.dataRetirada}</p>

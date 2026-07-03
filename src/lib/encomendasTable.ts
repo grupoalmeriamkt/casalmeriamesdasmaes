@@ -32,6 +32,8 @@ export type EncomendaLinha = {
   localRetirada: string;
   localKey: string;
   unidadeId: string | null;
+  dataIso: string | null;
+  concluidoAt: string | null;
 };
 
 export const ENTREGA_MOTOBOY_ID = "entrega-motoboy" as const;
@@ -275,6 +277,8 @@ export function flattenPedidosParaLinhas(
       localKey: local.key,
       unidadeId: inferUnidadeId(raw?.unidade_id, local, unidades),
       productionSector: (raw?.production_sector as SetorOperacional | null) ?? sector,
+      dataIso: dataEntregaParaIso(p.data ?? raw?.data_entrega) ?? null,
+      concluidoAt: p.concluidoAt ?? (raw as any)?.concluido_at ?? null,
       setor: "",
       setorKey: "outro",
       produto: "",

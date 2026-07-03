@@ -23,6 +23,8 @@ const linha = (overrides: Partial<EncomendaLinha> = {}): EncomendaLinha => ({
   localRetirada: "Retirada Noroeste",
   localKey: "retirada noroeste",
   unidadeId: "noroeste",
+  dataIso: "2026-07-03",
+  concluidoAt: null,
   ...overrides,
 });
 
