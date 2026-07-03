@@ -22,9 +22,7 @@ export const estadoInicial: ManualOrderState = {
 /** Validacao pura por etapa — retorna lista de erros (vazia = pode avancar). */
 export function validarEtapa(etapa: Etapa, s: ManualOrderState): string[] {
   const erros: string[] = [];
-  if (etapa === "operador" && !s.operador) {
-    erros.push("Selecione o operador responsavel.");
-  }
+  // Operador responsável é opcional — sem trava para avançar.
   if (etapa === "cliente") {
     if (s.cliente.nome.trim().length < 3) erros.push("Informe o nome do cliente.");
     if (s.cliente.whatsapp.replace(/\D/g, "").length < 10) erros.push("Informe um WhatsApp valido.");
