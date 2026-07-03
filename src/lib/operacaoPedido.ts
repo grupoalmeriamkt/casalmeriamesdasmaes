@@ -22,6 +22,7 @@ export type PedidoOperacional = PedidoSalvo & {
   paymentConfirmedAt?: string | null;
   isTest: boolean;
   archivedAt?: string | null;
+  concluidoAt: string | null;
   conciliacaoPendente: boolean;
   fulfillmentStage?: FulfillmentStage | null;
   fulfillmentStageAt?: string | null;
@@ -74,6 +75,7 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
     paymentConfirmedAt: r.payment_confirmed_at ?? null,
     isTest: r.is_test ?? false,
     archivedAt: r.archived_at ?? null,
+    concluidoAt: r.concluido_at ?? null,
     conciliacaoPendente: r.conciliacao_pendente ?? false,
     fulfillmentStage: (r.fulfillment_stage as FulfillmentStage | null) ?? null,
     fulfillmentStageAt: r.fulfillment_stage_at ?? null,
@@ -90,6 +92,7 @@ export type FiltrosOperacionais = {
   criadoFim?: string;
   busca?: string;
   mostrarArquivados?: boolean;
+  verConcluidos?: boolean;
   mostrarTestes?: boolean;
   ordenacao?: "execution_asc" | "execution_desc" | "criado_desc" | "criado_asc";
 };
@@ -107,6 +110,12 @@ export function filtrarPedidosOperacionais(
       if (p.executionAt && isBeforeTodaySP(p.executionAt)) return false;
       return true;
     });
+  }
+
+  if (f.verConcluidos) {
+    list = list.filter((p) => !!p.concluidoAt);
+  } else {
+    list = list.filter((p) => !p.concluidoAt);
   }
 
   if (f.status?.length) {

@@ -356,8 +356,9 @@ function CozinhaPage() {
       busca: filtroTexto || filtrosOps.busca,
       criadoInicio: filtroInicio || filtrosOps.criadoInicio,
       criadoFim: filtroFim || filtrosOps.criadoFim,
+      verConcluidos,
     });
-  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim]);
+  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim, verConcluidos]);
 
   const operacaoGrupos = useMemo(
     () => (operacaoEnabled ? agruparPorExecucao(pedidosOpsFiltrados) : []),
