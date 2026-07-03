@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { authenticateRequest, requireAdmin } from "@/lib/authServer";
+import { authenticateRequest, canAccessCozinha } from "@/lib/authServer";
 import { manualOrderSchema } from "@/lib/orderForm/schema";
 import { buildPedidoManualPayload } from "@/lib/orderForm/buildPayload";
 import { ensureOperator } from "@/lib/operatorsServer";
@@ -111,7 +111,10 @@ export const Route = createFileRoute("/api/admin/pedidos")({
       POST: async ({ request }) => {
         const auth = await authenticateRequest(request);
         if (!auth) return Response.json({ error: "unauthorized" }, { status: 401 });
-        if (!(await requireAdmin(auth.admin, auth.user.id))) {
+        // Operadores (role cozinha) e admins podem criar/pagar/gerir pedidos —
+        // mesmo guard da UI (canAccessCozinha). Antes exigia admin e barrava
+        // operadores/gerentes com 403 forbidden ao confirmar o pedido.
+        if (!(await canAccessCozinha(auth.admin, auth.user.id))) {
           return Response.json({ error: "forbidden" }, { status: 403 });
         }
 
