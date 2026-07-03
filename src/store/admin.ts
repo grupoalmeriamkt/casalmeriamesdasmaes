@@ -290,6 +290,7 @@ export type PedidoSalvo = {
   };
   total: number;
   archivedAt?: string | null;
+  concluidoAt?: string | null;
 };
 
 export type CestaAdmin = Cesta & {

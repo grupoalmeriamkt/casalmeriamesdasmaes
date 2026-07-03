@@ -9,6 +9,8 @@ import {
   excluirPedido,
   arquivarPedidos,
   desarquivarPedidos,
+  concluirPedidos,
+  reabrirPedidos,
   atualizarPedidoOperacao,
   type PedidoRow,
 } from "@/lib/pedidos";
@@ -38,6 +40,7 @@ import {
   Trash2,
   Archive,
   ArchiveRestore,
+  CheckCircle2,
 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -213,6 +216,7 @@ function CozinhaPage() {
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
   const [filtrosPlanilha, setFiltrosPlanilha] = useState<FiltrosPlanilha>(FILTROS_PLANILHA_VAZIOS);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
+  const [verConcluidos, setVerConcluidos] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filtrosOps, setFiltrosOps] = useState<FiltrosOperacionais>(() =>
     operacaoEnabled
@@ -240,6 +244,7 @@ function CozinhaPage() {
   const [excluirLoteLoading, setExcluirLoteLoading] = useState(false);
   const [confirmArquivarLote, setConfirmArquivarLote] = useState(false);
   const [arquivarLoteLoading, setArquivarLoteLoading] = useState(false);
+  const [concluirLoteLoading, setConcluirLoteLoading] = useState(false);
   const [salvandoOperacaoId, setSalvandoOperacaoId] = useState<string | null>(null);
 
   // som
@@ -370,6 +375,11 @@ function CozinhaPage() {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
     const filtered = pedidos.filter((p) => {
       if (!mostrarArq && p.archivedAt) return false;
+      if (verConcluidos) {
+        if (!p.concluidoAt) return false;
+      } else if (p.concluidoAt) {
+        return false;
+      }
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
@@ -383,12 +393,17 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
 
   const pedidosParaCalendario = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
     const filtered = pedidos.filter((p) => {
       if (!mostrarArq && p.archivedAt) return false;
+      if (verConcluidos) {
+        if (!p.concluidoAt) return false;
+      } else if (p.concluidoAt) {
+        return false;
+      }
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
@@ -400,7 +415,7 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto]);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto]);
 
   const pedidosFiltrados = useMemo(() => {
     const base = view === "calendario" ? pedidosParaCalendario : pedidosSemFiltroData;
@@ -440,6 +455,16 @@ function CozinhaPage() {
 
   const selecionadosNaoArquivados = useMemo(
     () => pedidosSelecionados.filter((p) => !p.archivedAt),
+    [pedidosSelecionados],
+  );
+
+  const selecionadosConcluidos = useMemo(
+    () => pedidosSelecionados.filter((p) => !!p.concluidoAt),
+    [pedidosSelecionados],
+  );
+
+  const selecionadosNaoConcluidos = useMemo(
+    () => pedidosSelecionados.filter((p) => !p.concluidoAt),
     [pedidosSelecionados],
   );
 
@@ -773,6 +798,65 @@ function CozinhaPage() {
     );
   };
 
+  const concluirSelecionados = async () => {
+    const ids = selecionadosNaoConcluidos.map((p) => p.id);
+    if (ids.length === 0) return;
+    setConcluirLoteLoading(true);
+    const res = await concluirPedidos(ids);
+    setConcluirLoteLoading(false);
+    setSelectedIds(new Set());
+
+    if (!res.ok) {
+      toast.error("Erro ao concluir", { description: res.error });
+      return;
+    }
+
+    const agora = new Date().toISOString();
+    const concluidos = new Set(ids);
+    setPedidos((prev) =>
+      prev.map((p) => (concluidos.has(p.id) ? { ...p, concluidoAt: agora } : p)),
+    );
+    setPedidosOps((prev) =>
+      prev.map((p) => (concluidos.has(p.id) ? { ...p, concluidoAt: agora } : p)),
+    );
+    setRawRows((prev) =>
+      prev.map((r) => (concluidos.has(r.id) ? { ...r, concluido_at: agora } : r)),
+    );
+    toast.success(
+      `${res.concluidos ?? ids.length} pedido${(res.concluidos ?? ids.length) !== 1 ? "s" : ""} concluído${(res.concluidos ?? ids.length) !== 1 ? "s" : ""}.`,
+    );
+    carregarRef.current?.();
+  };
+
+  const reabrirSelecionados = async () => {
+    const ids = selecionadosConcluidos.map((p) => p.id);
+    if (ids.length === 0) return;
+    setConcluirLoteLoading(true);
+    const res = await reabrirPedidos(ids);
+    setConcluirLoteLoading(false);
+    setSelectedIds(new Set());
+
+    if (!res.ok) {
+      toast.error("Erro ao reabrir", { description: res.error });
+      return;
+    }
+
+    const reabertos = new Set(ids);
+    setPedidos((prev) =>
+      prev.map((p) => (reabertos.has(p.id) ? { ...p, concluidoAt: null } : p)),
+    );
+    setPedidosOps((prev) =>
+      prev.map((p) => (reabertos.has(p.id) ? { ...p, concluidoAt: null } : p)),
+    );
+    setRawRows((prev) =>
+      prev.map((r) => (reabertos.has(r.id) ? { ...r, concluido_at: null, concluido_by: null } : r)),
+    );
+    toast.success(
+      `${res.reabertos ?? ids.length} pedido${(res.reabertos ?? ids.length) !== 1 ? "s" : ""} reaberto${(res.reabertos ?? ids.length) !== 1 ? "s" : ""}.`,
+    );
+    carregarRef.current?.();
+  };
+
   const alterarSetorPedido = async (pedidoId: string, setor: SetorOperacional) => {
     const atual = rawRows.find((r) => r.id === pedidoId)?.production_sector;
     if (atual === setor) return;
@@ -983,6 +1067,15 @@ function CozinhaPage() {
               </button>
             );
           })}
+          <button
+            onClick={() => setVerConcluidos((v) => !v)}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:px-3 sm:py-1 sm:text-xs ${
+              verConcluidos ? "bg-olive text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+            }`}
+          >
+            Concluídos
+            {verConcluidos && <X className="ml-1 inline h-3 w-3" />}
+          </button>
         </div>
         <div className="hidden h-3 w-px bg-border sm:block" />
         <div className="flex flex-wrap gap-1">
@@ -1616,6 +1709,27 @@ function CozinhaPage() {
               Desarquivar
             </button>
           )}
+          {verConcluidos
+            ? selecionadosConcluidos.length > 0 && (
+                <button
+                  onClick={() => void reabrirSelecionados()}
+                  disabled={concluirLoteLoading}
+                  className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-3 py-1.5 text-xs hover:bg-white/25 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Reabrir
+                </button>
+              )
+            : selecionadosNaoConcluidos.length > 0 && (
+                <button
+                  onClick={() => void concluirSelecionados()}
+                  disabled={concluirLoteLoading}
+                  className="inline-flex items-center gap-1 rounded-lg bg-olive px-3 py-1.5 text-xs text-white hover:bg-olive/90 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Concluir
+                </button>
+              )}
           <button
             onClick={() => {
               setMotivoExclusao("");
@@ -1969,6 +2083,11 @@ function PedidoCard({
             {p.archivedAt && (
               <span className="rounded-full bg-charcoal/10 px-2 py-0.5 text-xs font-semibold text-charcoal">
                 Arquivado
+              </span>
+            )}
+            {p.concluidoAt && (
+              <span className="rounded-full bg-olive/15 px-2 py-0.5 text-xs font-semibold text-olive">
+                ✓ Concluído
               </span>
             )}
             <span className="font-mono text-xs font-bold text-charcoal">#{p.id.slice(-6).toUpperCase()}</span>

@@ -68,6 +68,8 @@ export type PedidoRow = {
   is_test?: boolean | null;
   archived_at?: string | null;
   archived_by?: string | null;
+  concluido_at?: string | null;
+  concluido_by?: string | null;
   conciliacao_pendente?: boolean | null;
   fulfillment_stage?: string | null;
   fulfillment_stage_at?: string | null;
@@ -317,6 +319,48 @@ export async function desarquivarPedidos(
   }
 }
 
+/** Marca pedidos como concluídos (processados, pagos e entregues). Requer admin autenticado. */
+export async function concluirPedidos(
+  ids: string[],
+): Promise<{ ok: boolean; concluidos?: number; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "concluir", ids }),
+    });
+    const json = (await res.json()) as { ok?: boolean; concluidos?: number; error?: string };
+    return res.ok
+      ? { ok: true, concluidos: json.concluidos ?? ids.length }
+      : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
+/** Reabre pedidos concluídos. Requer admin autenticado. */
+export async function reabrirPedidos(
+  ids: string[],
+): Promise<{ ok: boolean; reabertos?: number; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Não autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "reabrir", ids }),
+    });
+    const json = (await res.json()) as { ok?: boolean; reabertos?: number; error?: string };
+    return res.ok
+      ? { ok: true, reabertos: json.reabertos ?? ids.length }
+      : { ok: false, error: json.error ?? "Erro desconhecido" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
 /** Define a etapa de produção de um pedido. Requer admin autenticado. */
 export async function setEtapaPedido(
   id: string,
@@ -458,6 +502,7 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     },
     total: Number(r.total),
     archivedAt: r.archived_at ?? null,
+    concluidoAt: r.concluido_at ?? null,
   };
 }
 

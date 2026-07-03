@@ -34,6 +34,14 @@ const BodySchema = z.discriminatedUnion("action", [
     ids: z.array(z.string().uuid()).min(1).max(200),
   }),
   z.object({
+    action: z.literal("concluir"),
+    ids: z.array(z.string().uuid()).min(1),
+  }),
+  z.object({
+    action: z.literal("reabrir"),
+    ids: z.array(z.string().uuid()).min(1),
+  }),
+  z.object({
     action: z.literal("criar_manual"),
     pedido: manualOrderSchema,
   }),
@@ -207,6 +215,37 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             return Response.json({ error: error.message }, { status: 500 });
           }
           return Response.json({ ok: true, desarquivados: data?.length ?? 0 });
+        }
+
+        if (action === "concluir") {
+          const { ids } = parsed.data;
+          const concluidoBy = auth.user.email ?? auth.user.id;
+          const { data, error } = await auth.admin
+            .from("pedidos")
+            .update({ concluido_at: new Date().toISOString(), concluido_by: concluidoBy })
+            .in("id", ids)
+            .is("concluido_at", null)
+            .select("id");
+          if (error) {
+            console.error("[admin/pedidos] concluir error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true, concluidos: data?.length ?? 0 });
+        }
+
+        if (action === "reabrir") {
+          const { ids } = parsed.data;
+          const { data, error } = await auth.admin
+            .from("pedidos")
+            .update({ concluido_at: null, concluido_by: null })
+            .in("id", ids)
+            .not("concluido_at", "is", null)
+            .select("id");
+          if (error) {
+            console.error("[admin/pedidos] reabrir error", error);
+            return Response.json({ error: error.message }, { status: 500 });
+          }
+          return Response.json({ ok: true, reabertos: data?.length ?? 0 });
         }
 
         if (action === "atualizar_operacao") {
