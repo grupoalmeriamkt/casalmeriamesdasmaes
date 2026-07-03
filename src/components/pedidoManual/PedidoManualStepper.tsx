@@ -86,7 +86,6 @@ export function PedidoManualStepper({
 
   const [criando, setCriando] = useState(false);
   const [pedidoId, setPedidoId] = useState<string | null>(null);
-  const [pedidoAccessToken, setPedidoAccessToken] = useState<string | null>(null);
   const [cpf, setCpf] = useState("");
   const [cpfConfirmado, setCpfConfirmado] = useState("");
   const [gerando, setGerando] = useState(false);
@@ -198,7 +197,6 @@ export function PedidoManualStepper({
       return;
     }
     setPedidoId(res.id);
-    if (res.accessToken) setPedidoAccessToken(res.accessToken);
     toast.success("Pedido criado! Escolha a forma de pagamento.");
   };
 
@@ -589,7 +587,6 @@ export function PedidoManualStepper({
             ) : metodo === "cartao_qr" ? (
               <CartaoQrDisplay
                 pedidoId={pedidoId}
-                accessToken={pedidoAccessToken}
                 onPago={() => setCartaoQrPago(true)}
               />
             ) : metodo === "pix" || metodo === "cartao" ? (
