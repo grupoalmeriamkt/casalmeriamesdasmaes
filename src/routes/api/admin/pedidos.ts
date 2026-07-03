@@ -7,6 +7,7 @@ import { ensureOperator } from "@/lib/operatorsServer";
 import { getAppSecrets } from "@/integrations/supabase/client.server";
 import { makeAsaasClient } from "@/integrations/asaas/client.server";
 import type { AsaasCreatePayment } from "@/integrations/asaas/types";
+import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
 
 function deriveDueDate(dataEntrega: string | null): string {
   // Asaas exige YYYY-MM-DD. Usa a data de entrega se valida; senao hoje + 2 dias.
@@ -286,6 +287,9 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             console.error("[admin/pedidos] marcar_pago error", error);
             return Response.json({ error: error.message }, { status: 500 });
           }
+          for (const row of data ?? []) {
+            notificarOpsPedidoPago(row.id).catch((e) => console.error("[opsNotify]", e));
+          }
           return Response.json({ ok: true, pagos: data?.length ?? 0 });
         }
 
@@ -409,6 +413,7 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             console.error("[admin/pedidos] pagar_dinheiro", error);
             return Response.json({ error: "db_error" }, { status: 500 });
           }
+          notificarOpsPedidoPago(id).catch((e) => console.error("[opsNotify]", e));
           return Response.json({ ok: true });
         }
 
@@ -440,6 +445,7 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             console.error("[admin/pedidos] pagar_pos", error);
             return Response.json({ error: "db_error" }, { status: 500 });
           }
+          notificarOpsPedidoPago(id).catch((e) => console.error("[opsNotify]", e));
           return Response.json({ ok: true });
         }
 
