@@ -46,6 +46,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { labelTipoPedido } from "@/lib/asaasStatus";
 import { isOperacaoPedidosEnabled } from "@/lib/featureFlags";
+import { ordenarPorEntrega } from "@/lib/pedidosSort";
 import {
   agruparPorExecucao,
   contarAprovadosOperacionais,
@@ -454,6 +455,20 @@ function CozinhaPage() {
   const linhasVisiveis = useMemo(
     () => filtrarLinhasEncomenda(linhasEncomenda, filtrosPlanilha, locaisOpcoes),
     [linhasEncomenda, filtrosPlanilha, locaisOpcoes],
+  );
+
+  // Planilha: mesma listagem, ordenada por data de entrega (mais próxima primeiro).
+  // Ordena os pedidos-fonte (que têm `data`/`horario`) antes de "achatar" em linhas,
+  // já que `EncomendaLinha` não carrega esses campos. Não afeta o calendário, que
+  // também consome `linhasEncomenda`/`linhasVisiveis` sem essa ordenação.
+  const linhasEncomendaPlanilha = useMemo(
+    () => flattenPedidosParaLinhas(ordenarPorEntrega(pedidosFiltrados), rawRows, unidades),
+    [pedidosFiltrados, rawRows, unidades],
+  );
+
+  const linhasVisiveisPlanilha = useMemo(
+    () => filtrarLinhasEncomenda(linhasEncomendaPlanilha, filtrosPlanilha, locaisOpcoes),
+    [linhasEncomendaPlanilha, filtrosPlanilha, locaisOpcoes],
   );
 
   const produtosOpcoes = useMemo(
@@ -1350,7 +1365,7 @@ function CozinhaPage() {
           ) : view === "planilha" ? (
             <EncomendasTable
               fillViewport
-              linhas={linhasVisiveis}
+              linhas={linhasVisiveisPlanilha}
               selectedIds={selectedIds}
               locaisOpcoes={locaisOpcoes}
               salvandoPedidoId={salvandoOperacaoId}
@@ -1385,7 +1400,7 @@ function CozinhaPage() {
           ) : view === "lista" ? (
             <ListView
               porStatus={porStatus}
-              pedidosFiltrados={pedidosFiltrados}
+              pedidosFiltrados={ordenarPorEntrega(pedidosFiltrados)}
               temFiltro={temFiltro}
               onDetalhe={setDetalhe}
               onImprimir={imprimirUm}
