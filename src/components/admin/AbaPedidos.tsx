@@ -84,7 +84,7 @@ export function AbaPedidos() {
     pago: boolean;
   } | null>(null);
   const [confirmacaoLoading, setConfirmacaoLoading] = useState(false);
-  const [confirmaTexto, setConfirmaTexto] = useState("");
+  const [motivoExclusao, setMotivoExclusao] = useState("");
 
   const pedidos: PedidoSalvo[] = useMemo(() => rows.map(rowToPedidoSalvo), [rows]);
 
@@ -175,16 +175,18 @@ export function AbaPedidos() {
   const abrirConfirmacao = (tipo: "cancelar" | "excluir", row: PedidoRow) => {
     const pag = pagamentoDoPedido(row);
     const cat = categoria(pag?.status, row.status);
-    setConfirmaTexto("");
+    setMotivoExclusao("");
     setConfirmacao({ tipo, row, pago: cat === "pago" });
   };
 
   const executarConfirmacao = async () => {
     if (!confirmacao) return;
-    if (confirmacao.tipo === "excluir" && confirmaTexto !== "EXCLUIR") return;
+    if (confirmacao.tipo === "excluir" && motivoExclusao.trim().length < 3) return;
     setConfirmacaoLoading(true);
-    const fn = confirmacao.tipo === "cancelar" ? cancelarPedido : excluirPedido;
-    const res = await fn(confirmacao.row.id);
+    const res =
+      confirmacao.tipo === "cancelar"
+        ? await cancelarPedido(confirmacao.row.id)
+        : await excluirPedido(confirmacao.row.id, motivoExclusao.trim());
     setConfirmacaoLoading(false);
     if (!res.ok) {
       toast.error(`Erro: ${res.error}`);
@@ -200,6 +202,7 @@ export function AbaPedidos() {
       );
     });
     setConfirmacao(null);
+    setMotivoExclusao("");
     setDetalhe(null);
   };
 
@@ -522,7 +525,7 @@ export function AbaPedidos() {
       {/* Diálogo de confirmação: cancelar / excluir */}
       <Dialog
         open={!!confirmacao}
-        onOpenChange={(o) => { if (!o && !confirmacaoLoading) { setConfirmacao(null); setConfirmaTexto(""); } }}
+        onOpenChange={(o) => { if (!o && !confirmacaoLoading) { setConfirmacao(null); setMotivoExclusao(""); } }}
       >
         <DialogContent className="max-w-md">
           {confirmacao && (() => {
@@ -574,17 +577,16 @@ export function AbaPedidos() {
                     </div>
                   )}
 
-                  {/* Campo de confirmação para exclusão */}
+                  {/* Motivo da exclusão (obrigatório, arquivado em pedidos_excluidos) */}
                   {isExcluir && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-charcoal">
-                        Digite <span className="font-mono text-red-600">EXCLUIR</span> para confirmar:
+                        Motivo da exclusão <span className="text-red-600">*</span>
                       </label>
                       <Input
-                        value={confirmaTexto}
-                        onChange={(e) => setConfirmaTexto(e.target.value)}
-                        placeholder="EXCLUIR"
-                        className="font-mono"
+                        value={motivoExclusao}
+                        onChange={(e) => setMotivoExclusao(e.target.value)}
+                        placeholder="Ex.: pedido duplicado, erro de digitação…"
                         autoFocus
                       />
                     </div>
@@ -594,14 +596,17 @@ export function AbaPedidos() {
                 <DialogFooter className="gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => { setConfirmacao(null); setConfirmaTexto(""); }}
+                    onClick={() => { setConfirmacao(null); setMotivoExclusao(""); }}
                     disabled={confirmacaoLoading}
                   >
                     Voltar
                   </Button>
                   <Button
                     onClick={executarConfirmacao}
-                    disabled={confirmacaoLoading || (isExcluir && confirmaTexto !== "EXCLUIR")}
+                    disabled={
+                      confirmacaoLoading ||
+                      (isExcluir && motivoExclusao.trim().length < 3)
+                    }
                     className={isExcluir
                       ? "bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
                       : "bg-amber-600 text-white hover:bg-amber-700"

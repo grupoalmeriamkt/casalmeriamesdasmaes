@@ -5,6 +5,7 @@ import { sendCapiEventServer } from "@/lib/metaCapiServer";
 import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID } from "@/lib/asaasStatus";
 import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
 import { enviarConfirmacaoPedido } from "@/lib/emailDispatch.server";
+import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
 import { mapBillingTypeToMetodo } from "@/lib/asaasBillingType";
 
 async function dispatchPurchaseCapi(
@@ -168,6 +169,9 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
                   console.info("[asaas/webhook] email confirmação ignorado:", res.reason);
                 }
               });
+              notificarOpsPedidoPago(pagamento.pedido_id).catch((e) =>
+                console.error("[opsNotify]", e),
+              );
             }
           }
 
