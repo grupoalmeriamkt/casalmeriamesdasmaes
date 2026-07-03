@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Banknote, QrCode, CreditCard, Check, Loader2, X, ScanLine } from "lucide-react";
+import { Banknote, QrCode, CreditCard, Check, Loader2, X, ScanLine, Nfc } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useManualOrder, ETAPAS, type Etapa } from "./useManualOrder";
 import { LinkPagamentoAcoes } from "./LinkPagamentoAcoes";
@@ -23,12 +26,14 @@ import {
   criarPedidoManual,
   gerarLinkPagamento,
   pagarDinheiro,
+  pagarPos,
   gerarPix,
 } from "@/lib/pedidos";
 import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas } from "@/store/admin";
 import { calcularTotal } from "@/lib/orderForm/buildPayload";
 import { particionarCestas } from "@/lib/produtoGrupos";
 import { buscarCep, formatarEndereco } from "@/lib/cep";
+import { montarEnderecoFinal } from "@/lib/enderecoEntrega";
 import { cpfParaLinkSchema } from "@/lib/orderForm/schema";
 import {
   buildRegrasForItens,
@@ -61,6 +66,18 @@ function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function toIso(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseIso(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function PedidoManualStepper({
   onFinalizado,
   onClose,
@@ -72,17 +89,22 @@ export function PedidoManualStepper({
   const cestas = useCestasAtivas();
   const sobremesas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
+  const isMobile = useIsMobile();
 
   const [criando, setCriando] = useState(false);
   const [pedidoId, setPedidoId] = useState<string | null>(null);
-  const [pedidoAccessToken, setPedidoAccessToken] = useState<string | null>(null);
   const [cpf, setCpf] = useState("");
   const [cpfConfirmado, setCpfConfirmado] = useState("");
   const [gerando, setGerando] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
-  const [metodo, setMetodo] = useState<null | "dinheiro" | "pix" | "cartao" | "cartao_qr">(null);
+  const [metodo, setMetodo] = useState<null | "dinheiro" | "pix" | "cartao" | "cartao_qr" | "pos">(null);
   const [pagoDinheiro, setPagoDinheiro] = useState(false);
   const [cartaoQrPago, setCartaoQrPago] = useState(false);
+  const [posPago, setPosPago] = useState(false);
+  const [posBandeira, setPosBandeira] = useState("Visa");
+  const [posTipo, setPosTipo] = useState<"credito" | "debito">("credito");
+  const [posCpf, setPosCpf] = useState("");
+  const [posNome, setPosNome] = useState("");
   const [pixResult, setPixResult] = useState<{
     qrImage: string;
     payload: string;
@@ -132,6 +154,8 @@ export function PedidoManualStepper({
     return { datas, janelas };
   }, [state.itens, state.data]);
 
+  const datasSet = useMemo(() => new Set(datas), [datas]);
+
   /* GSAP: fade + slide suave a cada troca de etapa */
   useGSAP(
     () => {
@@ -158,6 +182,8 @@ export function PedidoManualStepper({
 
   const [cep, setCep] = useState("");
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [tipoLocal, setTipoLocal] = useState<"casa" | "apartamento">("casa");
+  const [numeroUnidade, setNumeroUnidade] = useState("");
   const preencherPorCep = async (valor: string) => {
     const limpo = valor.replace(/\D/g, "");
     if (limpo.length !== 8) return;
@@ -175,14 +201,24 @@ export function PedidoManualStepper({
   const criar = async () => {
     setCriando(true);
     const { operador, ...pedido } = state;
-    const res = await criarPedidoManual(pedido);
+    const pedidoFinal =
+      pedido.tipo === "delivery"
+        ? {
+            ...pedido,
+            enderecoOuUnidade: montarEnderecoFinal({
+              endereco: pedido.enderecoOuUnidade,
+              tipoLocal,
+              numeroUnidade,
+            }),
+          }
+        : pedido;
+    const res = await criarPedidoManual(pedidoFinal);
     setCriando(false);
     if (!res.ok || !res.id) {
       toast.error("Não foi possível criar o pedido", { description: res.error });
       return;
     }
     setPedidoId(res.id);
-    if (res.accessToken) setPedidoAccessToken(res.accessToken);
     toast.success("Pedido criado! Escolha a forma de pagamento.");
   };
 
@@ -229,6 +265,28 @@ export function PedidoManualStepper({
     toast.success("Pago em dinheiro!");
   };
 
+  const pagarComPos = async () => {
+    if (!pedidoId) return;
+    const cpfLimpo = posCpf.replace(/\D/g, "");
+    if (cpfLimpo.length !== 11) {
+      toast.error("Informe um CPF válido.");
+      return;
+    }
+    if (posNome.trim().length < 2) {
+      toast.error("Informe o nome do cliente.");
+      return;
+    }
+    setGerando(true);
+    const res = await pagarPos(pedidoId, { bandeira: posBandeira, tipo: posTipo, cpf: cpfLimpo, nome: posNome.trim() });
+    setGerando(false);
+    if (!res.ok) {
+      toast.error("Não foi possível registrar o pagamento", { description: res.error });
+      return;
+    }
+    setPosPago(true);
+    toast.success("Pago na maquininha!");
+  };
+
   const regenerar = async () => {
     if (!pedidoId || !cpfConfirmado) {
       toast.error("CPF não disponível. Reinicie o pagamento.");
@@ -245,8 +303,12 @@ export function PedidoManualStepper({
     toast.success("Novo link gerado!");
   };
 
-  const pagamentoResolvido = pagoDinheiro || cartaoQrPago || !!invoiceUrl || !!pixResult;
+  const pagamentoResolvido = pagoDinheiro || cartaoQrPago || posPago || !!invoiceUrl || !!pixResult;
   const mostrarNav = !(etapa === "pagamento" && (pedidoId || pagamentoResolvido));
+
+  const handleAvancar = () => {
+    avancar();
+  };
 
   return (
     <div className="mx-auto flex max-h-[88vh] w-full max-w-md flex-col gap-6 overflow-y-auto p-6">
@@ -446,17 +508,53 @@ export function PedidoManualStepper({
                 <Input id="pm-end" placeholder="Rua, número, complemento, bairro…" value={state.enderecoOuUnidade}
                   onChange={(e) => patch({ enderecoOuUnidade: e.target.value })} />
               </div>
+              <div className="field-anim grid grid-cols-2 gap-1.5 rounded-lg bg-muted p-1">
+                {(["casa", "apartamento"] as const).map((t) => (
+                  <button key={t} type="button"
+                    onClick={() => setTipoLocal(t)}
+                    className={cn(
+                      "rounded-md py-2 text-sm font-medium transition-all",
+                      tipoLocal === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+                    )}>
+                    {t === "casa" ? "Casa" : "Apartamento"}
+                  </button>
+                ))}
+              </div>
+              <div className="field-anim flex flex-col gap-1.5">
+                <Label htmlFor="pm-numero-unidade">Número (do ap ou da casa)</Label>
+                <Input id="pm-numero-unidade" placeholder="Ex: 302" value={numeroUnidade}
+                  onChange={(e) => setNumeroUnidade(e.target.value)} />
+              </div>
               </>
             )}
 
             <div className="field-anim grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label>Data</Label>
-                <select className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
-                  value={state.data ?? ""} onChange={(e) => patch({ data: e.target.value || null, horario: null })}>
-                  <option value="">Selecione</option>
-                  {datas.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                {isMobile ? (
+                  <select className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
+                    value={state.data ?? ""} onChange={(e) => patch({ data: e.target.value || null, horario: null })}>
+                    <option value="">Selecione</option>
+                    {datas.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-left text-sm outline-none focus:ring-2 focus:ring-olive/30">
+                        {state.data ?? "Selecione"}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={state.data ? parseIso(state.data) : undefined}
+                        onSelect={(d) => d && patch({ data: toIso(d), horario: null })}
+                        disabled={(day) => !datasSet.has(toIso(day))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Horário</Label>
@@ -490,7 +588,18 @@ export function PedidoManualStepper({
                 </div>
               ))}
             </div>
-            <Linha rot={state.tipo === "retirada" ? "Retirada" : "Entrega"} val={state.enderecoOuUnidade} />
+            <Linha
+              rot={state.tipo === "retirada" ? "Retirada" : "Entrega"}
+              val={
+                state.tipo === "delivery"
+                  ? montarEnderecoFinal({
+                      endereco: state.enderecoOuUnidade,
+                      tipoLocal,
+                      numeroUnidade,
+                    })
+                  : state.enderecoOuUnidade
+              }
+            />
             <Linha rot="Data / horário" val={`${state.data ?? "—"} · ${state.horario ?? "—"}`} />
             {state.observacoes && <Linha rot="Observações" val={state.observacoes} />}
             <div className="flex items-center justify-between bg-foreground px-4 py-3 text-background">
@@ -511,6 +620,8 @@ export function PedidoManualStepper({
               <ResultadoOk titulo="Pago em dinheiro" desc="Pedido registrado como pago." onConcluir={() => onFinalizado(pedidoId)} />
             ) : cartaoQrPago ? (
               <ResultadoOk titulo="Pago no cartão!" desc="Pagamento confirmado pelo cliente." onConcluir={() => onFinalizado(pedidoId)} />
+            ) : posPago ? (
+              <ResultadoOk titulo="Pago na maquininha!" desc={`${posBandeira} · ${posTipo === "credito" ? "Crédito" : "Débito"}`} onConcluir={() => onFinalizado(pedidoId)} />
             ) : pixResult ? (
               <>
                 <PixQrCode qrImage={pixResult.qrImage} payload={pixResult.payload} expiraEm={pixResult.expiraEm} />
@@ -525,7 +636,6 @@ export function PedidoManualStepper({
             ) : metodo === "cartao_qr" ? (
               <CartaoQrDisplay
                 pedidoId={pedidoId}
-                accessToken={pedidoAccessToken}
                 onPago={() => setCartaoQrPago(true)}
               />
             ) : metodo === "pix" || metodo === "cartao" ? (
@@ -544,12 +654,58 @@ export function PedidoManualStepper({
                   </Button>
                 </div>
               </div>
+            ) : metodo === "pos" ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Preencha os dados da transação na maquininha.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pm-pos-bandeira">Bandeira</Label>
+                  <select
+                    id="pm-pos-bandeira"
+                    className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
+                    value={posBandeira}
+                    onChange={(e) => setPosBandeira(e.target.value)}
+                  >
+                    {["Visa", "Mastercard", "Elo", "Amex", "Hipercard", "Outra"].map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-muted p-1">
+                  {(["credito", "debito"] as const).map((t) => (
+                    <button key={t} type="button"
+                      onClick={() => setPosTipo(t)}
+                      className={cn(
+                        "rounded-md py-2 text-sm font-medium transition-all",
+                        posTipo === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+                      )}>
+                      {t === "credito" ? "Crédito" : "Débito"}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pm-pos-cpf">CPF do cliente</Label>
+                  <Input id="pm-pos-cpf" placeholder="000.000.000-00" value={posCpf} onChange={(e) => setPosCpf(e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pm-pos-nome">Nome do cliente</Label>
+                  <Input id="pm-pos-nome" placeholder="Maria Silva" value={posNome} onChange={(e) => setPosNome(e.target.value)} />
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={() => setMetodo(null)}>Voltar</Button>
+                  <Button onClick={pagarComPos} disabled={gerando}>
+                    {gerando ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirmando…</> : "Confirmar pagamento na maquininha"}
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col gap-2.5">
                 <MetodoCard icon={<Banknote className="h-5 w-5" />} titulo="Dinheiro" desc="Pago presencialmente, agora" onClick={pagarComDinheiro} disabled={gerando} />
                 <MetodoCard icon={<QrCode className="h-5 w-5" />} titulo="PIX" desc="Gera o QR Code na hora" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("pix"); }} />
                 <MetodoCard icon={<CreditCard className="h-5 w-5" />} titulo="Cartão" desc="Link p/ WhatsApp / e-mail" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("cartao"); }} />
                 <MetodoCard icon={<ScanLine className="h-5 w-5" />} titulo="Cartão via QR" desc="Cliente escaneia e digita o cartão" onClick={() => setMetodo("cartao_qr")} />
+                <MetodoCard icon={<Nfc className="h-5 w-5" />} titulo="POS (maquininha)" desc="Cielo — nasce pago na hora" onClick={() => { setPosCpf(state.cliente.cpf ?? ""); setPosNome(state.cliente.nome ?? ""); setMetodo("pos"); }} />
               </div>
             )}
           </div>
@@ -569,7 +725,7 @@ export function PedidoManualStepper({
             Voltar
           </Button>
           {etapa !== "pagamento" && (
-            <Button onClick={avancar} disabled={erros.length > 0}>
+            <Button onClick={handleAvancar} disabled={erros.length > 0}>
               Avançar
             </Button>
           )}
