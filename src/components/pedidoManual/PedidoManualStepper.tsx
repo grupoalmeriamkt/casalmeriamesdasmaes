@@ -6,6 +6,9 @@ import { Banknote, QrCode, CreditCard, Check, Loader2, X, ScanLine } from "lucid
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useManualOrder, ETAPAS, type Etapa } from "./useManualOrder";
 import { LinkPagamentoAcoes } from "./LinkPagamentoAcoes";
@@ -55,6 +58,18 @@ function formatBRL(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function toIso(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseIso(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function PedidoManualStepper({
   onFinalizado,
   onClose,
@@ -66,6 +81,7 @@ export function PedidoManualStepper({
   const cestas = useCestasAtivas();
   const sobremesas = useSobremesasAtivas();
   const unidades = useUnidadesAtivas();
+  const isMobile = useIsMobile();
 
   const [criando, setCriando] = useState(false);
   const [pedidoId, setPedidoId] = useState<string | null>(null);
@@ -110,6 +126,8 @@ export function PedidoManualStepper({
       : [];
     return { datas, janelas };
   }, [state.itens, state.data]);
+
+  const datasSet = useMemo(() => new Set(datas), [datas]);
 
   /* GSAP: fade + slide suave a cada troca de etapa */
   useGSAP(
@@ -438,11 +456,30 @@ export function PedidoManualStepper({
             <div className="field-anim grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label>Data</Label>
-                <select className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
-                  value={state.data ?? ""} onChange={(e) => patch({ data: e.target.value || null, horario: null })}>
-                  <option value="">Selecione</option>
-                  {datas.map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
+                {isMobile ? (
+                  <select className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
+                    value={state.data ?? ""} onChange={(e) => patch({ data: e.target.value || null, horario: null })}>
+                    <option value="">Selecione</option>
+                    {datas.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button"
+                        className="h-10 w-full rounded-md border bg-background px-3 text-left text-sm outline-none focus:ring-2 focus:ring-olive/30">
+                        {state.data ?? "Selecione"}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={state.data ? parseIso(state.data) : undefined}
+                        onSelect={(d) => d && patch({ data: toIso(d), horario: null })}
+                        disabled={(day) => !datasSet.has(toIso(day))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Horário</Label>
