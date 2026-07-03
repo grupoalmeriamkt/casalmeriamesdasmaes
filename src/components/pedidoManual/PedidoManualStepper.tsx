@@ -156,7 +156,18 @@ export function PedidoManualStepper({
   const criar = async () => {
     setCriando(true);
     const { operador, ...pedido } = state;
-    const res = await criarPedidoManual(pedido);
+    const pedidoFinal =
+      pedido.tipo === "delivery"
+        ? {
+            ...pedido,
+            enderecoOuUnidade: montarEnderecoFinal({
+              endereco: pedido.enderecoOuUnidade,
+              tipoLocal,
+              numeroUnidade,
+            }),
+          }
+        : pedido;
+    const res = await criarPedidoManual(pedidoFinal);
     setCriando(false);
     if (!res.ok || !res.id) {
       toast.error("Não foi possível criar o pedido", { description: res.error });
@@ -230,15 +241,6 @@ export function PedidoManualStepper({
   const mostrarNav = !(etapa === "pagamento" && (pedidoId || pagamentoResolvido));
 
   const handleAvancar = () => {
-    if (etapa === "entrega" && state.tipo === "delivery") {
-      patch({
-        enderecoOuUnidade: montarEnderecoFinal({
-          endereco: state.enderecoOuUnidade,
-          tipoLocal,
-          numeroUnidade,
-        }),
-      });
-    }
     avancar();
   };
 
@@ -474,7 +476,18 @@ export function PedidoManualStepper({
                 </div>
               ))}
             </div>
-            <Linha rot={state.tipo === "retirada" ? "Retirada" : "Entrega"} val={state.enderecoOuUnidade} />
+            <Linha
+              rot={state.tipo === "retirada" ? "Retirada" : "Entrega"}
+              val={
+                state.tipo === "delivery"
+                  ? montarEnderecoFinal({
+                      endereco: state.enderecoOuUnidade,
+                      tipoLocal,
+                      numeroUnidade,
+                    })
+                  : state.enderecoOuUnidade
+              }
+            />
             <Linha rot="Data / horário" val={`${state.data ?? "—"} · ${state.horario ?? "—"}`} />
             {state.observacoes && <Linha rot="Observações" val={state.observacoes} />}
             <div className="flex items-center justify-between bg-foreground px-4 py-3 text-background">
