@@ -6,6 +6,7 @@ import {
   type PaymentStatusNormalized,
 } from "@/lib/paymentStatus";
 import { isBeforeTodaySP, todayISOSP } from "@/lib/timezone";
+import { prazoStatus } from "@/lib/pedidoPrazo";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import type { ProductionSector } from "@/lib/availability/types";
 import type { FulfillmentStage } from "@/lib/etapaPedido";
@@ -95,6 +96,8 @@ export type FiltrosOperacionais = {
   verConcluidos?: boolean;
   mostrarTestes?: boolean;
   ordenacao?: "execution_asc" | "execution_desc" | "criado_desc" | "criado_asc";
+  filtroPrazo?: string[];
+  hojeIso?: string;
 };
 
 export function filtrarPedidosOperacionais(
@@ -116,6 +119,13 @@ export function filtrarPedidosOperacionais(
     list = list.filter((p) => !!p.concluidoAt);
   } else {
     list = list.filter((p) => !p.concluidoAt);
+  }
+
+  if (f.filtroPrazo?.length && f.hojeIso) {
+    const hojeIso = f.hojeIso;
+    list = list.filter((p) =>
+      f.filtroPrazo!.includes(prazoStatus({ data: p.data, concluidoAt: p.concluidoAt }, hojeIso) as any),
+    );
   }
 
   if (f.status?.length) {

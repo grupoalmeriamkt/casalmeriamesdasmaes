@@ -60,6 +60,7 @@ import {
   type PedidoOperacional,
 } from "@/lib/operacaoPedido";
 import { PAYMENT_STATUS_LABEL } from "@/lib/paymentStatus";
+import { prazoStatus, PRAZO_LABEL, type PrazoStatus } from "@/lib/pedidoPrazo";
 import { OperacaoFiltrosBar } from "@/components/operacao/OperacaoFiltrosBar";
 import {
   grupoLabelFromIso,
@@ -159,6 +160,14 @@ function horaNow() {
   return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function localHojeIso() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 function CozinhaPage() {
@@ -217,6 +226,7 @@ function CozinhaPage() {
   const [filtrosPlanilha, setFiltrosPlanilha] = useState<FiltrosPlanilha>(FILTROS_PLANILHA_VAZIOS);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [verConcluidos, setVerConcluidos] = useState(false);
+  const [filtroPrazo, setFiltroPrazo] = useState<Exclude<PrazoStatus, null>[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filtrosOps, setFiltrosOps] = useState<FiltrosOperacionais>(() =>
     operacaoEnabled
@@ -349,6 +359,14 @@ function CozinhaPage() {
   }, [user, operacaoEnabled]);
 
   // ── Filtros aplicados ─────────────────────────────────────────────────────
+  const hojeIso = useMemo(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
   const pedidosOpsFiltrados = useMemo(() => {
     if (!operacaoEnabled) return [];
     return filtrarPedidosOperacionais(pedidosOps, {
@@ -357,8 +375,10 @@ function CozinhaPage() {
       criadoInicio: filtroInicio || filtrosOps.criadoInicio,
       criadoFim: filtroFim || filtrosOps.criadoFim,
       verConcluidos,
+      filtroPrazo,
+      hojeIso,
     });
-  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim, verConcluidos]);
+  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim, verConcluidos, filtroPrazo, hojeIso]);
 
   const operacaoGrupos = useMemo(
     () => (operacaoEnabled ? agruparPorExecucao(pedidosOpsFiltrados) : []),
@@ -382,6 +402,7 @@ function CozinhaPage() {
         return false;
       }
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
+      if (filtroPrazo.length > 0 && !filtroPrazo.includes(prazoStatus({ data: p.data, concluidoAt: p.concluidoAt }, hojeIso) as any)) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       if (filtroTexto) {
@@ -394,7 +415,7 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim, filtroPrazo, hojeIso]);
 
   const pedidosParaCalendario = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
@@ -406,6 +427,7 @@ function CozinhaPage() {
         return false;
       }
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
+      if (filtroPrazo.length > 0 && !filtroPrazo.includes(prazoStatus({ data: p.data, concluidoAt: p.concluidoAt }, hojeIso) as any)) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       if (filtroTexto) {
@@ -416,7 +438,7 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto]);
+  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroPrazo, hojeIso]);
 
   const pedidosFiltrados = useMemo(() => {
     const base = view === "calendario" ? pedidosParaCalendario : pedidosSemFiltroData;
@@ -655,6 +677,12 @@ function CozinhaPage() {
   const toggleStatus = (s: StatusKey) => {
     setFiltroStatus((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
+  };
+
+  const togglePrazo = (p: Exclude<PrazoStatus, null>) => {
+    setFiltroPrazo((prev) =>
+      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
     );
   };
 
@@ -1077,6 +1105,21 @@ function CozinhaPage() {
             Concluídos
             {verConcluidos && <X className="ml-1 inline h-3 w-3" />}
           </button>
+          {(["atrasado", "hoje", "no_prazo"] as const).map((pr) => {
+            const active = filtroPrazo.includes(pr);
+            return (
+              <button
+                key={pr}
+                onClick={() => togglePrazo(pr)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:px-3 sm:py-1 sm:text-xs ${
+                  active ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+                }`}
+              >
+                {PRAZO_LABEL[pr]}
+                {active && <X className="ml-1 inline h-3 w-3" />}
+              </button>
+            );
+          })}
         </div>
         <div className="hidden h-3 w-px bg-border sm:block" />
         <div className="flex flex-wrap gap-1">
@@ -2091,6 +2134,21 @@ function PedidoCard({
                 ✓ Concluído
               </span>
             )}
+            {(() => {
+              const prazo = prazoStatus({ data: p.data, concluidoAt: p.concluidoAt }, localHojeIso());
+              if (!prazo || prazo === "concluido") return null;
+              const cls =
+                prazo === "atrasado"
+                  ? "bg-red-100 text-red-700"
+                  : prazo === "hoje"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-50 text-emerald-700";
+              return (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
+                  {PRAZO_LABEL[prazo]}
+                </span>
+              );
+            })()}
             <span className="font-mono text-xs font-bold text-charcoal">#{p.id.slice(-6).toUpperCase()}</span>
             <span className="text-xs text-muted-foreground">
               {new Date(p.criadoEm).toLocaleString("pt-BR")}
