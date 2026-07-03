@@ -18,7 +18,12 @@ function deriveDueDate(dataEntrega: string | null): string {
 
 const BodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancelar"), id: z.string().uuid() }),
-  z.object({ action: z.literal("excluir"), id: z.string().uuid() }),
+  z.object({
+    action: z.literal("excluir"),
+    id: z.string().uuid(),
+    motivo: z.string().trim().min(3).max(500),
+    excluidoPor: z.string().optional(),
+  }),
   z.object({
     action: z.literal("arquivar"),
     ids: z.array(z.string().uuid()).min(1).max(200),
@@ -137,7 +142,29 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         }
 
         if (action === "excluir") {
-          const { id } = parsed.data;
+          const { id, motivo, excluidoPor } = parsed.data;
+
+          const { data: pedidoRow, error: pedidoErr } = await auth.admin
+            .from("pedidos")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
+          if (pedidoErr || !pedidoRow) {
+            console.error("[admin/pedidos] excluir select error", pedidoErr);
+            return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+          }
+
+          const { error: archiveErr } = await auth.admin.from("pedidos_excluidos").insert({
+            pedido_id: id,
+            pedido_snapshot: pedidoRow,
+            motivo,
+            excluido_por: excluidoPor ?? null,
+          });
+          if (archiveErr) {
+            console.error("[admin/pedidos] excluir archive error", archiveErr);
+            return Response.json({ error: archiveErr.message }, { status: 500 });
+          }
+
           // Pagamentos são excluídos em cascata pelo FK (ON DELETE CASCADE)
           const { error } = await auth.admin.from("pedidos").delete().eq("id", id);
           if (error) {

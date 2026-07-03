@@ -245,14 +245,18 @@ export async function cancelarPedido(id: string): Promise<{ ok: boolean; error?:
 }
 
 /** Exclui um pedido permanentemente (cascata para pagamentos). Requer admin autenticado. */
-export async function excluirPedido(id: string): Promise<{ ok: boolean; error?: string }> {
+export async function excluirPedido(
+  id: string,
+  motivo: string,
+  excluidoPor?: string,
+): Promise<{ ok: boolean; error?: string }> {
   const token = await getAuthToken();
   if (!token) return { ok: false, error: "Não autenticado" };
   try {
     const res = await fetch("/api/admin/pedidos", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: "excluir", id }),
+      body: JSON.stringify({ action: "excluir", id, motivo, excluidoPor }),
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
     return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro desconhecido" };

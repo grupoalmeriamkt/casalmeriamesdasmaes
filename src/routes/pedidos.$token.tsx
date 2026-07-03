@@ -236,7 +236,7 @@ function CozinhaPage() {
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [confirmExcluirLote, setConfirmExcluirLote] = useState(false);
-  const [confirmaTextoExcluir, setConfirmaTextoExcluir] = useState("");
+  const [motivoExclusao, setMotivoExclusao] = useState("");
   const [excluirLoteLoading, setExcluirLoteLoading] = useState(false);
   const [confirmArquivarLote, setConfirmArquivarLote] = useState(false);
   const [arquivarLoteLoading, setArquivarLoteLoading] = useState(false);
@@ -683,19 +683,20 @@ function CozinhaPage() {
     setSelectedIds(new Set(listaVisivel.map((p) => p.id)));
 
   const excluirSelecionados = async () => {
-    if (confirmaTextoExcluir !== "EXCLUIR") return;
+    if (motivoExclusao.trim().length < 3) return;
+    const motivo = motivoExclusao.trim();
     const ids = [...selectedIds];
     setExcluirLoteLoading(true);
     const excluidos: string[] = [];
     let falhas = 0;
     for (const id of ids) {
-      const res = await excluirPedido(id);
+      const res = await excluirPedido(id, motivo);
       if (res.ok) excluidos.push(id);
       else falhas += 1;
     }
     setExcluirLoteLoading(false);
     setConfirmExcluirLote(false);
-    setConfirmaTextoExcluir("");
+    setMotivoExclusao("");
     setSelectedIds(new Set());
 
     if (excluidos.length > 0) {
@@ -1617,7 +1618,7 @@ function CozinhaPage() {
           )}
           <button
             onClick={() => {
-              setConfirmaTextoExcluir("");
+              setMotivoExclusao("");
               setConfirmExcluirLote(true);
             }}
             className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs hover:bg-red-700"
@@ -1677,7 +1678,7 @@ function CozinhaPage() {
         onOpenChange={(o) => {
           if (!o && !excluirLoteLoading) {
             setConfirmExcluirLote(false);
-            setConfirmaTextoExcluir("");
+            setMotivoExclusao("");
           }
         }}
       >
@@ -1704,12 +1705,12 @@ function CozinhaPage() {
             )}
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">
-                Digite <span className="font-mono font-semibold text-red-600">EXCLUIR</span> para confirmar:
+                Motivo da exclusão:
               </label>
               <Input
-                value={confirmaTextoExcluir}
-                onChange={(e) => setConfirmaTextoExcluir(e.target.value)}
-                placeholder="EXCLUIR"
+                value={motivoExclusao}
+                onChange={(e) => setMotivoExclusao(e.target.value)}
+                placeholder="Descreva o motivo da exclusão"
                 autoComplete="off"
               />
             </div>
@@ -1719,13 +1720,13 @@ function CozinhaPage() {
                 disabled={excluirLoteLoading}
                 onClick={() => {
                   setConfirmExcluirLote(false);
-                  setConfirmaTextoExcluir("");
+                  setMotivoExclusao("");
                 }}
               >
                 Cancelar
               </Button>
               <Button
-                disabled={excluirLoteLoading || confirmaTextoExcluir !== "EXCLUIR"}
+                disabled={excluirLoteLoading || motivoExclusao.trim().length < 3}
                 onClick={excluirSelecionados}
                 className="bg-red-600 text-white hover:bg-red-700"
               >
