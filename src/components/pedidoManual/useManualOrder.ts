@@ -4,7 +4,9 @@ import type { Operator } from "@/lib/operators";
 
 export type ManualOrderState = ManualOrderInput & { operador: Operator | null };
 
-export const ETAPAS = ["operador", "cliente", "produto", "entrega", "revisao", "pagamento"] as const;
+// "operador" foi removido do fluxo: o pop-up abre direto no cadastro do cliente.
+// O operador responsável ainda é detectado automaticamente (login) nos bastidores.
+export const ETAPAS = ["cliente", "produto", "entrega", "revisao", "pagamento"] as const;
 export type Etapa = (typeof ETAPAS)[number];
 
 export const estadoInicial: ManualOrderState = {
