@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
@@ -14,14 +14,6 @@ import { useManualOrder, ETAPAS, type Etapa } from "./useManualOrder";
 import { LinkPagamentoAcoes } from "./LinkPagamentoAcoes";
 import { PixQrCode } from "./PixQrCode";
 import { CartaoQrDisplay } from "./CartaoQrDisplay";
-import { obterOperadorAtual, listarOperadores, type Operator } from "@/lib/operators";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   criarPedidoManual,
   gerarLinkPagamento,
@@ -45,7 +37,6 @@ import {
 import type { ManualOrderItem } from "@/lib/orderForm/types";
 
 const TITULOS: Record<Etapa, string> = {
-  operador: "Operador responsável",
   cliente: "Dados do cliente",
   produto: "Monte o pedido",
   entrega: "Entrega ou retirada",
@@ -54,7 +45,6 @@ const TITULOS: Record<Etapa, string> = {
 };
 
 const LEGENDAS: Record<Etapa, string> = {
-  operador: "Quem está atendendo",
   cliente: "Contato de quem recebe o pedido",
   produto: "Cestas e sobremesas",
   entrega: "Onde e quando entregar",
@@ -112,29 +102,6 @@ export function PedidoManualStepper({
   } | null>(null);
 
   const stepRef = useRef<HTMLDivElement>(null);
-
-  const [operadores, setOperadores] = useState<Operator[]>([]);
-  const [carregandoOperadores, setCarregandoOperadores] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      // Carrega a lista e o operador atual em paralelo. O atual é apenas
-      // pré-seleção — se o auto-provisionamento falhar, o usuário ainda
-      // pode escolher manualmente no dropdown.
-      const [lista, atual] = await Promise.all([
-        listarOperadores(),
-        obterOperadorAtual(),
-      ]);
-      setOperadores(lista);
-      setCarregandoOperadores(false);
-      if (atual) {
-        patch({ operador: atual });
-      } else if (lista.length === 1) {
-        patch({ operador: lista[0] });
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const total = useMemo(() => calcularTotal(state.itens), [state.itens]);
 
@@ -200,7 +167,7 @@ export function PedidoManualStepper({
 
   const criar = async () => {
     setCriando(true);
-    const { operador, ...pedido } = state;
+    const pedido = state;
     const pedidoFinal =
       pedido.tipo === "delivery"
         ? {
@@ -350,54 +317,6 @@ export function PedidoManualStepper({
           <h2 className="text-xl font-semibold text-foreground">{TITULOS[etapa]}</h2>
           <p className="text-sm text-muted-foreground">{LEGENDAS[etapa]}</p>
         </div>
-
-        {/* Operador */}
-        {etapa === "operador" && (
-          <div className="field-anim flex flex-col gap-3">
-            {state.operador && (
-              <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-4">
-                <div className="grid h-10 w-10 place-items-center rounded-full bg-olive/15 font-semibold text-olive">
-                  {(state.operador.short_name || state.operador.name || "?").slice(0, 1).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{state.operador.short_name || state.operador.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{state.operador.email}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pm-operador">Selecione o operador</Label>
-              <Select
-                value={state.operador?.id ?? ""}
-                disabled={carregandoOperadores}
-                onValueChange={(id) => {
-                  const op = operadores.find((o) => o.id === id);
-                  if (op) patch({ operador: op });
-                }}
-              >
-                <SelectTrigger id="pm-operador">
-                  <SelectValue
-                    placeholder={carregandoOperadores ? "Carregando operadores…" : "Escolha quem está atendendo"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {operadores.map((op) => (
-                    <SelectItem key={op.id} value={op.id}>
-                      {op.short_name || op.name}
-                      {op.email ? ` — ${op.email}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!carregandoOperadores && operadores.length === 0 && (
-                <p className="text-xs text-destructive">
-                  Nenhum operador encontrado. Verifique sua conexão e recarregue a página.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Cliente */}
         {etapa === "cliente" && (
@@ -577,7 +496,6 @@ export function PedidoManualStepper({
         {/* Revisão */}
         {etapa === "revisao" && (
           <div className="field-anim overflow-hidden rounded-lg border">
-            <Linha rot="Operador" val={state.operador?.short_name || state.operador?.name || "—"} />
             <Linha rot="Cliente" val={`${state.cliente.nome} · ${state.cliente.whatsapp}`} />
             <div className="border-b px-4 py-2.5">
               <p className="mb-1 text-xs font-medium text-muted-foreground">Itens</p>

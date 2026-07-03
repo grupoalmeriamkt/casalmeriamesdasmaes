@@ -1,17 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validarEtapa, estadoInicial, type ManualOrderState } from "./useManualOrder";
-import type { Operator } from "@/lib/operators";
-
-const opFake = { id: "1" } as Operator;
 
 describe("validarEtapa", () => {
-  it("bloqueia etapa operador sem operador", () => {
-    expect(validarEtapa("operador", estadoInicial).length).toBeGreaterThan(0);
-  });
-  it("passa etapa operador com operador definido", () => {
-    const s: ManualOrderState = { ...estadoInicial, operador: opFake };
-    expect(validarEtapa("operador", s)).toEqual([]);
-  });
   it("exige nome e whatsapp na etapa cliente", () => {
     const s: ManualOrderState = {
       ...estadoInicial, cliente: { nome: "Ab", whatsapp: "123", email: "", cpf: "" },
