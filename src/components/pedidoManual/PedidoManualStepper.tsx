@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Banknote, QrCode, CreditCard, Check, Loader2, X, ScanLine } from "lucide-react";
+import { Banknote, QrCode, CreditCard, Check, Loader2, X, ScanLine, Nfc } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import {
   criarPedidoManual,
   gerarLinkPagamento,
   pagarDinheiro,
+  pagarPos,
   gerarPix,
 } from "@/lib/pedidos";
 import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas } from "@/store/admin";
@@ -90,9 +91,14 @@ export function PedidoManualStepper({
   const [cpfConfirmado, setCpfConfirmado] = useState("");
   const [gerando, setGerando] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
-  const [metodo, setMetodo] = useState<null | "dinheiro" | "pix" | "cartao" | "cartao_qr">(null);
+  const [metodo, setMetodo] = useState<null | "dinheiro" | "pix" | "cartao" | "cartao_qr" | "pos">(null);
   const [pagoDinheiro, setPagoDinheiro] = useState(false);
   const [cartaoQrPago, setCartaoQrPago] = useState(false);
+  const [posPago, setPosPago] = useState(false);
+  const [posBandeira, setPosBandeira] = useState("Visa");
+  const [posTipo, setPosTipo] = useState<"credito" | "debito">("credito");
+  const [posCpf, setPosCpf] = useState("");
+  const [posNome, setPosNome] = useState("");
   const [pixResult, setPixResult] = useState<{
     qrImage: string;
     payload: string;
@@ -239,6 +245,28 @@ export function PedidoManualStepper({
     toast.success("Pago em dinheiro!");
   };
 
+  const pagarComPos = async () => {
+    if (!pedidoId) return;
+    const cpfLimpo = posCpf.replace(/\D/g, "");
+    if (cpfLimpo.length !== 11) {
+      toast.error("Informe um CPF válido.");
+      return;
+    }
+    if (posNome.trim().length < 2) {
+      toast.error("Informe o nome do cliente.");
+      return;
+    }
+    setGerando(true);
+    const res = await pagarPos(pedidoId, { bandeira: posBandeira, tipo: posTipo, cpf: cpfLimpo, nome: posNome.trim() });
+    setGerando(false);
+    if (!res.ok) {
+      toast.error("Não foi possível registrar o pagamento", { description: res.error });
+      return;
+    }
+    setPosPago(true);
+    toast.success("Pago na maquininha!");
+  };
+
   const regenerar = async () => {
     if (!pedidoId || !cpfConfirmado) {
       toast.error("CPF não disponível. Reinicie o pagamento.");
@@ -255,7 +283,7 @@ export function PedidoManualStepper({
     toast.success("Novo link gerado!");
   };
 
-  const pagamentoResolvido = pagoDinheiro || cartaoQrPago || !!invoiceUrl || !!pixResult;
+  const pagamentoResolvido = pagoDinheiro || cartaoQrPago || posPago || !!invoiceUrl || !!pixResult;
   const mostrarNav = !(etapa === "pagamento" && (pedidoId || pagamentoResolvido));
 
   const handleAvancar = () => {
@@ -545,6 +573,8 @@ export function PedidoManualStepper({
               <ResultadoOk titulo="Pago em dinheiro" desc="Pedido registrado como pago." onConcluir={() => onFinalizado(pedidoId)} />
             ) : cartaoQrPago ? (
               <ResultadoOk titulo="Pago no cartão!" desc="Pagamento confirmado pelo cliente." onConcluir={() => onFinalizado(pedidoId)} />
+            ) : posPago ? (
+              <ResultadoOk titulo="Pago na maquininha!" desc={`${posBandeira} · ${posTipo === "credito" ? "Crédito" : "Débito"}`} onConcluir={() => onFinalizado(pedidoId)} />
             ) : pixResult ? (
               <>
                 <PixQrCode qrImage={pixResult.qrImage} payload={pixResult.payload} expiraEm={pixResult.expiraEm} />
@@ -578,12 +608,58 @@ export function PedidoManualStepper({
                   </Button>
                 </div>
               </div>
+            ) : metodo === "pos" ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Preencha os dados da transação na maquininha.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pm-pos-bandeira">Bandeira</Label>
+                  <select
+                    id="pm-pos-bandeira"
+                    className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
+                    value={posBandeira}
+                    onChange={(e) => setPosBandeira(e.target.value)}
+                  >
+                    {["Visa", "Mastercard", "Elo", "Amex", "Hipercard", "Outra"].map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-muted p-1">
+                  {(["credito", "debito"] as const).map((t) => (
+                    <button key={t} type="button"
+                      onClick={() => setPosTipo(t)}
+                      className={cn(
+                        "rounded-md py-2 text-sm font-medium transition-all",
+                        posTipo === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground",
+                      )}>
+                      {t === "credito" ? "Crédito" : "Débito"}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pm-pos-cpf">CPF do cliente</Label>
+                  <Input id="pm-pos-cpf" placeholder="000.000.000-00" value={posCpf} onChange={(e) => setPosCpf(e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pm-pos-nome">Nome do cliente</Label>
+                  <Input id="pm-pos-nome" placeholder="Maria Silva" value={posNome} onChange={(e) => setPosNome(e.target.value)} />
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={() => setMetodo(null)}>Voltar</Button>
+                  <Button onClick={pagarComPos} disabled={gerando}>
+                    {gerando ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirmando…</> : "Confirmar pagamento na maquininha"}
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col gap-2.5">
                 <MetodoCard icon={<Banknote className="h-5 w-5" />} titulo="Dinheiro" desc="Pago presencialmente, agora" onClick={pagarComDinheiro} disabled={gerando} />
                 <MetodoCard icon={<QrCode className="h-5 w-5" />} titulo="PIX" desc="Gera o QR Code na hora" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("pix"); }} />
                 <MetodoCard icon={<CreditCard className="h-5 w-5" />} titulo="Cartão" desc="Link p/ WhatsApp / e-mail" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("cartao"); }} />
                 <MetodoCard icon={<ScanLine className="h-5 w-5" />} titulo="Cartão via QR" desc="Cliente escaneia e digita o cartão" onClick={() => setMetodo("cartao_qr")} />
+                <MetodoCard icon={<Nfc className="h-5 w-5" />} titulo="POS (maquininha)" desc="Cielo — nasce pago na hora" onClick={() => { setPosCpf(state.cliente.cpf ?? ""); setPosNome(state.cliente.nome ?? ""); setMetodo("pos"); }} />
               </div>
             )}
           </div>

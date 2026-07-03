@@ -45,6 +45,19 @@ const BodySchema = z.discriminatedUnion("action", [
     id: z.string().uuid(),
   }),
   z.object({
+    action: z.literal("pagar_pos"),
+    id: z.string().uuid(),
+    pos: z.object({
+      bandeira: z.string().min(1).max(30),
+      tipo: z.enum(["credito", "debito"]),
+      cpf: z
+        .string()
+        .transform((s) => s.replace(/\D/g, ""))
+        .pipe(z.string().regex(/^\d{11}$/)),
+      nome: z.string().min(2).max(120),
+    }),
+  }),
+  z.object({
     action: z.literal("gerar_pix"),
     id: z.string().uuid(),
     cpf: z
@@ -367,6 +380,37 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             .eq("id", id);
           if (error) {
             console.error("[admin/pedidos] pagar_dinheiro", error);
+            return Response.json({ error: "db_error" }, { status: 500 });
+          }
+          return Response.json({ ok: true });
+        }
+
+        if (action === "pagar_pos") {
+          const { id, pos } = parsed.data;
+          const { data: pedido, error: pErr } = await auth.admin
+            .from("pedidos")
+            .select("pagamento")
+            .eq("id", id)
+            .maybeSingle();
+          if (pErr || !pedido) {
+            return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
+          }
+          const pagAtual = (pedido.pagamento as Record<string, unknown>) ?? {};
+          const { error } = await auth.admin
+            .from("pedidos")
+            .update({
+              status: "pago",
+              payment_confirmed_at: new Date().toISOString(),
+              pagamento: {
+                ...pagAtual,
+                metodo: "pos",
+                status: "pago",
+                extras: { ...((pagAtual?.extras as Record<string, unknown>) ?? {}), pos },
+              },
+            })
+            .eq("id", id);
+          if (error) {
+            console.error("[admin/pedidos] pagar_pos", error);
             return Response.json({ error: "db_error" }, { status: 500 });
           }
           return Response.json({ ok: true });

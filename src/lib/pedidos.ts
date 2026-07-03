@@ -507,6 +507,26 @@ export async function pagarDinheiro(id: string): Promise<{ ok: boolean; error?: 
   }
 }
 
+/** Marca pedido como pago via POS/maquininha (offline). Requer admin autenticado. */
+export async function pagarPos(
+  id: string,
+  pos: { bandeira: string; tipo: "credito" | "debito"; cpf: string; nome: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const token = await getAuthToken();
+  if (!token) return { ok: false, error: "Nao autenticado" };
+  try {
+    const res = await fetch("/api/admin/pedidos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "pagar_pos", id, pos }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro de rede" };
+  }
+}
+
 /** Gera cobranca PIX via Asaas para o pedido. Requer admin autenticado. */
 export async function gerarPix(
   id: string,
