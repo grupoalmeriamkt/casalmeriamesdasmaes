@@ -63,6 +63,12 @@ function toIso(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+/** "YYYY-MM-DD" → "DD/MM/AAAA" (padrão brasileiro). */
+function formatBR(iso: string) {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
 function parseIso(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -454,14 +460,14 @@ export function PedidoManualStepper({
                   <select className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
                     value={state.data ?? ""} onChange={(e) => patch({ data: e.target.value || null, horario: null })}>
                     <option value="">Selecione</option>
-                    {datas.map((d) => <option key={d} value={d}>{d}</option>)}
+                    {datas.map((d) => <option key={d} value={d}>{formatBR(d)}</option>)}
                   </select>
                 ) : (
                   <Popover>
                     <PopoverTrigger asChild>
                       <button type="button"
                         className="h-10 w-full rounded-md border bg-background px-3 text-left text-sm outline-none focus:ring-2 focus:ring-olive/30">
-                        {state.data ?? "Selecione"}
+                        {state.data ? formatBR(state.data) : "Selecione"}
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
@@ -518,7 +524,7 @@ export function PedidoManualStepper({
                   : state.enderecoOuUnidade
               }
             />
-            <Linha rot="Data / horário" val={`${state.data ?? "—"} · ${state.horario ?? "—"}`} />
+            <Linha rot="Data / horário" val={`${state.data ? formatBR(state.data) : "—"} · ${state.horario ?? "—"}`} />
             {state.observacoes && <Linha rot="Observações" val={state.observacoes} />}
             <div className="flex items-center justify-between bg-foreground px-4 py-3 text-background">
               <span className="text-sm opacity-70">Total</span>
