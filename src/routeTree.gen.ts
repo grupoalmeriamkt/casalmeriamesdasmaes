@@ -20,6 +20,7 @@ import { Route as PedidosNovoRouteImport } from './routes/pedidos.novo'
 import { Route as PedidosTokenRouteImport } from './routes/pedidos.$token'
 import { Route as PagarIdRouteImport } from './routes/pagar.$id'
 import { Route as ApiDisponibilidadeRouteImport } from './routes/api/disponibilidade'
+import { Route as AdminDashboardRouteImport } from './routes/admin.dashboard'
 import { Route as ApiPublicMpPreferenceRouteImport } from './routes/api/public/mp-preference'
 import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-capi'
 import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
@@ -97,6 +98,11 @@ const ApiDisponibilidadeRoute = ApiDisponibilidadeRouteImport.update({
   id: '/api/disponibilidade',
   path: '/api/disponibilidade',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminDashboardRoute = AdminDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AdminRoute,
 } as any)
 const ApiPublicMpPreferenceRoute = ApiPublicMpPreferenceRouteImport.update({
   id: '/api/public/mp-preference',
@@ -214,10 +220,11 @@ const ApiPublicAsaasStatusIdRoute = ApiPublicAsaasStatusIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/checkout': typeof CheckoutRoute
   '/cozinha': typeof CozinhaRoute
   '/pedido': typeof PedidoRoute
+  '/admin/dashboard': typeof AdminDashboardRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pagar/$id': typeof PagarIdRoute
   '/pedidos/$token': typeof PedidosTokenRoute
@@ -249,10 +256,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/checkout': typeof CheckoutRoute
   '/cozinha': typeof CozinhaRoute
   '/pedido': typeof PedidoRoute
+  '/admin/dashboard': typeof AdminDashboardRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pagar/$id': typeof PagarIdRoute
   '/pedidos/$token': typeof PedidosTokenRoute
@@ -285,10 +293,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/admin': typeof AdminRoute
+  '/admin': typeof AdminRouteWithChildren
   '/checkout': typeof CheckoutRoute
   '/cozinha': typeof CozinhaRoute
   '/pedido': typeof PedidoRoute
+  '/admin/dashboard': typeof AdminDashboardRoute
   '/api/disponibilidade': typeof ApiDisponibilidadeRoute
   '/pagar/$id': typeof PagarIdRoute
   '/pedidos/$token': typeof PedidosTokenRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/cozinha'
     | '/pedido'
+    | '/admin/dashboard'
     | '/api/disponibilidade'
     | '/pagar/$id'
     | '/pedidos/$token'
@@ -361,6 +371,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/cozinha'
     | '/pedido'
+    | '/admin/dashboard'
     | '/api/disponibilidade'
     | '/pagar/$id'
     | '/pedidos/$token'
@@ -396,6 +407,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/cozinha'
     | '/pedido'
+    | '/admin/dashboard'
     | '/api/disponibilidade'
     | '/pagar/$id'
     | '/pedidos/$token'
@@ -428,7 +440,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SlugRoute: typeof SlugRoute
-  AdminRoute: typeof AdminRoute
+  AdminRoute: typeof AdminRouteWithChildren
   CheckoutRoute: typeof CheckoutRoute
   CozinhaRoute: typeof CozinhaRoute
   PedidoRoute: typeof PedidoRoute
@@ -539,6 +551,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/disponibilidade'
       preLoaderRoute: typeof ApiDisponibilidadeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/dashboard': {
+      id: '/admin/dashboard'
+      path: '/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/api/public/mp-preference': {
       id: '/api/public/mp-preference'
@@ -697,10 +716,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminDashboardRoute: typeof AdminDashboardRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminDashboardRoute: AdminDashboardRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
-  AdminRoute: AdminRoute,
+  AdminRoute: AdminRouteWithChildren,
   CheckoutRoute: CheckoutRoute,
   CozinhaRoute: CozinhaRoute,
   PedidoRoute: PedidoRoute,

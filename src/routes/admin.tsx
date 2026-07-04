@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import { AbaTextos } from "@/components/admin/AbaTextos";
 import { AbaCestas } from "@/components/admin/AbaCestas";
@@ -9,6 +9,7 @@ import { AbaCupons } from "@/components/admin/AbaCupons";
 import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
 import { AbaCozinha } from "@/components/admin/AbaCozinha";
 import { AbaEmails } from "@/components/admin/AbaEmails";
+import { DashboardPedidos } from "@/components/admin/DashboardPedidos";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
 import { AdminLogin } from "@/components/admin/AdminLogin";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -25,21 +26,15 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  AdminLayout,
-  type AdminNavGroup,
-  type AdminTabId,
-} from "@/components/admin/AdminShell";
+import { AdminLayout, type AdminNavGroup, type AdminTabId } from "@/components/admin/AdminShell";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-const ABAS: Record<
-  AdminTabId,
-  { label: string; Comp: React.ComponentType }
-> = {
+const ABAS: Record<AdminTabId, { label: string; Comp: React.ComponentType }> = {
+  dashboard: { label: "Dashboard", Comp: DashboardPedidos },
   textos: { label: "Site Principal", Comp: AbaTextos },
   cestas: { label: "Produtos", Comp: AbaCestas },
   campanhas: { label: "Campanhas", Comp: AbaCampanhas },
@@ -63,6 +58,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
   {
     title: "Operação",
     items: [
+      { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
       { id: "pedidos-central", label: "Central de Pedidos", Icon: LayoutDashboard },
       { id: "pedidos", label: "Lista de Pedidos", Icon: ListOrdered },
       { id: "cozinha", label: "Cozinha", Icon: ChefHat },
@@ -82,6 +78,7 @@ const TAB_IDS = Object.keys(ABAS) as AdminTabId[];
 
 function AdminPage() {
   const { user, loading, isAdmin } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -114,17 +111,21 @@ function AdminPage() {
     );
   }
 
+  if (location.pathname === "/admin/dashboard") {
+    return <Outlet />;
+  }
+
   return <AdminPanel />;
 }
 
 function AdminPanel() {
   const [aba, setAba] = useState<AdminTabId>(() => {
-    if (typeof window === "undefined") return "pedidos-central";
+    if (typeof window === "undefined") return "dashboard";
     const saved = window.localStorage.getItem("admin:aba");
     if (saved === "pedidos-central" || (saved && TAB_IDS.includes(saved as AdminTabId))) {
       return saved as AdminTabId;
     }
-    return "pedidos-central";
+    return "dashboard";
   });
   const [menuOpen, setMenuOpen] = useState(false);
 

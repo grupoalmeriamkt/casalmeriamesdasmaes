@@ -6,6 +6,7 @@ import {
 } from "@/lib/asaasStatus";
 import { normalizePaymentStatus } from "@/lib/paymentStatus";
 import { computeExecutionAt } from "@/lib/executionAt";
+import { limparFalhaPagamento, type FalhaPagamento, mergeFalhaPagamento } from "@/lib/pagamentoFalha";
 
 export type PaymentPatch = {
   payment_status_raw: string;
@@ -45,7 +46,9 @@ export function buildPaymentPatch(
     payment_status_normalized: normalized,
     payment_confirmed_at: paymentConfirmedAt,
     status: novoStatus,
-    pagamento: { ...existingPag, ...pagamentoPatch, status: raw },
+    pagamento: ASAAS_FINAL_PAID.has(raw)
+      ? { ...limparFalhaPagamento(existingPag), ...pagamentoPatch, status: raw }
+      : { ...existingPag, ...pagamentoPatch, status: raw },
     conciliacao_pendente: false,
   };
 }
@@ -95,6 +98,30 @@ export async function syncPedidoPaymentFields(
     return false;
   }
   return true;
+}
+
+/** Grava recusa/falha de cartão no JSON pagamento do pedido (sem criar linha em pagamentos). */
+export async function registrarFalhaPagamentoCartao(
+  admin: SupabaseClient,
+  pedidoId: string,
+  existingPag: Record<string, unknown>,
+  motivo: string,
+): Promise<void> {
+  const falha: FalhaPagamento = {
+    motivo: motivo.trim() || "Falha no processamento do pagamento",
+    em: new Date().toISOString(),
+    metodo: "CREDIT_CARD",
+  };
+  const { error } = await admin
+    .from("pedidos")
+    .update({
+      status: "aguardando_pagamento",
+      pagamento: mergeFalhaPagamento(existingPag, falha),
+    })
+    .eq("id", pedidoId);
+  if (error) {
+    console.error("[registrarFalhaPagamentoCartao]", pedidoId, error);
+  }
 }
 
 export async function registrarConciliacaoEvento(

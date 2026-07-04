@@ -51,6 +51,7 @@ import {
   agruparPorExecucao,
   contarAprovadosOperacionais,
   filtrarPedidosOperacionais,
+  isPedidoConcluido,
   sortPedidosPorCriadoDesc,
   SETOR_LABEL,
   type FiltrosOperacionais,
@@ -211,6 +212,7 @@ function CozinhaPage() {
   const [filtroInicio, setFiltroInicio] = useState("");
   const [filtroFim, setFiltroFim] = useState("");
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
+  const [filtroConcluidos, setFiltroConcluidos] = useState(false);
   const [filtrosPlanilha, setFiltrosPlanilha] = useState<FiltrosPlanilha>(FILTROS_PLANILHA_VAZIOS);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -348,11 +350,12 @@ function CozinhaPage() {
     if (!operacaoEnabled) return [];
     return filtrarPedidosOperacionais(pedidosOps, {
       ...filtrosOps,
+      concluidos: filtroConcluidos || !!filtrosOps.concluidos,
       busca: filtroTexto || filtrosOps.busca,
       criadoInicio: filtroInicio || filtrosOps.criadoInicio,
       criadoFim: filtroFim || filtrosOps.criadoFim,
     });
-  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim]);
+  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroConcluidos, filtroTexto, filtroInicio, filtroFim]);
 
   const operacaoGrupos = useMemo(
     () => (operacaoEnabled ? agruparPorExecucao(pedidosOpsFiltrados) : []),
@@ -365,11 +368,21 @@ function CozinhaPage() {
   );
 
   const rawRowsById = useMemo(() => new Map(rawRows.map((r) => [r.id, r])), [rawRows]);
+  const pedidosOpsById = useMemo(
+    () => new Map(pedidosOps.map((p) => [p.id, p])),
+    [pedidosOps],
+  );
 
   const pedidosSemFiltroData = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
+    const concluidos = filtroConcluidos || !!filtrosOps.concluidos;
     const filtered = pedidos.filter((p) => {
-      if (!mostrarArq && p.archivedAt) return false;
+      const op = pedidosOpsById.get(p.id);
+      if (concluidos) {
+        if (!op || !isPedidoConcluido(op)) return false;
+      } else if (!mostrarArq && p.archivedAt) {
+        return false;
+      }
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
@@ -378,17 +391,40 @@ function CozinhaPage() {
         const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (filtroInicio && p.criadoEm.slice(0, 10) < filtroInicio) return false;
-      if (filtroFim && p.criadoEm.slice(0, 10) > filtroFim) return false;
+      const refData = concluidos
+        ? (op?.executionAt?.slice(0, 10) ?? p.criadoEm.slice(0, 10))
+        : p.criadoEm.slice(0, 10);
+      if (filtroInicio && refData < filtroInicio) return false;
+      if (filtroFim && refData > filtroFim) return false;
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim]);
+  }, [
+    pedidos,
+    pedidosOpsById,
+    operacaoEnabled,
+    filtrosOps.mostrarArquivados,
+    filtrosOps.concluidos,
+    mostrarArquivados,
+    filtroConcluidos,
+    filtroStatus,
+    filtroTipo,
+    filtroPolaroid,
+    filtroTexto,
+    filtroInicio,
+    filtroFim,
+  ]);
 
   const pedidosParaCalendario = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
+    const concluidos = filtroConcluidos || !!filtrosOps.concluidos;
     const filtered = pedidos.filter((p) => {
-      if (!mostrarArq && p.archivedAt) return false;
+      const op = pedidosOpsById.get(p.id);
+      if (concluidos) {
+        if (!op || !isPedidoConcluido(op)) return false;
+      } else if (!mostrarArq && p.archivedAt) {
+        return false;
+      }
       if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
@@ -400,7 +436,19 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto]);
+  }, [
+    pedidos,
+    pedidosOpsById,
+    operacaoEnabled,
+    filtrosOps.mostrarArquivados,
+    filtrosOps.concluidos,
+    mostrarArquivados,
+    filtroConcluidos,
+    filtroStatus,
+    filtroTipo,
+    filtroPolaroid,
+    filtroTexto,
+  ]);
 
   const pedidosFiltrados = useMemo(() => {
     const base = view === "calendario" ? pedidosParaCalendario : pedidosSemFiltroData;
@@ -735,10 +783,23 @@ function CozinhaPage() {
       prev.map((p) => (arquivados.has(p.id) ? { ...p, archivedAt: agora } : p)),
     );
     setPedidosOps((prev) =>
-      prev.map((p) => (arquivados.has(p.id) ? { ...p, archivedAt: agora } : p)),
+      prev.map((p) =>
+        arquivados.has(p.id)
+          ? { ...p, archivedAt: agora, fulfillmentStage: "finalizado", fulfillmentStageAt: agora }
+          : p,
+      ),
     );
     setRawRows((prev) =>
-      prev.map((r) => (arquivados.has(r.id) ? { ...r, archived_at: agora } : r)),
+      prev.map((r) =>
+        arquivados.has(r.id)
+          ? {
+              ...r,
+              archived_at: agora,
+              fulfillment_stage: "finalizado",
+              fulfillment_stage_at: agora,
+            }
+          : r,
+      ),
     );
     toast.success(
       `${res.arquivados ?? ids.length} pedido${(res.arquivados ?? ids.length) !== 1 ? "s" : ""} arquivado${(res.arquivados ?? ids.length) !== 1 ? "s" : ""}.`,
@@ -849,7 +910,7 @@ function CozinhaPage() {
 
   const temFiltro =
     filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
-    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "" ||
+    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "" || filtroConcluidos ||
     filtrosPlanilhaAtivos(filtrosPlanilha);
 
   const limparFiltrosPlanilha = () => setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
@@ -863,6 +924,7 @@ function CozinhaPage() {
     setFiltroInicio("");
     setFiltroFim("");
     setFiltroPeriodo("");
+    setFiltroConcluidos(false);
     setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
   };
 
@@ -983,6 +1045,15 @@ function CozinhaPage() {
               </button>
             );
           })}
+          <button
+            onClick={() => setFiltroConcluidos((v) => !v)}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors sm:px-3 sm:py-1 sm:text-xs ${
+              filtroConcluidos ? "bg-charcoal text-white" : "bg-linen text-charcoal hover:bg-charcoal/10"
+            }`}
+          >
+            Concluídos
+            {filtroConcluidos && <X className="ml-1 inline h-3 w-3" />}
+          </button>
         </div>
         <div className="hidden h-3 w-px bg-border sm:block" />
         <div className="flex flex-wrap gap-1">

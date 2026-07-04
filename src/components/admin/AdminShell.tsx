@@ -6,6 +6,7 @@ import { UserProfileWidget } from "@/components/admin/UserProfileWidget";
 import { cn } from "@/lib/utils";
 
 export type AdminTabId =
+  | "dashboard"
   | "textos"
   | "cestas"
   | "campanhas"
@@ -96,12 +97,12 @@ export function AdminLayout({
                       key={item.id}
                       type="button"
                       onClick={() => onNavigate(item.id)}
-                      className={cn(
-                        "admin-nav-item",
-                        active && "admin-nav-item-active",
-                      )}
+                      className={cn("admin-nav-item", active && "admin-nav-item-active")}
                     >
-                      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={active ? 2.25 : 2} />
+                      <Icon
+                        className="h-[18px] w-[18px] shrink-0"
+                        strokeWidth={active ? 2.25 : 2}
+                      />
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -235,13 +236,7 @@ export function AdminSegmentedTabs({
   );
 }
 
-export function AdminEmptyState({
-  title,
-  description,
-}: {
-  title: string;
-  description?: string;
-}) {
+export function AdminEmptyState({ title, description }: { title: string; description?: string }) {
   return (
     <div className="admin-empty-state">
       <p className="text-sm font-medium text-charcoal">{title}</p>

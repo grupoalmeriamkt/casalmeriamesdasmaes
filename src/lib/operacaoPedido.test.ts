@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   agruparPorExecucao,
   filtrarPedidosOperacionais,
+  isPedidoConcluido,
   rowToPedidoOperacional,
 } from "@/lib/operacaoPedido";
 import type { PedidoRow } from "@/lib/pedidos";
@@ -54,6 +55,14 @@ describe("rowToPedidoOperacional", () => {
   });
 });
 
+describe("isPedidoConcluido", () => {
+  it("considera finalizado ou arquivado", () => {
+    expect(isPedidoConcluido({ fulfillmentStage: "finalizado", archivedAt: null })).toBe(true);
+    expect(isPedidoConcluido({ fulfillmentStage: null, archivedAt: "2026-07-01" })).toBe(true);
+    expect(isPedidoConcluido({ fulfillmentStage: "pronto", archivedAt: null })).toBe(false);
+  });
+});
+
 describe("filtrarPedidosOperacionais", () => {
   it("oculta testes por padrão", () => {
     const lista = [
@@ -63,6 +72,26 @@ describe("filtrarPedidosOperacionais", () => {
     const out = filtrarPedidosOperacionais(lista, { status: ["aprovado"] });
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe("abc-123");
+  });
+
+  it("filtro concluidos inclui arquivados e usa data de execução no período", () => {
+    const lista = [
+      rowToPedidoOperacional(
+        baseRow({
+          id: "arq",
+          archived_at: "2026-07-03T12:00:00Z",
+          criado_em: "2026-06-20T10:00:00Z",
+          execution_at: "2026-07-02T11:00:00.000Z",
+        }),
+      ),
+      rowToPedidoOperacional(baseRow({ id: "ativo" })),
+    ];
+    const out = filtrarPedidosOperacionais(lista, {
+      concluidos: true,
+      criadoInicio: "2026-07-01",
+      criadoFim: "2026-07-31",
+    });
+    expect(out.map((p) => p.id)).toEqual(["arq"]);
   });
 });
 

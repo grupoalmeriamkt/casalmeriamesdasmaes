@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
 import type { ManualOrderInput } from "@/lib/orderForm/types";
-import { pagamentoRelevante } from "@/lib/asaasStatus";
+import { labelPagamentoDetalhado, pagamentoRelevante } from "@/lib/asaasStatus";
+import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 import { computeExecutionAt } from "@/lib/executionAt";
 import {
   parseUpsertPedidoResult,
@@ -26,6 +27,7 @@ export type PagamentoAsaasRow = {
   cartao_brand: string | null;
   cartao_last4: string | null;
   invoice_url?: string | null;
+  pix_expira_em?: string | null;
   criado_em: string;
 };
 
@@ -52,6 +54,7 @@ export type PedidoRow = {
     };
     cupom?: string | null;
     desconto?: number | null;
+    falha_pagamento?: { motivo: string; em: string; metodo: string } | null;
   };
   total: number;
   status: string;
@@ -433,6 +436,7 @@ export async function editarPedidoPorToken(
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
   const rel = pagamentoRelevante(r.pagamentos ?? []);
+  const falhaPagamento = parseFalhaPagamento(r.pagamento as Record<string, unknown>);
   const destinatario =
     r.recipient_is_buyer === false && r.pagamento?.destinatario
       ? r.pagamento.destinatario
@@ -455,6 +459,13 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     pagamento: {
       ...r.pagamento,
       status: rel?.status ?? r.pagamento?.status ?? r.status ?? "",
+      statusDetalhado: labelPagamentoDetalhado({
+        status: rel?.status ?? r.pagamento?.status,
+        metodo: rel?.metodo ?? r.pagamento?.metodo,
+        pixExpiraEm: rel?.pix_expira_em,
+        pedidoStatus: r.status,
+        falhaPagamento,
+      }),
     },
     total: Number(r.total),
     archivedAt: r.archived_at ?? null,

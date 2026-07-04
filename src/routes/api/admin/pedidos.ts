@@ -178,9 +178,15 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         if (action === "arquivar") {
           const { ids } = parsed.data;
           const archivedBy = auth.user.email ?? auth.user.id;
+          const agora = new Date().toISOString();
           const { data, error } = await auth.admin
             .from("pedidos")
-            .update({ archived_at: new Date().toISOString(), archived_by: archivedBy })
+            .update({
+              archived_at: agora,
+              archived_by: archivedBy,
+              fulfillment_stage: "finalizado",
+              fulfillment_stage_at: agora,
+            })
             .in("id", ids)
             .is("archived_at", null)
             .select("id");
