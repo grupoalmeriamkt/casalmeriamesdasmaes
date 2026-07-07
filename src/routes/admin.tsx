@@ -8,6 +8,7 @@ import { CentralPedidos } from "@/components/admin/pedidos/CentralPedidos";
 import { AbaCupons } from "@/components/admin/AbaCupons";
 import { AbaConfiguracoes } from "@/components/admin/AbaConfiguracoes";
 import { AbaCozinha } from "@/components/admin/AbaCozinha";
+import { AbaOperacao } from "@/components/admin/AbaOperacao";
 import { AbaEmails } from "@/components/admin/AbaEmails";
 import { DashboardPedidos } from "@/components/admin/DashboardPedidos";
 import { SaveConfigBar } from "@/components/admin/SaveConfigBar";
@@ -23,6 +24,7 @@ import {
   Tag,
   ChefHat,
   Mail,
+  ClipboardList,
   LayoutDashboard,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +43,7 @@ const ABAS: Record<AdminTabId, { label: string; Comp: React.ComponentType }> = {
   "pedidos-central": { label: "Central de Pedidos", Comp: CentralPedidos },
   pedidos: { label: "Lista de Pedidos", Comp: AbaPedidos },
   cozinha: { label: "Cozinha", Comp: AbaCozinha },
+  operacao: { label: "Operação", Comp: AbaOperacao },
   emails: { label: "E-mails", Comp: AbaEmails },
   cupons: { label: "Cupons", Comp: AbaCupons },
   configuracoes: { label: "Configurações", Comp: AbaConfiguracoes },
@@ -62,6 +65,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
       { id: "pedidos-central", label: "Central de Pedidos", Icon: LayoutDashboard },
       { id: "pedidos", label: "Lista de Pedidos", Icon: ListOrdered },
       { id: "cozinha", label: "Cozinha", Icon: ChefHat },
+      { id: "operacao", label: "Operação", Icon: ClipboardList },
       { id: "emails", label: "E-mails", Icon: Mail },
     ],
   },
@@ -102,7 +106,7 @@ function AdminPage() {
       <>
         <AccessDenied
           title="Painel administrativo restrito"
-          description="Sua conta não tem permissão de administrador. Se você é da equipe da cozinha, acesse o módulo Cozinha."
+          description="Sua conta não tem permissão de administrador. Se você é da equipe da cozinha, acesse /cozinha. Se é da operação restrita, acesse /operacao."
           showSignOut
           onSignOut={() => supabase.auth.signOut()}
         />

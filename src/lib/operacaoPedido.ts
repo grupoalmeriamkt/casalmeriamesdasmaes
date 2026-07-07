@@ -6,7 +6,7 @@ import {
   normalizePaymentStatus,
   type PaymentStatusNormalized,
 } from "@/lib/paymentStatus";
-import { isBeforeTodaySP, todayISOSP } from "@/lib/timezone";
+import { todayISOSP } from "@/lib/timezone";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import type { ProductionSector } from "@/lib/availability/types";
 import type { FulfillmentStage } from "@/lib/etapaPedido";
@@ -121,11 +121,7 @@ export function filtrarPedidosOperacionais(
   if (f.concluidos) {
     list = list.filter((p) => isPedidoConcluido(p));
   } else if (!f.mostrarArquivados) {
-    list = list.filter((p) => {
-      if (p.archivedAt) return false;
-      if (p.executionAt && isBeforeTodaySP(p.executionAt)) return false;
-      return true;
-    });
+    list = list.filter((p) => !p.archivedAt);
   }
 
   if (f.concluidos && f.criadoInicio) {

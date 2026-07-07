@@ -1,4 +1,5 @@
 -- Inclui pix_expira_em no retorno de pagamentos em pedidos_por_token (tela de operação).
+-- IMPORTANTE: preserva todos os campos operacionais (regressão corrigida).
 
 CREATE OR REPLACE FUNCTION public.pedidos_por_token(_token text, _senha text DEFAULT NULL)
 RETURNS jsonb
@@ -7,13 +8,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_senha text;
+  v_senha    text;
+  v_campanha text;
 BEGIN
   IF auth.uid() IS NULL OR NOT public.can_access_cozinha(auth.uid()) THEN
     RETURN '[]'::jsonb;
   END IF;
 
-  SELECT senha INTO v_senha
+  SELECT senha, campanha_id INTO v_senha, v_campanha
   FROM public.share_tokens
   WHERE token = _token AND scope = 'pedidos';
 
@@ -46,6 +48,22 @@ BEGIN
         p.pagamento,
         p.total,
         p.status,
+        p.campanha_id,
+        p.recipient_name,
+        p.recipient_phone,
+        p.recipient_is_buyer,
+        p.unidade_id,
+        p.production_sector,
+        p.execution_at,
+        p.payment_status_raw,
+        p.payment_status_normalized,
+        p.payment_confirmed_at,
+        p.is_test,
+        p.archived_at,
+        p.archived_by,
+        p.conciliacao_pendente,
+        p.fulfillment_stage,
+        p.fulfillment_stage_at,
         coalesce(
           (SELECT jsonb_agg(jsonb_build_object(
             'id', pg.id,
@@ -63,6 +81,7 @@ BEGIN
           FROM pagamentos pg WHERE pg.pedido_id = p.id
         ), '[]'::jsonb) AS pagamentos
       FROM pedidos p
+      WHERE (v_campanha IS NULL OR p.campanha_id = v_campanha)
       ORDER BY p.criado_em DESC
       LIMIT 500
     ) t

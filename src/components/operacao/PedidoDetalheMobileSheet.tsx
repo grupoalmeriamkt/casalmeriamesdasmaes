@@ -11,8 +11,8 @@ import { DetalhesPedido } from "@/components/operacao/PedidoDetalheContent";
 type Props = {
   pedido: PedidoSalvo | null;
   onClose: () => void;
-  onEditar: (p: PedidoSalvo) => void;
-  onImprimir: (p: PedidoSalvo) => void;
+  onEditar?: (p: PedidoSalvo) => void;
+  onImprimir?: (p: PedidoSalvo) => void;
 };
 
 export function PedidoDetalheMobileSheet({
@@ -55,9 +55,10 @@ export function PedidoDetalheMobileSheet({
           {pedido && <DetalhesPedido p={pedido} variant="mobile" />}
         </div>
 
-        {pedido && (
+        {pedido && (onEditar || onImprimir) && (
           <div className="shrink-0 border-t border-black/6 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="grid grid-cols-2 gap-2">
+              {onEditar && (
               <Button
                 variant="outline"
                 className="h-11 rounded-xl"
@@ -66,6 +67,8 @@ export function PedidoDetalheMobileSheet({
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </Button>
+              )}
+              {onImprimir && (
               <Button
                 className="h-11 rounded-xl bg-charcoal text-white hover:bg-charcoal/90"
                 onClick={() => onImprimir(pedido)}
@@ -73,6 +76,7 @@ export function PedidoDetalheMobileSheet({
                 <Printer className="mr-2 h-4 w-4" />
                 Imprimir
               </Button>
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { authenticateRequest, requireAdmin } from "@/lib/authServer";
+import { authenticateRequest, requireAdmin, canOperacaoPedidosAction } from "@/lib/authServer";
 import { manualOrderSchema } from "@/lib/orderForm/schema";
 import { buildPedidoManualPayload } from "@/lib/orderForm/buildPayload";
 import { ensureOperator } from "@/lib/operatorsServer";
@@ -111,9 +111,6 @@ export const Route = createFileRoute("/api/admin/pedidos")({
       POST: async ({ request }) => {
         const auth = await authenticateRequest(request);
         if (!auth) return Response.json({ error: "unauthorized" }, { status: 401 });
-        if (!(await requireAdmin(auth.admin, auth.user.id))) {
-          return Response.json({ error: "forbidden" }, { status: 403 });
-        }
 
         let body: unknown;
         try {
@@ -128,6 +125,19 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         }
 
         const { action } = parsed.data;
+        const isAdmin = await requireAdmin(auth.admin, auth.user.id);
+        const canOperacao = await canOperacaoPedidosAction(auth.admin, auth.user.id);
+
+        if (!isAdmin && !canOperacao) {
+          return Response.json({ error: "forbidden" }, { status: 403 });
+        }
+
+        if (!isAdmin && canOperacao) {
+          const allowed = action === "arquivar" || action === "criar_manual";
+          if (!allowed) {
+            return Response.json({ error: "forbidden" }, { status: 403 });
+          }
+        }
 
         if (action === "cancelar") {
           const { id } = parsed.data;

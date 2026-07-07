@@ -8,6 +8,7 @@ import {
   marcarComoPago,
   type PedidoRow,
 } from "@/lib/pedidos";
+import { obterTokenGeralCozinha } from "@/lib/cozinha";
 import {
   listarTokensPedidos,
   criarTokenPedidos,
@@ -85,6 +86,11 @@ export function CentralPedidos() {
   }, []);
 
   const carregarToken = useCallback(async () => {
+    const token = await obterTokenGeralCozinha();
+    if (token) {
+      setTokenGeral({ token, scope: "pedidos", criado_em: "", campanha_id: null });
+      return;
+    }
     const lista = await listarTokensPedidos();
     let geral = lista.find((t) => !t.campanha_id) ?? null;
     if (!geral) geral = await criarTokenPedidos(undefined, undefined);

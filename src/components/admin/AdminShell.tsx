@@ -13,6 +13,7 @@ export type AdminTabId =
   | "pedidos"
   | "pedidos-central"
   | "cozinha"
+  | "operacao"
   | "emails"
   | "cupons"
   | "configuracoes";

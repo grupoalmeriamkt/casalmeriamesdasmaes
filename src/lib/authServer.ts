@@ -20,7 +20,7 @@ export async function authenticateRequest(
 export async function userHasRole(
   admin: SupabaseClient,
   userId: string,
-  role: "admin" | "cozinha",
+  role: "admin" | "cozinha" | "operacao",
 ): Promise<boolean> {
   const { data, error } = await admin.rpc("has_role", { _user_id: userId, _role: role });
   if (!error && data === true) return true;
@@ -56,4 +56,60 @@ export async function canAccessCozinha(
     userHasRole(admin, userId, "cozinha"),
   ]);
   return adminOk || cozinhaOk;
+}
+
+export async function canAccessOperacao(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  return userHasRole(admin, userId, "operacao");
+}
+
+export async function canAccessPedidos(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const [cozinhaOk, operacaoOk] = await Promise.all([
+    canAccessCozinha(admin, userId),
+    canAccessOperacao(admin, userId),
+  ]);
+  return cozinhaOk || operacaoOk;
+}
+
+export async function getOperacaoPortalToken(
+  admin: SupabaseClient,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("operacao_portal")
+    .select("share_token")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) {
+    console.error("[authServer] operacao_portal read error", error);
+    return null;
+  }
+  return data?.share_token ?? null;
+}
+
+export async function canAccessPedidosToken(
+  admin: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<boolean> {
+  if (await canAccessCozinha(admin, userId)) return true;
+  if (!(await canAccessOperacao(admin, userId))) return false;
+  const portalToken = await getOperacaoPortalToken(admin);
+  return !!portalToken && portalToken === token;
+}
+
+/** Operação restrita: arquivar e criar pedido manual. */
+export async function canOperacaoPedidosAction(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const [adminOk, operacaoOk] = await Promise.all([
+    userHasRole(admin, userId, "admin"),
+    canAccessOperacao(admin, userId),
+  ]);
+  return adminOk || operacaoOk;
 }
