@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { authenticateRequest, canAccessCozinha } from "@/lib/authServer";
+import { authenticateRequest, requireAdmin, canAccessCozinha, canAccessOperacao } from "@/lib/authServer";
 import { manualOrderSchema } from "@/lib/orderForm/schema";
 import { buildPedidoManualPayload } from "@/lib/orderForm/buildPayload";
 import { ensureOperator } from "@/lib/operatorsServer";
@@ -8,6 +8,7 @@ import { getAppSecrets } from "@/integrations/supabase/client.server";
 import { makeAsaasClient } from "@/integrations/asaas/client.server";
 import type { AsaasCreatePayment } from "@/integrations/asaas/types";
 import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
+import { buildPagamentoManualPatch } from "@/lib/pedidoSync";
 
 function deriveDueDate(dataEntrega: string | null): string {
   // Asaas exige YYYY-MM-DD. Usa a data de entrega se valida; senao hoje + 2 dias.
@@ -119,12 +120,6 @@ export const Route = createFileRoute("/api/admin/pedidos")({
       POST: async ({ request }) => {
         const auth = await authenticateRequest(request);
         if (!auth) return Response.json({ error: "unauthorized" }, { status: 401 });
-        // Operadores (role cozinha) e admins podem criar/pagar/gerir pedidos —
-        // mesmo guard da UI (canAccessCozinha). Antes exigia admin e barrava
-        // operadores/gerentes com 403 forbidden ao confirmar o pedido.
-        if (!(await canAccessCozinha(auth.admin, auth.user.id))) {
-          return Response.json({ error: "forbidden" }, { status: 403 });
-        }
 
         let body: unknown;
         try {
@@ -139,6 +134,20 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         }
 
         const { action } = parsed.data;
+        const isAdmin = await requireAdmin(auth.admin, auth.user.id);
+        const canCozinha = await canAccessCozinha(auth.admin, auth.user.id);
+        const canOperacao = await canAccessOperacao(auth.admin, auth.user.id);
+
+        if (!isAdmin && !canCozinha && !canOperacao) {
+          return Response.json({ error: "forbidden" }, { status: 403 });
+        }
+
+        if (!isAdmin && !canCozinha && canOperacao) {
+          const allowed = action === "arquivar" || action === "criar_manual";
+          if (!allowed) {
+            return Response.json({ error: "forbidden" }, { status: 403 });
+          }
+        }
 
         if (action === "cancelar") {
           const { id } = parsed.data;
@@ -189,9 +198,15 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         if (action === "arquivar") {
           const { ids } = parsed.data;
           const archivedBy = auth.user.email ?? auth.user.id;
+          const agora = new Date().toISOString();
           const { data, error } = await auth.admin
             .from("pedidos")
-            .update({ archived_at: new Date().toISOString(), archived_by: archivedBy })
+            .update({
+              archived_at: agora,
+              archived_by: archivedBy,
+              fulfillment_stage: "finalizado",
+              fulfillment_stage_at: agora,
+            })
             .in("id", ids)
             .is("archived_at", null)
             .select("id");
@@ -449,11 +464,13 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const pagAtual = (pedido.pagamento as Record<string, unknown>) ?? {};
           const { error } = await auth.admin
             .from("pedidos")
-            .update({
-              status: "pago",
-              payment_confirmed_at: new Date().toISOString(),
-              pagamento: { ...pagAtual, metodo: "dinheiro", status: "pago" },
-            })
+            .update(
+              buildPagamentoManualPatch({
+                pagamentoAtual: pagAtual,
+                metodo: "dinheiro",
+                confirmedAt: new Date().toISOString(),
+              }),
+            )
             .eq("id", id);
           if (error) {
             console.error("[admin/pedidos] pagar_dinheiro", error);
@@ -476,16 +493,14 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const pagAtual = (pedido.pagamento as Record<string, unknown>) ?? {};
           const { error } = await auth.admin
             .from("pedidos")
-            .update({
-              status: "pago",
-              payment_confirmed_at: new Date().toISOString(),
-              pagamento: {
-                ...pagAtual,
+            .update(
+              buildPagamentoManualPatch({
+                pagamentoAtual: pagAtual,
                 metodo: "pos",
-                status: "pago",
-                extras: { ...((pagAtual?.extras as Record<string, unknown>) ?? {}), pos },
-              },
-            })
+                confirmedAt: new Date().toISOString(),
+                pos,
+              }),
+            )
             .eq("id", id);
           if (error) {
             console.error("[admin/pedidos] pagar_pos", error);

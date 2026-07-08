@@ -1,7 +1,8 @@
 import { Calendar, Clock, MapPin, MessageCircle, Truck } from "lucide-react";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
-import { labelStatusPagamento, labelTipoPedido } from "@/lib/asaasStatus";
+import { labelStatusPagamento, labelTipoPedido, labelPagamentoDetalhado } from "@/lib/asaasStatus";
+import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { ComprovanteAsaas } from "./ComprovanteAsaas";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ const STATUS_ALIASES: Record<string, StatusKey> = {
 };
 
 function getStatus(p: PedidoSalvo): StatusKey {
+  if (parseFalhaPagamento(p.pagamento as Record<string, unknown>)) return "pendente";
   const s = p.pagamento?.status || "";
   return STATUS_ALIASES[s] ?? STATUS_ALIASES[s.toLowerCase()] ?? "rascunho";
 }
@@ -89,6 +91,14 @@ function usePedidoDetalhe(p: PedidoSalvo) {
     - desconto;
   const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
   const status = getStatus(p);
+  const falhaPagamento = parseFalhaPagamento(p.pagamento as Record<string, unknown>);
+  const statusPagamentoLabel =
+    p.pagamento?.statusDetalhado ??
+    labelPagamentoDetalhado({
+      status: p.pagamento?.status,
+      metodo: p.pagamento?.metodo,
+      falhaPagamento,
+    });
   const temDestinatarioDiferente =
     !!p.destinatario?.nome && p.destinatario.nome !== p.cliente.nome;
 
@@ -101,6 +111,7 @@ function usePedidoDetalhe(p: PedidoSalvo) {
     desconto,
     cupom,
     metodoLabel,
+    statusPagamentoLabel,
     itensSoma,
     frete,
     status,
@@ -145,6 +156,7 @@ export function DetalhesPedido({
     desconto,
     cupom,
     metodoLabel,
+    statusPagamentoLabel,
     itensSoma,
     frete,
     status,
@@ -161,7 +173,7 @@ export function DetalhesPedido({
           <span className="text-xs text-muted-foreground">{labelTipoPedido(p.tipo)}</span>
           <span className="text-xs text-muted-foreground">·</span>
           <span className="text-xs text-muted-foreground">
-            {labelStatusPagamento(p.pagamento?.status)}
+            {statusPagamentoLabel}
           </span>
         </div>
 
@@ -305,6 +317,11 @@ export function DetalhesPedido({
           {metodoLabel && (
             <p className="mt-1 text-xs text-muted-foreground">Pagamento via {metodoLabel}</p>
           )}
+          {status === "pendente" && (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
+              {statusPagamentoLabel}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -438,6 +455,11 @@ export function DetalhesPedido({
             <span>{metodoLabel}</span>
           </div>
         )}
+        {status === "pendente" && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-900">
+            {statusPagamentoLabel}
+          </p>
+        )}
       </div>
 
       {(cartoes.length > 0 || polaroids.length > 0) && (
@@ -454,7 +476,7 @@ export function DetalhesPedido({
         </div>
         <div>
           <p className="uppercase tracking-wide">Pagamento</p>
-          <p className="text-sm text-charcoal">{labelStatusPagamento(p.pagamento?.status)}</p>
+          <p className="text-sm text-charcoal">{statusPagamentoLabel}</p>
         </div>
       </div>
     </div>

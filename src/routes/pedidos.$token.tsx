@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, type FormEvent } from "react";
 import {
   listarPedidosPorToken,
@@ -15,6 +15,9 @@ import {
   type PedidoRow,
 } from "@/lib/pedidos";
 import { buscarInfoToken } from "@/lib/shareToken";
+import { obterTokenGeralCozinha } from "@/lib/cozinha";
+import { isTokenPortalOperacao } from "@/lib/operacaoPortal";
+import type { PaymentStatusNormalized } from "@/lib/paymentStatus";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,7 @@ import {
   agruparPorExecucao,
   contarAprovadosOperacionais,
   filtrarPedidosOperacionais,
+  isPedidoConcluido,
   sortPedidosPorCriadoDesc,
   SETOR_LABEL,
   type FiltrosOperacionais,
@@ -101,6 +105,7 @@ import {
 import { PedidosListaMobile } from "@/components/operacao/PedidosListaMobile";
 import { PedidoDetalheMobileSheet } from "@/components/operacao/PedidoDetalheMobileSheet";
 import { DetalhesPedido, destinatarioEntrega, formatDataEntregaLegivel } from "@/components/operacao/PedidoDetalheContent";
+import { OperacaoAprovadosView } from "@/components/operacao/OperacaoAprovadosView";
 
 export const Route = createFileRoute("/pedidos/$token")({
   head: () => ({
@@ -147,7 +152,17 @@ const STATUS_ALIASES: Record<string, StatusKey> = {
   cancelado: "abandonado",
 };
 
-function getStatus(p: PedidoSalvo): StatusKey {
+function statusKeyFromNormalized(n: PaymentStatusNormalized): StatusKey {
+  if (n === "aprovado") return "aprovado";
+  if (n === "rascunho") return "rascunho";
+  if (n === "cancelado" || n === "abandonado") return "abandonado";
+  return "pendente";
+}
+
+function getStatus(p: PedidoSalvo, raw?: PedidoRow): StatusKey {
+  if (raw?.payment_status_normalized) {
+    return statusKeyFromNormalized(raw.payment_status_normalized as PaymentStatusNormalized);
+  }
   const s = p.pagamento?.status || "";
   return STATUS_ALIASES[s] ?? STATUS_ALIASES[s.toLowerCase()] ?? "rascunho";
 }
@@ -172,7 +187,19 @@ function localHojeIso() {
 
 function CozinhaPage() {
   const { token } = Route.useParams();
-  const { user, loading: authLoading, canAccessCozinha } = useAuth();
+  const navigate = useNavigate();
+  const {
+    user,
+    loading: authLoading,
+    canAccessPedidos,
+    canAccessCozinha,
+    isOperacao,
+    isModoOperacaoRestrita,
+    operacaoToken,
+  } = useAuth();
+  const modoRestrito = isModoOperacaoRestrita;
+  const isPortalOperacao = isTokenPortalOperacao(token, operacaoToken);
+  const showOperacaoRestrita = (isOperacao && isPortalOperacao && !canAccessCozinha) || modoRestrito;
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
   const isMobile = useIsMobile();
@@ -186,6 +213,7 @@ function CozinhaPage() {
   const [detalhe, setDetalhe] = useState<PedidoSalvo | null>(null);
   const [imprimindo, setImprimindo] = useState<PedidoSalvo[] | null>(null);
   const [campanhaInfo, setCampanhaInfo] = useState<{ campanha_id: string | null; nome: string | null } | null>(null);
+  const [tentouTokenGeral, setTentouTokenGeral] = useState(false);
 
   // Edição
   const [editando, setEditando] = useState<PedidoSalvo | null>(null);
@@ -223,6 +251,7 @@ function CozinhaPage() {
   const [filtroInicio, setFiltroInicio] = useState("");
   const [filtroFim, setFiltroFim] = useState("");
   const [filtroPeriodo, setFiltroPeriodo] = useState<"hoje" | "ontem" | "semana" | "mes" | "">("");
+  const [filtroConcluidos, setFiltroConcluidos] = useState(false);
   const [filtrosPlanilha, setFiltrosPlanilha] = useState<FiltrosPlanilha>(FILTROS_PLANILHA_VAZIOS);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [verConcluidos, setVerConcluidos] = useState(false);
@@ -231,7 +260,6 @@ function CozinhaPage() {
   const [filtrosOps, setFiltrosOps] = useState<FiltrosOperacionais>(() =>
     operacaoEnabled
       ? {
-          status: ["aprovado"],
           mostrarArquivados: false,
           mostrarTestes: false,
           ordenacao: "criado_desc",
@@ -298,6 +326,15 @@ function CozinhaPage() {
         }
       }
       const rows: PedidoRow[] = await listarPedidosPorToken(token);
+      if (rows.length === 0) {
+        if (pedidosIdsRef.current.size > 0) {
+          toast.warning("Nenhum pedido retornado — tente Atualizar ou limpe os filtros.");
+        } else {
+          toast.error(
+            "Nenhum pedido carregado. Abra /cozinha, confira o login e use Limpar filtros.",
+          );
+        }
+      }
       const prevIds = pedidosIdsRef.current;
       if (prevIds.size > 0 && somAtivoRef.current) {
         const temNovo = rows.some((r) => !prevIds.has(r.id));
@@ -308,11 +345,41 @@ function CozinhaPage() {
       setPedidos(sortPedidosPorCriadoDesc(rows.map(rowToPedidoSalvo)));
       setPedidosOps(sortPedidosPorCriadoDesc(rows.map(rowToPedidoOperacional)));
       setUltimaAtualizacao(horaNow());
-    } catch {
-      // token inválido ou sem permissão
+    } catch (e) {
+      console.error("[pedidos] carregar:", e);
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : "Erro ao carregar pedidos. Tente sair e entrar de novo.",
+      );
     }
     setCarregando(false);
   };
+
+  useEffect(() => {
+    if (!modoRestrito) return;
+    setFiltroStatus(["aprovado"]);
+    setFiltroConcluidos(false);
+    setMostrarArquivados(false);
+    setFiltrosOps((f) => ({ ...f, mostrarArquivados: false, concluidos: false }));
+    setView("planilha");
+  }, [modoRestrito]);
+
+  useEffect(() => {
+    setTentouTokenGeral(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (!user || modoRestrito || carregando || tentouTokenGeral || rawRows.length > 0) return;
+    void (async () => {
+      setTentouTokenGeral(true);
+      const geral = await obterTokenGeralCozinha();
+      if (geral && geral !== token) {
+        toast.info("Abrindo a central geral de pedidos…");
+        navigate({ to: "/pedidos/$token", params: { token: geral }, replace: true });
+      }
+    })();
+  }, [user, modoRestrito, carregando, tentouTokenGeral, rawRows.length, token, navigate]);
 
   useEffect(() => {
     buscarInfoToken(token).then((info) => {
@@ -347,7 +414,7 @@ function CozinhaPage() {
   }, [user, token]);
 
   useEffect(() => {
-    if (!user || !operacaoEnabled) return;
+    if (!user || !operacaoEnabled || modoRestrito) return;
     void (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
@@ -356,7 +423,7 @@ function CozinhaPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
     })();
-  }, [user, operacaoEnabled]);
+  }, [user, operacaoEnabled, modoRestrito]);
 
   // ── Filtros aplicados ─────────────────────────────────────────────────────
   const hojeIso = useMemo(() => {
@@ -371,6 +438,7 @@ function CozinhaPage() {
     if (!operacaoEnabled) return [];
     return filtrarPedidosOperacionais(pedidosOps, {
       ...filtrosOps,
+      concluidos: filtroConcluidos || !!filtrosOps.concluidos,
       busca: filtroTexto || filtrosOps.busca,
       criadoInicio: filtroInicio || filtrosOps.criadoInicio,
       criadoFim: filtroFim || filtrosOps.criadoFim,
@@ -378,7 +446,7 @@ function CozinhaPage() {
       filtroPrazo,
       hojeIso,
     });
-  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroTexto, filtroInicio, filtroFim, verConcluidos, filtroPrazo, hojeIso]);
+  }, [operacaoEnabled, pedidosOps, filtrosOps, filtroConcluidos, filtroTexto, filtroInicio, filtroFim, verConcluidos, filtroPrazo, hojeIso]);
 
   const operacaoGrupos = useMemo(
     () => (operacaoEnabled ? agruparPorExecucao(pedidosOpsFiltrados) : []),
@@ -391,17 +459,30 @@ function CozinhaPage() {
   );
 
   const rawRowsById = useMemo(() => new Map(rawRows.map((r) => [r.id, r])), [rawRows]);
+  const pedidosOpsById = useMemo(
+    () => new Map(pedidosOps.map((p) => [p.id, p])),
+    [pedidosOps],
+  );
 
   const pedidosSemFiltroData = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
+    const concluidos = filtroConcluidos || !!filtrosOps.concluidos;
     const filtered = pedidos.filter((p) => {
-      if (!mostrarArq && p.archivedAt) return false;
-      if (verConcluidos) {
-        if (!p.concluidoAt) return false;
-      } else if (p.concluidoAt) {
+      const op = pedidosOpsById.get(p.id);
+      if (concluidos) {
+        if (!op || !isPedidoConcluido(op)) return false;
+      } else if (!mostrarArq && p.archivedAt) {
         return false;
       }
-      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
+      if (!concluidos) {
+        if (verConcluidos) {
+          if (!p.concluidoAt) return false;
+        } else if (p.concluidoAt) {
+          return false;
+        }
+      }
+      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p, rawRowsById.get(p.id)))) return false;
+      if (modoRestrito && getStatus(p, rawRowsById.get(p.id)) !== "aprovado") return false;
       if (filtroPrazo.length > 0 && !filtroPrazo.includes(prazoStatus({ data: p.data, concluidoAt: p.concluidoAt }, hojeIso) as any)) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
@@ -410,23 +491,54 @@ function CozinhaPage() {
         const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (filtroInicio && p.criadoEm.slice(0, 10) < filtroInicio) return false;
-      if (filtroFim && p.criadoEm.slice(0, 10) > filtroFim) return false;
+      const refData = concluidos
+        ? (op?.executionAt?.slice(0, 10) ?? p.criadoEm.slice(0, 10))
+        : p.criadoEm.slice(0, 10);
+      if (filtroInicio && refData < filtroInicio) return false;
+      if (filtroFim && refData > filtroFim) return false;
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroInicio, filtroFim, filtroPrazo, hojeIso]);
+  }, [
+    pedidos,
+    pedidosOpsById,
+    rawRowsById,
+    operacaoEnabled,
+    filtrosOps.mostrarArquivados,
+    filtrosOps.concluidos,
+    mostrarArquivados,
+    filtroConcluidos,
+    filtroStatus,
+    filtroTipo,
+    filtroPolaroid,
+    filtroTexto,
+    filtroInicio,
+    filtroFim,
+    verConcluidos,
+    filtroPrazo,
+    hojeIso,
+    modoRestrito,
+  ]);
 
   const pedidosParaCalendario = useMemo(() => {
     const mostrarArq = operacaoEnabled ? !!filtrosOps.mostrarArquivados : mostrarArquivados;
+    const concluidos = filtroConcluidos || !!filtrosOps.concluidos;
     const filtered = pedidos.filter((p) => {
-      if (!mostrarArq && p.archivedAt) return false;
-      if (verConcluidos) {
-        if (!p.concluidoAt) return false;
-      } else if (p.concluidoAt) {
+      const op = pedidosOpsById.get(p.id);
+      if (concluidos) {
+        if (!op || !isPedidoConcluido(op)) return false;
+      } else if (!mostrarArq && p.archivedAt) {
         return false;
       }
-      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p))) return false;
+      if (!concluidos) {
+        if (verConcluidos) {
+          if (!p.concluidoAt) return false;
+        } else if (p.concluidoAt) {
+          return false;
+        }
+      }
+      if (filtroStatus.length > 0 && !filtroStatus.includes(getStatus(p, rawRowsById.get(p.id)))) return false;
+      if (modoRestrito && getStatus(p, rawRowsById.get(p.id)) !== "aprovado") return false;
       if (filtroPrazo.length > 0 && !filtroPrazo.includes(prazoStatus({ data: p.data, concluidoAt: p.concluidoAt }, hojeIso) as any)) return false;
       if (filtroTipo && p.tipo?.toLowerCase() !== filtroTipo) return false;
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
@@ -438,7 +550,24 @@ function CozinhaPage() {
       return true;
     });
     return sortPedidosPorCriadoDesc(filtered);
-  }, [pedidos, operacaoEnabled, filtrosOps.mostrarArquivados, mostrarArquivados, verConcluidos, filtroStatus, filtroTipo, filtroPolaroid, filtroTexto, filtroPrazo, hojeIso]);
+  }, [
+    pedidos,
+    pedidosOpsById,
+    rawRowsById,
+    operacaoEnabled,
+    filtrosOps.mostrarArquivados,
+    filtrosOps.concluidos,
+    mostrarArquivados,
+    filtroConcluidos,
+    filtroStatus,
+    filtroTipo,
+    filtroPolaroid,
+    filtroTexto,
+    verConcluidos,
+    filtroPrazo,
+    hojeIso,
+    modoRestrito,
+  ]);
 
   const pedidosFiltrados = useMemo(() => {
     const base = view === "calendario" ? pedidosParaCalendario : pedidosSemFiltroData;
@@ -534,7 +663,7 @@ function CozinhaPage() {
     const map: Record<StatusKey, PedidoSalvo[]> = {
       aprovado: [], pendente: [], rascunho: [], abandonado: [],
     };
-    for (const p of pedidosFiltrados) map[getStatus(p)].push(p);
+    for (const p of pedidosFiltrados) map[getStatus(p, rawRowsById.get(p.id))].push(p);
     return map;
   }, [pedidosFiltrados]);
 
@@ -574,7 +703,7 @@ function CozinhaPage() {
       <>
         <SignInPage
           heroImageSrc="/img_casa_fachada.jpeg"
-          description="Central de Pedidos — Módulo Cozinha"
+          description={modoRestrito ? "Operação — Pedidos Aprovados" : "Central de Pedidos — Módulo Cozinha"}
           loading={loginLoading}
           onSignIn={handleSignIn}
         />
@@ -583,15 +712,38 @@ function CozinhaPage() {
     );
   }
 
-  if (!canAccessCozinha) {
+  if (!canAccessPedidos) {
     return (
       <>
         <AccessDenied
           title="Acesso restrito"
-          description="Esta central é exclusiva para usuários da cozinha ou administradores."
+          description="Esta central é exclusiva para usuários autorizados da operação."
           showSignOut
           onSignOut={() => supabase.auth.signOut()}
         />
+        <Toaster position="bottom-right" />
+      </>
+    );
+  }
+
+  if (modoRestrito && !isTokenPortalOperacao(token, operacaoToken)) {
+    return (
+      <>
+        <AccessDenied
+          title="Link não autorizado"
+          description="Sua conta só pode acessar a central de operação pelo portal /operacao."
+          showSignOut
+          onSignOut={() => supabase.auth.signOut()}
+        />
+        <Toaster position="bottom-right" />
+      </>
+    );
+  }
+
+  if (showOperacaoRestrita) {
+    return (
+      <>
+        <OperacaoAprovadosView token={token} />
         <Toaster position="bottom-right" />
       </>
     );
@@ -686,21 +838,28 @@ function CozinhaPage() {
     );
   };
 
-  function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+  function toLocalISO(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
 
   const aplicarPeriodo = (p: typeof filtroPeriodo) => {
     const hoje = new Date();
     if (p === "hoje") {
-      setFiltroInicio(toISO(hoje)); setFiltroFim(toISO(hoje));
+      setFiltroInicio(toLocalISO(hoje)); setFiltroFim(toLocalISO(hoje));
     } else if (p === "ontem") {
       const d = new Date(hoje); d.setDate(d.getDate() - 1);
-      setFiltroInicio(toISO(d)); setFiltroFim(toISO(d));
+      setFiltroInicio(toLocalISO(d)); setFiltroFim(toLocalISO(d));
     } else if (p === "semana") {
       const d = new Date(hoje); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      setFiltroInicio(toISO(d)); setFiltroFim(toISO(hoje));
+      setFiltroInicio(toLocalISO(d)); setFiltroFim(toLocalISO(hoje));
     } else if (p === "mes") {
-      setFiltroInicio(toISO(new Date(hoje.getFullYear(), hoje.getMonth(), 1)));
-      setFiltroFim(toISO(hoje));
+      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+      setFiltroInicio(toLocalISO(inicio));
+      setFiltroFim(toLocalISO(fim));
     } else {
       setFiltroInicio(""); setFiltroFim("");
     }
@@ -789,10 +948,23 @@ function CozinhaPage() {
       prev.map((p) => (arquivados.has(p.id) ? { ...p, archivedAt: agora } : p)),
     );
     setPedidosOps((prev) =>
-      prev.map((p) => (arquivados.has(p.id) ? { ...p, archivedAt: agora } : p)),
+      prev.map((p) =>
+        arquivados.has(p.id)
+          ? { ...p, archivedAt: agora, fulfillmentStage: "finalizado", fulfillmentStageAt: agora }
+          : p,
+      ),
     );
     setRawRows((prev) =>
-      prev.map((r) => (arquivados.has(r.id) ? { ...r, archived_at: agora } : r)),
+      prev.map((r) =>
+        arquivados.has(r.id)
+          ? {
+              ...r,
+              archived_at: agora,
+              fulfillment_stage: "finalizado",
+              fulfillment_stage_at: agora,
+            }
+          : r,
+      ),
     );
     toast.success(
       `${res.arquivados ?? ids.length} pedido${(res.arquivados ?? ids.length) !== 1 ? "s" : ""} arquivado${(res.arquivados ?? ids.length) !== 1 ? "s" : ""}.`,
@@ -962,7 +1134,7 @@ function CozinhaPage() {
 
   const temFiltro =
     filtroStatus.length > 0 || filtroTipo !== "" || filtroData !== "" || filtroPolaroid ||
-    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "" ||
+    filtroTexto !== "" || filtroInicio !== "" || filtroFim !== "" || filtroConcluidos ||
     filtrosPlanilhaAtivos(filtrosPlanilha);
 
   const limparFiltrosPlanilha = () => setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
@@ -976,6 +1148,7 @@ function CozinhaPage() {
     setFiltroInicio("");
     setFiltroFim("");
     setFiltroPeriodo("");
+    setFiltroConcluidos(false);
     setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
   };
 
@@ -991,7 +1164,7 @@ function CozinhaPage() {
 
   const renderFiltrosConteudo = () => (
     <>
-      {operacaoEnabled && pendencias.length > 0 && (
+      {operacaoEnabled && !modoRestrito && pendencias.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
           <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
             <AlertTriangle className="h-4 w-4" />
@@ -1035,7 +1208,7 @@ function CozinhaPage() {
             </button>
           )}
         </div>
-        {!planilhaLayout && (
+        {!modoRestrito && (
           <button
             onClick={() => setFiltroPolaroid((v) => !v)}
             className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
@@ -1060,6 +1233,12 @@ function CozinhaPage() {
           <div className="ml-auto flex items-center gap-3">
             <span className="text-xs text-muted-foreground">
               {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? "s" : ""}
+              {pedidos.length > 0 && pedidosFiltrados.length < pedidos.length && (
+                <span className="text-muted-foreground/80">
+                  {" "}
+                  ({pedidos.length} carregados)
+                </span>
+              )}
             </span>
             <button
               onClick={selecionarTodos}
@@ -1080,6 +1259,11 @@ function CozinhaPage() {
       </div>
 
       <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 ${planilhaLayout ? "gap-y-1" : ""}`}>
+        {modoRestrito ? (
+          <span className="rounded-full bg-olive/15 px-3 py-1 text-xs font-semibold text-olive">
+            Aprovados
+          </span>
+        ) : (
         <div className="flex flex-wrap gap-1">
           {(Object.keys(STATUS_CONFIG) as StatusKey[]).map((s) => {
             const active = filtroStatus.includes(s);
@@ -1121,6 +1305,7 @@ function CozinhaPage() {
             );
           })}
         </div>
+        )}
         <div className="hidden h-3 w-px bg-border sm:block" />
         <div className="flex flex-wrap gap-1">
           {(["", "delivery", "retirada"] as const).map((t) => (
@@ -1152,7 +1337,7 @@ function CozinhaPage() {
         )}
       </div>
 
-      {operacaoEnabled && (
+      {operacaoEnabled && !modoRestrito && (
         <OperacaoFiltrosBar
           filtros={filtrosOps}
           onChange={(patch) => setFiltrosOps((f) => ({ ...f, ...patch }))}
@@ -1361,6 +1546,7 @@ function CozinhaPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {!modoRestrito && (
                   <div className="flex rounded-lg border border-white/20 p-0.5">
                     <button
                       onClick={() => toggleView("planilha")}
@@ -1391,7 +1577,9 @@ function CozinhaPage() {
                       <Columns className="h-4 w-4" />
                     </button>
                   </div>
+                  )}
 
+                  {!modoRestrito && (
                   <button
                     onClick={() => {
                       if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
@@ -1407,6 +1595,7 @@ function CozinhaPage() {
                   >
                     {somAtivo ? "🔔 Som ativo" : "🔕 Ativar som"}
                   </button>
+                  )}
 
                   <Button
                     variant="outline"
@@ -1418,6 +1607,7 @@ function CozinhaPage() {
                     Atualizar
                   </Button>
                   <PedidoManualModal onCriado={() => carregarRef.current?.()} />
+                  {!modoRestrito && (
                   <Button
                     variant="outline"
                     onClick={() =>
@@ -1432,6 +1622,8 @@ function CozinhaPage() {
                   >
                     ⬇ Exportar visíveis
                   </Button>
+                  )}
+                  {!modoRestrito && (
                   <Button
                     onClick={imprimirAprovadosHoje}
                     disabled={porStatus.aprovado.length === 0}
@@ -1440,6 +1632,7 @@ function CozinhaPage() {
                     <Printer className="mr-2 h-4 w-4" />
                     Imprimir aprovados de hoje
                   </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => supabase.auth.signOut()}
@@ -1472,9 +1665,26 @@ function CozinhaPage() {
           {carregando && pedidos.length === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">Carregando pedidos…</p>
           ) : pedidosFiltrados.length === 0 && view !== "calendario" ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              {temFiltro ? "Nenhum pedido corresponde aos filtros." : "Nenhum pedido encontrado."}
-            </p>
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              {pedidos.length === 0 ? (
+                <>
+                  <p className="font-medium text-foreground">Nenhum pedido carregado.</p>
+                  <p className="mt-2">
+                    Abra pelo link geral em{" "}
+                    <a href="/cozinha" className="text-primary underline">
+                      /cozinha
+                    </a>
+                    , confira se está logado e use &quot;Limpar filtros&quot;.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  {temFiltro
+                    ? `Nenhum pedido corresponde aos filtros.${pedidos.length > 0 ? ` (${pedidos.length} carregados)` : ""}`
+                    : "Nenhum pedido encontrado."}
+                </p>
+              )}
+            </div>
           ) : view === "calendario" ? (
             pedidosComDataEntrega.length === 0 ? (
               <p className="py-16 text-center text-sm text-muted-foreground">
@@ -1575,8 +1785,8 @@ function CozinhaPage() {
         <PedidoDetalheMobileSheet
           pedido={detalhe}
           onClose={() => setDetalhe(null)}
-          onEditar={abrirEdicao}
-          onImprimir={imprimirUm}
+          onEditar={modoRestrito ? undefined : abrirEdicao}
+          onImprimir={modoRestrito ? undefined : imprimirUm}
         />
       ) : (
         <Dialog open={!!detalhe} onOpenChange={(o) => !o && setDetalhe(null)}>
@@ -1585,7 +1795,7 @@ function CozinhaPage() {
               <DialogTitle>Pedido #{detalhe?.id.slice(0, 8)}</DialogTitle>
             </DialogHeader>
             {detalhe && <DetalhesPedido p={detalhe} />}
-            {detalhe && (
+            {detalhe && !modoRestrito && (
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => abrirEdicao(detalhe)}>
                   <Pencil className="mr-2 h-4 w-4" /> Editar
@@ -1723,6 +1933,7 @@ function CozinhaPage() {
           isMobile ? "bottom-20 max-w-[calc(100vw-2rem)] flex-wrap justify-center" : "bottom-6"
         }`}>
           <span>✓ {selectedIds.size} selecionado{selectedIds.size !== 1 ? "s" : ""}</span>
+          {!modoRestrito && (
           <button
             onClick={() => {
               const lista = pedidosSelecionados.length
@@ -1734,6 +1945,7 @@ function CozinhaPage() {
           >
             ⬇ Exportar Excel
           </button>
+          )}
           {selecionadosNaoArquivados.length > 0 && (
             <button
               onClick={() => setConfirmArquivarLote(true)}
@@ -1743,7 +1955,7 @@ function CozinhaPage() {
               Arquivar
             </button>
           )}
-          {mostrarArquivadosAtivo && selecionadosArquivados.length > 0 && (
+          {mostrarArquivadosAtivo && !modoRestrito && selecionadosArquivados.length > 0 && (
             <button
               onClick={() => void desarquivarSelecionados()}
               disabled={arquivarLoteLoading}
@@ -1774,6 +1986,7 @@ function CozinhaPage() {
                   Concluir
                 </button>
               )}
+          {!modoRestrito && (
           <button
             onClick={() => {
               setMotivoExclusao("");
@@ -1784,6 +1997,7 @@ function CozinhaPage() {
             <Trash2 className="h-3.5 w-3.5" />
             Excluir
           </button>
+          )}
           <button
             onClick={() => setSelectedIds(new Set())}
             className="rounded-lg bg-white/15 px-3 py-1.5 text-xs hover:bg-white/25"

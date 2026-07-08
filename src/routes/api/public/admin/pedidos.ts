@@ -30,6 +30,7 @@ export const Route = createFileRoute("/api/public/admin/pedidos")({
               cartao_brand,
               cartao_last4,
               invoice_url,
+              pix_expira_em,
               criado_em
             )
           `,

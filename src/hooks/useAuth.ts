@@ -1,19 +1,26 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { obterTokenPortalOperacao } from "@/lib/operacao";
 
 type AuthState = {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
   isCozinha: boolean;
+  isOperacao: boolean;
   canAccessCozinha: boolean;
+  canAccessPedidos: boolean;
+  /** Usuário operação restrita (sem admin/cozinha). */
+  isModoOperacaoRestrita: boolean;
+  operacaoToken: string | null;
   loading: boolean;
 };
 
 type RoleFlags = {
   isAdmin: boolean;
   isCozinha: boolean;
+  isOperacao: boolean;
 };
 
 export function useAuth(): AuthState {
@@ -21,6 +28,8 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCozinha, setIsCozinha] = useState(false);
+  const [isOperacao, setIsOperacao] = useState(false);
+  const [operacaoToken, setOperacaoToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,15 +39,28 @@ export function useAuth(): AuthState {
     const applyRoles = (roles: RoleFlags) => {
       setIsAdmin(roles.isAdmin);
       setIsCozinha(roles.isCozinha);
+      setIsOperacao(roles.isOperacao);
+    };
+
+    const syncOperacaoToken = async (roles: RoleFlags) => {
+      const needsToken = roles.isOperacao || roles.isAdmin || roles.isCozinha;
+      if (!needsToken) {
+        if (mounted) setOperacaoToken(null);
+        return;
+      }
+      const token = await obterTokenPortalOperacao();
+      if (mounted) setOperacaoToken(token);
     };
 
     const syncRoles = async (userId: string | null) => {
       if (!userId) {
-        applyRoles({ isAdmin: false, isCozinha: false });
+        applyRoles({ isAdmin: false, isCozinha: false, isOperacao: false });
+        if (mounted) setOperacaoToken(null);
         return;
       }
       const roles = await checkRoles(userId);
       if (mounted) applyRoles(roles);
+      await syncOperacaoToken(roles);
     };
 
     const handleSession = async (sess: Session | null, fromInitial = false) => {
@@ -78,33 +100,43 @@ export function useAuth(): AuthState {
     };
   }, []);
 
+  const canAccessCozinha = isAdmin || isCozinha;
+  const canAccessPedidos = canAccessCozinha || isOperacao;
+  const isModoOperacaoRestrita = isOperacao && !isAdmin && !isCozinha;
+
   return {
     user,
     session,
     isAdmin,
     isCozinha,
-    canAccessCozinha: isAdmin || isCozinha,
+    isOperacao,
+    canAccessCozinha,
+    canAccessPedidos,
+    isModoOperacaoRestrita,
+    operacaoToken,
     loading,
   };
 }
 
 async function checkRoles(userId: string): Promise<RoleFlags> {
-  const [adminRes, cozinhaRes] = await Promise.all([
+  const [adminRes, cozinhaRes, operacaoRes] = await Promise.all([
     supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
     supabase.rpc("has_role", { _user_id: userId, _role: "cozinha" }),
+    supabase.rpc("has_role", { _user_id: userId, _role: "operacao" }),
   ]);
 
-  if (!adminRes.error && !cozinhaRes.error) {
+  if (!adminRes.error && !cozinhaRes.error && !operacaoRes.error) {
     return {
       isAdmin: adminRes.data === true,
       isCozinha: cozinhaRes.data === true,
+      isOperacao: operacaoRes.data === true,
     };
   }
 
   if (adminRes.error) console.error("Erro ao verificar role admin:", adminRes.error);
   if (cozinhaRes.error) console.error("Erro ao verificar role cozinha:", cozinhaRes.error);
+  if (operacaoRes.error) console.error("Erro ao verificar role operacao:", operacaoRes.error);
 
-  // Fallback: leitura direta quando a RPC ainda não existe no banco
   const { data, error } = await supabase
     .from("user_roles")
     .select("role")
@@ -112,12 +144,13 @@ async function checkRoles(userId: string): Promise<RoleFlags> {
 
   if (error) {
     console.error("Erro ao ler user_roles:", error);
-    return { isAdmin: false, isCozinha: false };
+    return { isAdmin: false, isCozinha: false, isOperacao: false };
   }
 
   const roles = (data ?? []).map((row) => String(row.role));
   return {
     isAdmin: roles.includes("admin"),
     isCozinha: roles.includes("cozinha"),
+    isOperacao: roles.includes("operacao"),
   };
 }

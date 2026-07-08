@@ -1,11 +1,12 @@
 import type { PedidoRow } from "@/lib/pedidos";
 import type { PedidoSalvo } from "@/store/admin";
-import { pagamentoRelevante } from "@/lib/asaasStatus";
+import { pagamentoRelevante, labelPagamentoDetalhado } from "@/lib/asaasStatus";
+import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 import {
   normalizePaymentStatus,
   type PaymentStatusNormalized,
 } from "@/lib/paymentStatus";
-import { isBeforeTodaySP, todayISOSP } from "@/lib/timezone";
+import { todayISOSP } from "@/lib/timezone";
 import { prazoStatus } from "@/lib/pedidoPrazo";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import type { ProductionSector } from "@/lib/availability/types";
@@ -30,6 +31,8 @@ export type PedidoOperacional = PedidoSalvo & {
 };
 
 export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
+  const rel = pagamentoRelevante(r.pagamentos ?? []);
+  const falhaPagamento = parseFalhaPagamento(r.pagamento as Record<string, unknown>);
   const base = {
     id: r.id,
     criadoEm: r.criado_em,
@@ -43,16 +46,24 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
     horario: r.horario ?? undefined,
     pagamento: {
       ...r.pagamento,
-      status: pagamentoRelevante(r.pagamentos ?? [])?.status ?? r.pagamento?.status ?? r.status ?? "",
+      status: rel?.status ?? r.pagamento?.status ?? r.status ?? "",
+      statusDetalhado: labelPagamentoDetalhado({
+        status: rel?.status ?? r.pagamento?.status,
+        metodo: rel?.metodo ?? r.pagamento?.metodo,
+        pixExpiraEm: rel?.pix_expira_em,
+        pedidoStatus: r.status,
+        falhaPagamento,
+      }),
     },
     total: Number(r.total),
   } satisfies PedidoSalvo;
 
-  const rel = pagamentoRelevante(r.pagamentos ?? []);
   const raw = rel?.status ?? r.payment_status_raw ?? r.pagamento?.status ?? r.status;
-  const normalized =
-    (r.payment_status_normalized as PaymentStatusNormalized | null) ??
-    normalizePaymentStatus(raw, r.status);
+  // Defesa em profundidade: recomputa sempre a partir do pagamento relevante + status
+  // do pedido (fonte da verdade). Não confia numa coluna payment_status_normalized
+  // desatualizada — assim um conserto manual incompleto não joga um pedido pago no
+  // balde "Aguardando".
+  const normalized = normalizePaymentStatus(raw, r.status);
 
   const recipientName =
     r.recipient_name ?? r.pagamento?.destinatario?.nome ?? r.cliente_nome;
@@ -95,10 +106,17 @@ export type FiltrosOperacionais = {
   mostrarArquivados?: boolean;
   verConcluidos?: boolean;
   mostrarTestes?: boolean;
+  /** Exibe pedidos concluídos (finalizado ou arquivado), incluindo arquivados. */
+  concluidos?: boolean;
   ordenacao?: "execution_asc" | "execution_desc" | "criado_desc" | "criado_asc";
   filtroPrazo?: string[];
   hojeIso?: string;
 };
+
+/** Pedido tratado como concluído: etapa finalizada ou arquivado (manual/auto). */
+export function isPedidoConcluido(p: Pick<PedidoOperacional, "fulfillmentStage" | "archivedAt">): boolean {
+  return p.fulfillmentStage === "finalizado" || !!p.archivedAt;
+}
 
 export function filtrarPedidosOperacionais(
   pedidos: PedidoOperacional[],
@@ -107,11 +125,25 @@ export function filtrarPedidosOperacionais(
   let list = [...pedidos];
 
   if (!f.mostrarTestes) list = list.filter((p) => !p.isTest);
-  if (!f.mostrarArquivados) {
+
+  if (f.concluidos) {
+    list = list.filter((p) => isPedidoConcluido(p));
+  } else if (!f.mostrarArquivados) {
+    list = list.filter((p) => !p.archivedAt);
+  }
+
+  if (f.concluidos && f.criadoInicio) {
+    const t = f.criadoInicio;
     list = list.filter((p) => {
-      if (p.archivedAt) return false;
-      if (p.executionAt && isBeforeTodaySP(p.executionAt)) return false;
-      return true;
+      const ref = p.executionAt?.slice(0, 10) ?? p.criadoEm.slice(0, 10);
+      return ref >= t;
+    });
+  }
+  if (f.concluidos && f.criadoFim) {
+    const t = f.criadoFim;
+    list = list.filter((p) => {
+      const ref = p.executionAt?.slice(0, 10) ?? p.criadoEm.slice(0, 10);
+      return ref <= t;
     });
   }
 
@@ -144,11 +176,11 @@ export function filtrarPedidosOperacionais(
     });
   }
 
-  if (f.criadoInicio) {
+  if (f.criadoInicio && !f.concluidos) {
     const t = new Date(f.criadoInicio).getTime();
     list = list.filter((p) => new Date(p.criadoEm).getTime() >= t);
   }
-  if (f.criadoFim) {
+  if (f.criadoFim && !f.concluidos) {
     const t = new Date(f.criadoFim).getTime() + 86400000;
     list = list.filter((p) => new Date(p.criadoEm).getTime() < t);
   }

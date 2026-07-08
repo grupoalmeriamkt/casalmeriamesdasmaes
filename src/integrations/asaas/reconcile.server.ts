@@ -90,21 +90,36 @@ export async function conciliarPagamentosAsaas(
     erros: [],
   };
 
-  const { data: rows, error } = await admin
-    .from("pagamentos")
-    .select("id, pedido_id, asaas_payment_id, status, cupom_codigo")
-    .not("asaas_payment_id", "is", null)
-    .order("criado_em", { ascending: false });
+  // Só re-consulta o Asaas para cobranças de pedidos ainda ABERTOS. Antes varria
+  // TODOS os pagamentos serialmente e estourava os 30s da função conforme o volume
+  // crescia (backstop parava de curar silenciosamente).
+  const { data: pedidosAbertos } = await admin
+    .from("pedidos")
+    .select("id")
+    .in("status", ["aguardando_pagamento", "vencido"]);
+  const abertosIds = (pedidosAbertos ?? []).map((p) => p.id as string);
 
-  if (error) {
-    throw new Error(`Erro ao listar pagamentos: ${error.message}`);
+  let rows: PagamentoRow[] = [];
+  if (abertosIds.length > 0) {
+    const { data, error } = await admin
+      .from("pagamentos")
+      .select("id, pedido_id, asaas_payment_id, status, cupom_codigo")
+      .not("asaas_payment_id", "is", null)
+      .in("pedido_id", abertosIds)
+      .order("criado_em", { ascending: false });
+    if (error) {
+      throw new Error(`Erro ao listar pagamentos: ${error.message}`);
+    }
+    rows = (data ?? []) as PagamentoRow[];
   }
 
   const pedidosAfetados = new Set<string>();
 
-  for (const row of (rows ?? []) as PagamentoRow[]) {
+  for (const row of rows) {
     if (!row.asaas_payment_id) continue;
-    if (ASAAS_FINAL_DONE.has(row.status)) continue;
+    // Pula apenas estados definitivos pagos/falhos; OVERDUE é re-consultado pois
+    // um PIX vencido ainda pode ter sido pago depois.
+    if (ASAAS_FINAL_DONE.has(row.status) && row.status !== "OVERDUE") continue;
 
     resultado.pagamentosVerificados += 1;
 
@@ -175,7 +190,7 @@ export async function conciliarPagamentosAsaas(
   const { data: pagosConfirmados } = await admin
     .from("pagamentos")
     .select("pedido_id, status")
-    .in("status", ["CONFIRMED", "RECEIVED"]);
+    .in("status", [...ASAAS_FINAL_PAID]);
 
   for (const pg of pagosConfirmados ?? []) {
     if (pg.pedido_id) pedidosAfetados.add(pg.pedido_id as string);

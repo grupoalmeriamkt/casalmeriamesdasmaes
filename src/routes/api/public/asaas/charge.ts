@@ -13,7 +13,8 @@ import {
 } from "@/lib/availability/retirada";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
-import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
+import { syncPedidoPaymentFields, registrarFalhaPagamentoCartao } from "@/lib/pedidoSync";
+import { limparFalhaPagamento } from "@/lib/pagamentoFalha";
 import {
   checkoutAccessDenied,
   readCheckoutAccessToken,
@@ -375,7 +376,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               cliente_cpf: body.cliente.cpf,
               cliente_email: body.cliente.email,
               total: valorFinal,
-              pagamento: {
+              pagamento: limparFalhaPagamento({
                 ...(pedido.pagamento as Record<string, unknown> ?? {}),
                 metodo: body.metodo.toLowerCase(),
                 status: payment.status,
@@ -383,7 +384,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
                 asaas_payment_id: payment.id,
                 cupom: cupomValido ?? null,
                 desconto: descontoAplicado || 0,
-              },
+              }),
               status:
                 body.metodo === "CREDIT_CARD" && payment.status === "CONFIRMED"
                   ? "pago"
@@ -423,6 +424,14 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             const motivo =
               (e.body as { errors?: { description?: string }[] })?.errors?.[0]?.description ??
               "Falha no processamento do pagamento";
+            if (body.metodo === "CREDIT_CARD") {
+              await registrarFalhaPagamentoCartao(
+                admin,
+                body.pedidoId,
+                (pedido.pagamento as Record<string, unknown>) ?? {},
+                motivo,
+              );
+            }
             return Response.json(
               { error: "asaas_error", status: e.status, motivo },
               { status: e.status === 400 ? 400 : 502 },

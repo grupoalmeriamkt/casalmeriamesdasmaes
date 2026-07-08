@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PedidoSalvo } from "@/store/admin";
 import type { ManualOrderInput } from "@/lib/orderForm/types";
-import { pagamentoRelevante } from "@/lib/asaasStatus";
+import { labelPagamentoDetalhado, pagamentoRelevante } from "@/lib/asaasStatus";
+import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 import { computeExecutionAt } from "@/lib/executionAt";
 import {
   parseUpsertPedidoResult,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/availability";
 import type { SetorOperacional } from "@/lib/setoresOperacao";
 import type { FulfillmentStage } from "@/lib/etapaPedido";
+import { buscarInfoToken } from "@/lib/shareToken";
 
 export type PagamentoAsaasRow = {
   id: string;
@@ -26,6 +28,7 @@ export type PagamentoAsaasRow = {
   cartao_brand: string | null;
   cartao_last4: string | null;
   invoice_url?: string | null;
+  pix_expira_em?: string | null;
   criado_em: string;
 };
 
@@ -52,6 +55,7 @@ export type PedidoRow = {
     };
     cupom?: string | null;
     desconto?: number | null;
+    falha_pagamento?: { motivo: string; em: string; metodo: string } | null;
   };
   total: number;
   status: string;
@@ -221,17 +225,122 @@ export async function listarPedidos(): Promise<PedidoRow[]> {
   }
 }
 
-/** Lista pedidos via token público (para a tela da cozinha). */
-export async function listarPedidosPorToken(token: string, senha?: string): Promise<PedidoRow[]> {
+function normalizePedidosPayload(data: unknown): PedidoRow[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data as PedidoRow[];
+  if (typeof data === "object" && data !== null && "pedidos" in data) {
+    const nested = (data as { pedidos?: unknown }).pedidos;
+    return Array.isArray(nested) ? (nested as PedidoRow[]) : [];
+  }
+  return [];
+}
+
+async function fetchCozinhaPedidosApi(
+  token: string,
+  accessToken: string,
+): Promise<PedidoRow[] | null> {
+  try {
+    const res = await fetch(
+      `/api/cozinha/pedidos?token=${encodeURIComponent(token)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      console.error(
+        "[pedidos] API cozinha/pedidos:",
+        res.status,
+        await res.text().catch(() => ""),
+      );
+      return null;
+    }
+    const json = (await res.json()) as { pedidos?: unknown };
+    return normalizePedidosPayload(json.pedidos ?? json);
+  } catch (e) {
+    console.error("[pedidos] API cozinha/pedidos erro:", e);
+    return null;
+  }
+}
+
+async function fetchRpcPedidosPorToken(
+  token: string,
+  senha?: string,
+): Promise<PedidoRow[]> {
   const { data, error } = await supabase.rpc("pedidos_por_token", {
     _token: token,
     _senha: senha ?? null,
   });
   if (error) {
-    console.error("Erro ao listar pedidos por token:", error);
-    return [];
+    console.error("[pedidos] RPC pedidos_por_token:", error);
+    throw error;
   }
-  return (data ?? []) as PedidoRow[];
+  return normalizePedidosPayload(data);
+}
+
+async function carregarPedidosComToken(
+  token: string,
+  senha: string | undefined,
+  accessToken: string | undefined,
+): Promise<PedidoRow[]> {
+  if (accessToken) {
+    const api = await fetchCozinhaPedidosApi(token, accessToken);
+    if (api !== null && api.length > 0) return api;
+    if (api !== null && api.length === 0) {
+      console.warn("[pedidos] API cozinha retornou 0 pedidos para este token");
+    }
+  }
+
+  const rpc = await fetchRpcPedidosPorToken(token, senha);
+  if (rpc.length > 0) return rpc;
+
+  return [];
+}
+
+/** Lista pedidos via token público (para a tela da cozinha). */
+export async function listarPedidosPorToken(
+  token: string,
+  senha?: string,
+): Promise<PedidoRow[]> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+
+  let rows = await carregarPedidosComToken(token, senha, accessToken);
+
+  if (rows.length === 0) {
+    const info = await buscarInfoToken(token);
+    if (info?.campanha_id) {
+      const { obterTokenGeralCozinha } = await import("@/lib/cozinha");
+      const geral = await obterTokenGeralCozinha();
+      if (geral && geral !== token) {
+        console.warn(
+          "[pedidos] token de campanha sem pedidos; tentando token geral",
+        );
+        rows = await carregarPedidosComToken(geral, senha, accessToken);
+      }
+    }
+  }
+
+  if (rows.length === 0 && accessToken) {
+    const admin = await listarPedidos();
+    if (admin.length > 0) {
+      const info = await buscarInfoToken(token);
+      const campanhaId = info?.campanha_id ?? null;
+      const filtered = campanhaId
+        ? admin.filter((r) => r.campanha_id === campanhaId)
+        : admin;
+      if (filtered.length > 0) {
+        console.warn(
+          `[pedidos] fallback admin: ${filtered.length} pedido(s)`,
+        );
+        rows = filtered;
+      } else if (!campanhaId && admin.length > 0) {
+        rows = admin;
+      }
+    }
+  }
+
+  return rows;
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -477,6 +586,7 @@ export async function editarPedidoPorToken(
 /** Converte row do banco em PedidoSalvo para reaproveitar UI antiga. */
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
   const rel = pagamentoRelevante(r.pagamentos ?? []);
+  const falhaPagamento = parseFalhaPagamento(r.pagamento as Record<string, unknown>);
   const destinatario =
     r.recipient_is_buyer === false && r.pagamento?.destinatario
       ? r.pagamento.destinatario
@@ -499,6 +609,13 @@ export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
     pagamento: {
       ...r.pagamento,
       status: rel?.status ?? r.pagamento?.status ?? r.status ?? "",
+      statusDetalhado: labelPagamentoDetalhado({
+        status: rel?.status ?? r.pagamento?.status,
+        metodo: rel?.metodo ?? r.pagamento?.metodo,
+        pixExpiraEm: rel?.pix_expira_em,
+        pedidoStatus: r.status,
+        falhaPagamento,
+      }),
     },
     total: Number(r.total),
     archivedAt: r.archived_at ?? null,

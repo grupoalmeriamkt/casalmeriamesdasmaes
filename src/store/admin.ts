@@ -275,6 +275,7 @@ export type PedidoSalvo = {
   pagamento: {
     metodo: string;
     status: string;
+    statusDetalhado?: string;
     destinatario?: { nome: string; whatsapp: string } | null;
     extras?: {
       cartoes?: { nome: string; preco: number; mensagem: string }[];

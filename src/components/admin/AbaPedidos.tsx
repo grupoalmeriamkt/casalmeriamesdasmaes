@@ -19,7 +19,8 @@ import { urlModuloCozinha } from "@/lib/cozinha";
 import { useAdmin } from "@/store/admin";
 import type { PedidoSalvo } from "@/store/admin";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
-import { pagamentoRelevante } from "@/lib/asaasStatus";
+import { pagamentoRelevante, labelPagamentoDetalhado } from "@/lib/asaasStatus";
+import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 
 const STATUSES = ["todos", "pago", "aguardando", "vencido", "cancelado"] as const;
 
@@ -648,6 +649,14 @@ function DetalhesPedidoAdmin({
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em));
   const ultimo = pagamentos[0];
   const badge = statusBadge(ultimo?.status, row.status);
+  const falhaPagamento = parseFalhaPagamento(row.pagamento as Record<string, unknown>);
+  const statusDetalhado = labelPagamentoDetalhado({
+    status: ultimo?.status,
+    metodo: ultimo?.metodo ?? p.pagamento?.metodo,
+    pixExpiraEm: ultimo?.pix_expira_em,
+    pedidoStatus: row.status,
+    falhaPagamento,
+  });
 
   return (
     <div className="space-y-5 text-sm">
@@ -764,6 +773,11 @@ function DetalhesPedidoAdmin({
           >
             {badge.label}
           </span>
+          {(row.status === "aguardando_pagamento" || ultimo?.status === "PENDING" || ultimo?.status === "OVERDUE" || ultimo?.status === "AWAITING_RISK_ANALYSIS" || !!falhaPagamento) && (
+            <p className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-snug text-amber-900">
+              {statusDetalhado}
+            </p>
+          )}
         </div>
         <div className="col-span-2">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
@@ -790,6 +804,13 @@ function DetalhesPedidoAdmin({
           <div className="space-y-2">
             {pagamentos.map((pag) => {
               const b = statusBadge(pag.status);
+              const detalhe = labelPagamentoDetalhado({
+                status: pag.status,
+                metodo: pag.metodo,
+                pixExpiraEm: pag.pix_expira_em,
+                pedidoStatus: row.status,
+                falhaPagamento: parseFalhaPagamento(row.pagamento as Record<string, unknown>),
+              });
               return (
                 <div key={pag.id} className="rounded-md bg-white p-2 ring-1 ring-border">
                   <div className="flex items-center justify-between gap-2">
@@ -798,6 +819,7 @@ function DetalhesPedidoAdmin({
                       {b.label}
                     </span>
                   </div>
+                  <p className="mt-1 text-xs leading-snug text-charcoal/80">{detalhe}</p>
                   <div className="mt-1 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <div>
                       Método:{" "}
