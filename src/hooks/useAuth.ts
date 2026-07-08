@@ -43,7 +43,8 @@ export function useAuth(): AuthState {
     };
 
     const syncOperacaoToken = async (roles: RoleFlags) => {
-      if (!roles.isOperacao && !roles.isAdmin) {
+      const needsToken = roles.isOperacao || roles.isAdmin || roles.isCozinha;
+      if (!needsToken) {
         if (mounted) setOperacaoToken(null);
         return;
       }

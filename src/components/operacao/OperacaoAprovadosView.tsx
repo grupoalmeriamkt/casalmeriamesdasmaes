@@ -177,14 +177,14 @@ export function OperacaoAprovadosView({ token }: Props) {
     });
   }, []);
 
-  const arquivarSelecionados = async () => {
-    const ids = selecionadosNaoArquivados.map((p) => p.id);
+  const concluirPedidos = async (ids: string[]) => {
     if (ids.length === 0) return;
     setArquivando(true);
     const res = await arquivarPedidos(ids);
     setArquivando(false);
     setConfirmArquivar(false);
     setSelectedIds(new Set());
+    setDetalhe(null);
     if (!res.ok) {
       toast.error("Erro ao concluir pedidos", { description: res.error });
       return;
@@ -206,6 +206,15 @@ export function OperacaoAprovadosView({ token }: Props) {
     );
   };
 
+  const arquivarSelecionados = async () => {
+    const ids = selecionadosNaoArquivados.map((p) => p.id);
+    await concluirPedidos(ids);
+  };
+
+  const concluirUm = async (pedidoId: string) => {
+    await concluirPedidos([pedidoId]);
+  };
+
   const limparFiltrosPlanilha = () => setFiltrosPlanilha(FILTROS_PLANILHA_VAZIOS);
 
   return (
@@ -223,6 +232,8 @@ export function OperacaoAprovadosView({ token }: Props) {
                 : "Carregando…"}
               {" · "}
               {pedidosFiltrados.length} na fila
+              {" · "}
+              Selecione e use <strong className="text-white/70">Concluir</strong> para dar baixa
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -353,6 +364,18 @@ export function OperacaoAprovadosView({ token }: Props) {
             <DialogTitle>Pedido #{detalhe?.id.slice(0, 8)}</DialogTitle>
           </DialogHeader>
           {detalhe && <DetalhesPedido p={detalhe} />}
+          {detalhe && !detalhe.archivedAt && (
+            <div className="flex justify-end">
+              <Button
+                className="bg-olive text-white hover:bg-olive/90"
+                disabled={arquivando}
+                onClick={() => void concluirUm(detalhe.id)}
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Concluir pedido
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

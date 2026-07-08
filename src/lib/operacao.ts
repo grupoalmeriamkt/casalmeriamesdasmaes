@@ -27,6 +27,9 @@ export function urlPedidosOperacao(token: string): string {
 }
 
 export async function obterTokenPortalOperacao(): Promise<string | null> {
+  const fromTable = await obterPortalOperacaoConfig();
+  if (fromTable?.share_token) return fromTable.share_token;
+
   const { data, error } = await supabase.rpc("operacao_token_portal");
   if (!error && typeof data === "string" && data.length > 0) return data;
   if (error) console.error("operacao_token_portal:", error);

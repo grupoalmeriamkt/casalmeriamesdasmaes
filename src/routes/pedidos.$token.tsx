@@ -177,6 +177,7 @@ function CozinhaPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading, canAccessPedidos, isModoOperacaoRestrita, operacaoToken } = useAuth();
   const modoRestrito = isModoOperacaoRestrita;
+  const isPortalOperacao = !!operacaoToken && token === operacaoToken;
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
   const isMobile = useIsMobile();
@@ -669,7 +670,7 @@ function CozinhaPage() {
     );
   }
 
-  if (modoRestrito) {
+  if (modoRestrito || isPortalOperacao) {
     return (
       <>
         <OperacaoAprovadosView token={token} />

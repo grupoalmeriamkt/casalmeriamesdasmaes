@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { authenticateRequest, requireAdmin, canOperacaoPedidosAction } from "@/lib/authServer";
+import { authenticateRequest, requireAdmin, canAccessCozinha, canAccessOperacao } from "@/lib/authServer";
 import { manualOrderSchema } from "@/lib/orderForm/schema";
 import { buildPedidoManualPayload } from "@/lib/orderForm/buildPayload";
 import { ensureOperator } from "@/lib/operatorsServer";
@@ -127,13 +127,14 @@ export const Route = createFileRoute("/api/admin/pedidos")({
 
         const { action } = parsed.data;
         const isAdmin = await requireAdmin(auth.admin, auth.user.id);
-        const canOperacao = await canOperacaoPedidosAction(auth.admin, auth.user.id);
+        const canCozinha = await canAccessCozinha(auth.admin, auth.user.id);
+        const canOperacao = await canAccessOperacao(auth.admin, auth.user.id);
 
-        if (!isAdmin && !canOperacao) {
+        if (!isAdmin && !canCozinha && !canOperacao) {
           return Response.json({ error: "forbidden" }, { status: 403 });
         }
 
-        if (!isAdmin && canOperacao) {
+        if (!isAdmin && !canCozinha && canOperacao) {
           const allowed = action === "arquivar" || action === "criar_manual";
           if (!allowed) {
             return Response.json({ error: "forbidden" }, { status: 403 });
