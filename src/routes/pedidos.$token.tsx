@@ -176,9 +176,18 @@ function horaNow() {
 function CozinhaPage() {
   const { token } = Route.useParams();
   const navigate = useNavigate();
-  const { user, loading: authLoading, canAccessPedidos, isModoOperacaoRestrita, operacaoToken } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    canAccessPedidos,
+    canAccessCozinha,
+    isOperacao,
+    isModoOperacaoRestrita,
+    operacaoToken,
+  } = useAuth();
   const modoRestrito = isModoOperacaoRestrita;
   const isPortalOperacao = isTokenPortalOperacao(token, operacaoToken);
+  const showOperacaoRestrita = (isOperacao && isPortalOperacao && !canAccessCozinha) || modoRestrito;
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
   const isMobile = useIsMobile();
@@ -671,7 +680,7 @@ function CozinhaPage() {
     );
   }
 
-  if (modoRestrito || isPortalOperacao) {
+  if (showOperacaoRestrita) {
     return (
       <>
         <OperacaoAprovadosView token={token} />
