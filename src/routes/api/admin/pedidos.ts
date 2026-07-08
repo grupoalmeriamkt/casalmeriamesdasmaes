@@ -8,6 +8,7 @@ import { getAppSecrets } from "@/integrations/supabase/client.server";
 import { makeAsaasClient } from "@/integrations/asaas/client.server";
 import type { AsaasCreatePayment } from "@/integrations/asaas/types";
 import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
+import { buildPagamentoManualPatch } from "@/lib/pedidoSync";
 
 function deriveDueDate(dataEntrega: string | null): string {
   // Asaas exige YYYY-MM-DD. Usa a data de entrega se valida; senao hoje + 2 dias.
@@ -423,11 +424,13 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const pagAtual = (pedido.pagamento as Record<string, unknown>) ?? {};
           const { error } = await auth.admin
             .from("pedidos")
-            .update({
-              status: "pago",
-              payment_confirmed_at: new Date().toISOString(),
-              pagamento: { ...pagAtual, metodo: "dinheiro", status: "pago" },
-            })
+            .update(
+              buildPagamentoManualPatch({
+                pagamentoAtual: pagAtual,
+                metodo: "dinheiro",
+                confirmedAt: new Date().toISOString(),
+              }),
+            )
             .eq("id", id);
           if (error) {
             console.error("[admin/pedidos] pagar_dinheiro", error);
@@ -450,16 +453,14 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const pagAtual = (pedido.pagamento as Record<string, unknown>) ?? {};
           const { error } = await auth.admin
             .from("pedidos")
-            .update({
-              status: "pago",
-              payment_confirmed_at: new Date().toISOString(),
-              pagamento: {
-                ...pagAtual,
+            .update(
+              buildPagamentoManualPatch({
+                pagamentoAtual: pagAtual,
                 metodo: "pos",
-                status: "pago",
-                extras: { ...((pagAtual?.extras as Record<string, unknown>) ?? {}), pos },
-              },
-            })
+                confirmedAt: new Date().toISOString(),
+                pos,
+              }),
+            )
             .eq("id", id);
           if (error) {
             console.error("[admin/pedidos] pagar_pos", error);

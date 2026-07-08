@@ -53,6 +53,46 @@ export function buildPaymentPatch(
   };
 }
 
+export type PagamentoManualMetodo = "dinheiro" | "pos";
+
+/**
+ * Monta o patch para marcar um pedido como pago manualmente (dinheiro/POS).
+ * Grava payment_status_normalized: sem ele o pedido pago continua no balde
+ * "Aguardando pagamento", pois a operação filtra por esse campo.
+ */
+export function buildPagamentoManualPatch(input: {
+  pagamentoAtual: Record<string, unknown>;
+  metodo: PagamentoManualMetodo;
+  confirmedAt: string;
+  pos?: unknown;
+}): {
+  status: "pago";
+  payment_status_normalized: "aprovado";
+  payment_confirmed_at: string;
+  pagamento: Record<string, unknown>;
+} {
+  const { pagamentoAtual, metodo, confirmedAt, pos } = input;
+  const pagamento: Record<string, unknown> =
+    metodo === "pos"
+      ? {
+          ...pagamentoAtual,
+          metodo: "pos",
+          status: "pago",
+          extras: {
+            ...((pagamentoAtual?.extras as Record<string, unknown>) ?? {}),
+            pos,
+          },
+        }
+      : { ...pagamentoAtual, metodo: "dinheiro", status: "pago" };
+
+  return {
+    status: "pago",
+    payment_status_normalized: "aprovado",
+    payment_confirmed_at: confirmedAt,
+    pagamento,
+  };
+}
+
 export async function syncPedidoPaymentFields(
   admin: SupabaseClient,
   pedidoId: string,
