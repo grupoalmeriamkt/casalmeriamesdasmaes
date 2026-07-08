@@ -55,6 +55,60 @@ describe("rowToPedidoOperacional", () => {
   });
 });
 
+describe("rowToPedidoOperacional · payment_status_normalized (defesa em profundidade)", () => {
+  it("pedido pago com coluna normalized desatualizada mapeia como aprovado", () => {
+    // Conserto manual incompleto: status='pago' + pagamento RECEIVED, mas a coluna
+    // payment_status_normalized ficou em 'aguardando'. Não pode ir pro balde errado.
+    const op = rowToPedidoOperacional(
+      baseRow({
+        status: "pago",
+        payment_status_normalized: "aguardando",
+        pagamento: { metodo: "pix", status: "RECEIVED" },
+        pagamentos: [
+          {
+            id: "p1",
+            asaas_payment_id: "pay1",
+            metodo: "PIX",
+            status: "RECEIVED",
+            valor: 100,
+            cupom_codigo: null,
+            cupom_desconto: null,
+            cartao_brand: null,
+            cartao_last4: null,
+            criado_em: "2026-06-29T10:00:00Z",
+          },
+        ],
+      }),
+    );
+    expect(op.paymentStatusNormalized).toBe("aprovado");
+  });
+
+  it("pedido aguardando permanece aguardando", () => {
+    const op = rowToPedidoOperacional(
+      baseRow({
+        status: "aguardando_pagamento",
+        payment_status_normalized: null,
+        pagamento: { metodo: "pix", status: "PENDING" },
+        pagamentos: [
+          {
+            id: "p1",
+            asaas_payment_id: "pay1",
+            metodo: "PIX",
+            status: "PENDING",
+            valor: 100,
+            cupom_codigo: null,
+            cupom_desconto: null,
+            cartao_brand: null,
+            cartao_last4: null,
+            criado_em: "2026-06-29T10:00:00Z",
+          },
+        ],
+      }),
+    );
+    expect(op.paymentStatusNormalized).toBe("aguardando");
+  });
+});
+
 describe("isPedidoConcluido", () => {
   it("considera finalizado ou arquivado", () => {
     expect(isPedidoConcluido({ fulfillmentStage: "finalizado", archivedAt: null })).toBe(true);

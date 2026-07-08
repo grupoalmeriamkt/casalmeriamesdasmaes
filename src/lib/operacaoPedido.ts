@@ -57,9 +57,11 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
   } satisfies PedidoSalvo;
 
   const raw = rel?.status ?? r.payment_status_raw ?? r.pagamento?.status ?? r.status;
-  const normalized =
-    (r.payment_status_normalized as PaymentStatusNormalized | null) ??
-    normalizePaymentStatus(raw, r.status);
+  // Defesa em profundidade: recomputa sempre a partir do pagamento relevante + status
+  // do pedido (fonte da verdade). Não confia numa coluna payment_status_normalized
+  // desatualizada — assim um conserto manual incompleto não joga um pedido pago no
+  // balde "Aguardando".
+  const normalized = normalizePaymentStatus(raw, r.status);
 
   const recipientName =
     r.recipient_name ?? r.pagamento?.destinatario?.nome ?? r.cliente_nome;
