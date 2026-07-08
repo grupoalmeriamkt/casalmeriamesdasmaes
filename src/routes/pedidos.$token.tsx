@@ -14,6 +14,7 @@ import {
 } from "@/lib/pedidos";
 import { buscarInfoToken } from "@/lib/shareToken";
 import { obterTokenGeralCozinha } from "@/lib/cozinha";
+import { isTokenPortalOperacao } from "@/lib/operacaoPortal";
 import type { PaymentStatusNormalized } from "@/lib/paymentStatus";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
@@ -177,7 +178,7 @@ function CozinhaPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading, canAccessPedidos, isModoOperacaoRestrita, operacaoToken } = useAuth();
   const modoRestrito = isModoOperacaoRestrita;
-  const isPortalOperacao = !!operacaoToken && token === operacaoToken;
+  const isPortalOperacao = isTokenPortalOperacao(token, operacaoToken);
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
   const isMobile = useIsMobile();
@@ -656,7 +657,7 @@ function CozinhaPage() {
     );
   }
 
-  if (modoRestrito && operacaoToken && token !== operacaoToken) {
+  if (modoRestrito && !isTokenPortalOperacao(token, operacaoToken)) {
     return (
       <>
         <AccessDenied

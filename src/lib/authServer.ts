@@ -1,5 +1,6 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { getAdminClient } from "@/integrations/supabase/client.server";
+import { isTokenPortalOperacao } from "@/lib/operacaoPortal";
 
 export async function authenticateRequest(
   request: Request,
@@ -99,7 +100,7 @@ export async function canAccessPedidosToken(
   if (await canAccessCozinha(admin, userId)) return true;
   if (!(await canAccessOperacao(admin, userId))) return false;
   const portalToken = await getOperacaoPortalToken(admin);
-  return !!portalToken && portalToken === token;
+  return isTokenPortalOperacao(token, portalToken);
 }
 
 /** Operação restrita: arquivar e criar pedido manual. */

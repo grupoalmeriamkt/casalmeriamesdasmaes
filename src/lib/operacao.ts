@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export { PORTAL_OPERACAO_TOKEN_PADRAO, isTokenPortalOperacao } from "@/lib/operacaoPortal";
+
 export type UsuarioOperacao = {
   user_id: string;
   email: string;
