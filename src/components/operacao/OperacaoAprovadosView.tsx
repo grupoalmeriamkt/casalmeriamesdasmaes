@@ -201,8 +201,11 @@ export function OperacaoAprovadosView({ token }: Props) {
           : r,
       ),
     );
+    const n = res.arquivados ?? ids.length;
     toast.success(
-      `${res.arquivados ?? ids.length} pedido${(res.arquivados ?? ids.length) !== 1 ? "s" : ""} concluído${(res.arquivados ?? ids.length) !== 1 ? "s" : ""}.`,
+      n === 1
+        ? "Pedido concluído e arquivado!"
+        : `${n} pedidos concluídos e arquivados!`,
     );
   };
 
@@ -388,7 +391,9 @@ export function OperacaoAprovadosView({ token }: Props) {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Os pedidos saem desta lista e vão para os arquivados.
+            {selecionadosNaoArquivados.length === 1
+              ? "O pedido será concluído, arquivado e sairá desta lista."
+              : "Os pedidos serão concluídos, arquivados e sairão desta lista."}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setConfirmArquivar(false)} disabled={arquivando}>
