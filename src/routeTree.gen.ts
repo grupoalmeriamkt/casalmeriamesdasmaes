@@ -27,6 +27,7 @@ import { Route as ApiPublicMetaCapiRouteImport } from './routes/api/public/meta-
 import { Route as ApiPedidosEditarPorTokenRouteImport } from './routes/api/pedidos/editar-por-token'
 import { Route as ApiOperacaoTokenRouteImport } from './routes/api/operacao/token'
 import { Route as ApiOperacaoPedidosRouteImport } from './routes/api/operacao/pedidos'
+import { Route as ApiCronConciliarRouteImport } from './routes/api/cron/conciliar'
 import { Route as ApiCozinhaTokenRouteImport } from './routes/api/cozinha/token'
 import { Route as ApiCozinhaPedidosRouteImport } from './routes/api/cozinha/pedidos'
 import { Route as ApiAdminSaveConfigRouteImport } from './routes/api/admin/save-config'
@@ -138,6 +139,11 @@ const ApiOperacaoTokenRoute = ApiOperacaoTokenRouteImport.update({
 const ApiOperacaoPedidosRoute = ApiOperacaoPedidosRouteImport.update({
   id: '/api/operacao/pedidos',
   path: '/api/operacao/pedidos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronConciliarRoute = ApiCronConciliarRouteImport.update({
+  id: '/api/cron/conciliar',
+  path: '/api/cron/conciliar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCozinhaTokenRoute = ApiCozinhaTokenRouteImport.update({
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/cozinha/pedidos': typeof ApiCozinhaPedidosRoute
   '/api/cozinha/token': typeof ApiCozinhaTokenRoute
+  '/api/cron/conciliar': typeof ApiCronConciliarRoute
   '/api/operacao/pedidos': typeof ApiOperacaoPedidosRoute
   '/api/operacao/token': typeof ApiOperacaoTokenRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
@@ -315,6 +322,7 @@ export interface FileRoutesByTo {
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/cozinha/pedidos': typeof ApiCozinhaPedidosRoute
   '/api/cozinha/token': typeof ApiCozinhaTokenRoute
+  '/api/cron/conciliar': typeof ApiCronConciliarRoute
   '/api/operacao/pedidos': typeof ApiOperacaoPedidosRoute
   '/api/operacao/token': typeof ApiOperacaoTokenRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
@@ -357,6 +365,7 @@ export interface FileRoutesById {
   '/api/admin/save-config': typeof ApiAdminSaveConfigRoute
   '/api/cozinha/pedidos': typeof ApiCozinhaPedidosRoute
   '/api/cozinha/token': typeof ApiCozinhaTokenRoute
+  '/api/cron/conciliar': typeof ApiCronConciliarRoute
   '/api/operacao/pedidos': typeof ApiOperacaoPedidosRoute
   '/api/operacao/token': typeof ApiOperacaoTokenRoute
   '/api/pedidos/editar-por-token': typeof ApiPedidosEditarPorTokenRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/api/admin/save-config'
     | '/api/cozinha/pedidos'
     | '/api/cozinha/token'
+    | '/api/cron/conciliar'
     | '/api/operacao/pedidos'
     | '/api/operacao/token'
     | '/api/pedidos/editar-por-token'
@@ -441,6 +451,7 @@ export interface FileRouteTypes {
     | '/api/admin/save-config'
     | '/api/cozinha/pedidos'
     | '/api/cozinha/token'
+    | '/api/cron/conciliar'
     | '/api/operacao/pedidos'
     | '/api/operacao/token'
     | '/api/pedidos/editar-por-token'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/api/admin/save-config'
     | '/api/cozinha/pedidos'
     | '/api/cozinha/token'
+    | '/api/cron/conciliar'
     | '/api/operacao/pedidos'
     | '/api/operacao/token'
     | '/api/pedidos/editar-por-token'
@@ -523,6 +535,7 @@ export interface RootRouteChildren {
   ApiAdminSaveConfigRoute: typeof ApiAdminSaveConfigRoute
   ApiCozinhaPedidosRoute: typeof ApiCozinhaPedidosRoute
   ApiCozinhaTokenRoute: typeof ApiCozinhaTokenRoute
+  ApiCronConciliarRoute: typeof ApiCronConciliarRoute
   ApiOperacaoPedidosRoute: typeof ApiOperacaoPedidosRoute
   ApiOperacaoTokenRoute: typeof ApiOperacaoTokenRoute
   ApiPedidosEditarPorTokenRoute: typeof ApiPedidosEditarPorTokenRoute
@@ -664,6 +677,13 @@ declare module '@tanstack/react-router' {
       path: '/api/operacao/pedidos'
       fullPath: '/api/operacao/pedidos'
       preLoaderRoute: typeof ApiOperacaoPedidosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/conciliar': {
+      id: '/api/cron/conciliar'
+      path: '/api/cron/conciliar'
+      fullPath: '/api/cron/conciliar'
+      preLoaderRoute: typeof ApiCronConciliarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cozinha/token': {
@@ -852,6 +872,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminSaveConfigRoute: ApiAdminSaveConfigRoute,
   ApiCozinhaPedidosRoute: ApiCozinhaPedidosRoute,
   ApiCozinhaTokenRoute: ApiCozinhaTokenRoute,
+  ApiCronConciliarRoute: ApiCronConciliarRoute,
   ApiOperacaoPedidosRoute: ApiOperacaoPedidosRoute,
   ApiOperacaoTokenRoute: ApiOperacaoTokenRoute,
   ApiPedidosEditarPorTokenRoute: ApiPedidosEditarPorTokenRoute,
