@@ -89,3 +89,25 @@ describe("pedidoStatusFromPagamentos", () => {
     expect(status).toBe("pago");
   });
 });
+
+describe("RECEIVED_IN_CASH (baixa manual no Asaas) conta como pago", () => {
+  it("normaliza RECEIVED_IN_CASH para aprovado", () => {
+    expect(normalizePaymentStatus("RECEIVED_IN_CASH")).toBe("aprovado");
+  });
+
+  it("pedidoStatusFromPagamentos retorna pago para RECEIVED_IN_CASH", () => {
+    expect(
+      pedidoStatusFromPagamentos([
+        { status: "RECEIVED_IN_CASH", criado_em: "2026-07-08T10:00:00Z" },
+      ]),
+    ).toBe("pago");
+  });
+
+  it("prioriza RECEIVED_IN_CASH sobre tentativa PENDING mais nova", () => {
+    const lista = [
+      { id: "1", status: "PENDING", criado_em: "2026-07-08T12:00:00Z", asaas_payment_id: "a" },
+      { id: "2", status: "RECEIVED_IN_CASH", criado_em: "2026-07-08T11:00:00Z", asaas_payment_id: "b" },
+    ];
+    expect(pagamentoRelevante(lista)?.status).toBe("RECEIVED_IN_CASH");
+  });
+});

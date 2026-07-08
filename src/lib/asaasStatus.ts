@@ -1,6 +1,8 @@
 import type { FalhaPagamento } from "@/lib/pagamentoFalha";
 
-export const ASAAS_FINAL_PAID = new Set(["CONFIRMED", "RECEIVED"]);
+// RECEIVED_IN_CASH: baixa manual no Asaas ("Confirmar recebimento em dinheiro"),
+// usada quando o cliente paga por fora do QR dinâmico. Conta como pago.
+export const ASAAS_FINAL_PAID = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
 export const ASAAS_FINAL_FAILED = new Set([
   "REFUNDED",
   "REFUND_REQUESTED",
@@ -24,6 +26,7 @@ export type PagamentoLike = {
 const STATUS_PRIORITY: Record<string, number> = {
   CONFIRMED: 100,
   RECEIVED: 100,
+  RECEIVED_IN_CASH: 100,
   PENDING: 20,
   AWAITING_RISK_ANALYSIS: 15,
   OVERDUE: 10,
@@ -63,6 +66,7 @@ export function pedidoStatusFromPagamentos(
 export const ASAAS_STATUS_LABEL: Record<string, string> = {
   CONFIRMED: "Pago",
   RECEIVED: "Recebido",
+  RECEIVED_IN_CASH: "Recebido (baixa manual)",
   PENDING: "Aguardando pagamento",
   OVERDUE: "Vencido",
   REFUNDED: "Estornado",

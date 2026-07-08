@@ -175,7 +175,7 @@ export async function conciliarPagamentosAsaas(
   const { data: pagosConfirmados } = await admin
     .from("pagamentos")
     .select("pedido_id, status")
-    .in("status", ["CONFIRMED", "RECEIVED"]);
+    .in("status", [...ASAAS_FINAL_PAID]);
 
   for (const pg of pagosConfirmados ?? []) {
     if (pg.pedido_id) pedidosAfetados.add(pg.pedido_id as string);
