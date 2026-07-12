@@ -1,6 +1,7 @@
-import { usePedido, formatBRL, selectTotal } from "@/store/pedido";
+import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { useAdmin } from "@/store/admin";
 import { inserirPedido } from "@/lib/pedidos";
+import { buildCestaPayloadFromState } from "@/lib/cestaTamanho";
 import { trackPurchase } from "@/lib/gtm";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Zap, CreditCard } from "lucide-react";
@@ -36,15 +37,12 @@ export function Resumo({ onConcluir, onVoltar }: Props) {
 
   const pagar = async () => {
     setProcessando(true);
+    const st = usePedido.getState();
 
     const pedidoPayload = {
       cliente,
-      cesta: cesta
-        ? {
-            nome: cesta.cesta.nome,
-            quantidade: cesta.quantidade,
-            preco: cesta.cesta.preco,
-          }
+      cesta: st.cesta
+        ? buildCestaPayloadFromState(st.cesta, st.tamanhoId, selectPrecoEfetivo(st))
         : undefined,
       sobremesas: Object.values(sobremesas).map((s) => ({
         nome: s.sobremesa.nome,

@@ -39,7 +39,7 @@ export type PedidoRow = {
   cliente_whatsapp: string;
   cliente_cpf?: string | null;
   cliente_email?: string | null;
-  cesta: { nome: string; quantidade: number; preco: number } | null;
+  cesta: { nome: string; quantidade: number; preco: number; tamanho?: string } | null;
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
   endereco_ou_unidade: string;

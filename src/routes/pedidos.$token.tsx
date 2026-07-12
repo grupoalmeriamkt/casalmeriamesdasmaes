@@ -17,7 +17,8 @@ import {
 import { buscarInfoToken } from "@/lib/shareToken";
 import { obterTokenGeralCozinha } from "@/lib/cozinha";
 import { isTokenPortalOperacao } from "@/lib/operacaoPortal";
-import type { PaymentStatusNormalized } from "@/lib/paymentStatus";
+import { resolveCestaItem } from "@/lib/cestaTamanho";
+import { statusKeyPedido, type StatusKey } from "@/lib/statusPedidoTela";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
@@ -121,8 +122,6 @@ export const Route = createFileRoute("/pedidos/$token")({
 
 type ViewMode = "lista" | "kanban" | "planilha" | "calendario";
 
-type StatusKey = "aprovado" | "pendente" | "rascunho" | "abandonado";
-
 const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; header: string; dot: string }> = {
   aprovado:   { label: "Aprovado",             bg: "bg-olive/15 text-olive",           header: "bg-olive text-white",           dot: "bg-olive" },
   pendente:   { label: "Aguardando pagamento", bg: "bg-terracotta/20 text-charcoal",   header: "bg-terracotta text-white",      dot: "bg-terracotta" },
@@ -130,41 +129,12 @@ const STATUS_CONFIG: Record<StatusKey, { label: string; bg: string; header: stri
   abandonado: { label: "Abandonado",           bg: "bg-terracotta/15 text-terracotta", header: "bg-muted text-charcoal",      dot: "bg-terracotta/60" },
 };
 
-const STATUS_ALIASES: Record<string, StatusKey> = {
-  // Asaas (maiúsculo)
-  CONFIRMED: "aprovado",
-  RECEIVED: "aprovado",
-  PENDING: "pendente",
-  OVERDUE: "pendente",
-  REFUNDED: "abandonado",
-  PAYMENT_DELETED: "abandonado",
-  CHARGEBACK_REQUESTED: "abandonado",
-  CHARGEBACK_DISPUTE: "abandonado",
-  // Internos (minúsculo)
-  aprovado: "aprovado",
-  pago: "aprovado",
-  recebido: "aprovado",
-  pendente: "pendente",
-  aguardando: "pendente",
-  aguardando_pagamento: "pendente",
-  rascunho: "rascunho",
-  abandonado: "abandonado",
-  cancelado: "abandonado",
-};
-
-function statusKeyFromNormalized(n: PaymentStatusNormalized): StatusKey {
-  if (n === "aprovado") return "aprovado";
-  if (n === "rascunho") return "rascunho";
-  if (n === "cancelado" || n === "abandonado") return "abandonado";
-  return "pendente";
-}
-
+// Defesa em profundidade: NÃO confia na coluna payment_status_normalized (pode
+// ficar desatualizada quando o webhook do Asaas se perde ou a conciliação diária
+// atrasa). Recomputa do pagamento relevante via statusKeyPedido — mesmo conserto
+// do commit 692e28f, agora nesta tela. Ver src/lib/statusPedidoTela.ts.
 function getStatus(p: PedidoSalvo, raw?: PedidoRow): StatusKey {
-  if (raw?.payment_status_normalized) {
-    return statusKeyFromNormalized(raw.payment_status_normalized as PaymentStatusNormalized);
-  }
-  const s = p.pagamento?.status || "";
-  return STATUS_ALIASES[s] ?? STATUS_ALIASES[s.toLowerCase()] ?? "rascunho";
+  return statusKeyPedido(p.pagamento?.status, raw?.status);
 }
 
 function entregaIsoDoPedido(p: PedidoSalvo, raw?: PedidoRow): string | null {
@@ -2496,7 +2466,21 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
       <p style={{ fontWeight: "bold", marginBottom: "6pt", fontSize: "11pt", textTransform: "uppercase" }}>
         📦 O que levar
       </p>
-      {p.cesta && <p style={{ margin: "3pt 0", fontSize: "12pt" }}>• {p.cesta.nome} × {p.cesta.quantidade}</p>}
+      {p.cesta && (() => {
+        const item = resolveCestaItem(p.cesta);
+        return (
+          <div style={{ marginBottom: "6pt" }}>
+            <p style={{ margin: "3pt 0", fontSize: "12pt" }}>
+              • {item.nomeBase} × {item.quantidade}
+            </p>
+            {item.tamanho && (
+              <p style={{ margin: "2pt 0 0 14pt", fontSize: "13pt", fontWeight: "bold" }}>
+                Tamanho: {item.tamanho}
+              </p>
+            )}
+          </div>
+        );
+      })()}
       {p.sobremesas.map((s, i) => (
         <p key={i} style={{ margin: "3pt 0", fontSize: "12pt" }}>• {s.nome} × {s.quantidade}</p>
       ))}

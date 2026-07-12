@@ -19,6 +19,7 @@ const linha = (overrides: Partial<EncomendaLinha> = {}): EncomendaLinha => ({
   setorKey: "cozinha",
   productionSector: "COZINHA",
   produto: "Cesta Café",
+  tamanho: null,
   qtd: 1,
   localRetirada: "Retirada Noroeste",
   localKey: "retirada noroeste",

@@ -46,6 +46,7 @@ describe("flattenPedidosParaLinhas", () => {
     expect(linhas).toHaveLength(1);
     expect(linhas[0].nomeCliente).toBe("Maria Freitas");
     expect(linhas[0].produto).toBe("CHOCOFEE P");
+    expect(linhas[0].tamanho).toBeNull();
     expect(linhas[0].qtd).toBe(1);
     expect(linhas[0].setor).toBe("Confeitaria");
     expect(linhas[0].localRetirada).toBe("Retirada 104");
@@ -85,6 +86,18 @@ describe("flattenPedidosParaLinhas", () => {
     expect(resolveLocalOptionId(linhas[0].unidadeId, linhas[0].localRetirada, linhas[0].localKey, locaisOpcoes)).toBe(
       ENTREGA_MOTOBOY_ID,
     );
+  });
+
+  it("extrai tamanho da cesta para coluna dedicada", () => {
+    const row = {
+      ...baseRow(),
+      cesta: { nome: "Bolo de Pistache · Tam. M", quantidade: 1, preco: 280, tamanho: "M" },
+    };
+    const pedido = rowToPedidoSalvo(row);
+    const linhas = flattenPedidosParaLinhas([pedido], [row], []);
+
+    expect(linhas[0].produto).toBe("Bolo de Pistache");
+    expect(linhas[0].tamanho).toBe("M");
   });
 
   it("mapeia unidadeId em rowToPedidoSalvo", () => {

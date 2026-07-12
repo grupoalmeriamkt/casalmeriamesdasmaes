@@ -108,6 +108,7 @@ export function EncomendasTable({
             <col className="min-w-[8rem]" />
             <col className="w-[9.5rem] lg:w-[11rem]" />
             <col />
+            <col className="w-10" />
             <col className="w-12" />
             <col className="w-[8.5rem] lg:w-[10rem]" />
             <col className="w-[7rem] lg:w-[8rem]" />
@@ -142,6 +143,7 @@ export function EncomendasTable({
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Cliente</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Setor</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Produto</th>
+              <th className="px-2 py-2 text-center sm:px-3 sm:py-2.5">Tam.</th>
               <th className="px-2 py-2 text-center sm:px-3 sm:py-2.5">Qtd</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Local</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Status</th>
@@ -221,6 +223,9 @@ export function EncomendasTable({
                   </td>
                   <td className="max-w-[12rem] truncate px-2 py-1.5 text-xs font-medium text-charcoal sm:max-w-none sm:px-3 sm:py-2 sm:text-sm" title={l.produto}>
                     {l.produto}
+                  </td>
+                  <td className="px-2 py-1.5 text-center text-xs font-bold text-charcoal sm:px-3 sm:py-2 sm:text-sm">
+                    {l.tamanho ?? "—"}
                   </td>
                   <td className="px-2 py-1.5 text-center text-xs font-semibold text-charcoal sm:px-3 sm:py-2 sm:text-sm">
                     {l.qtd}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { upsertRascunho, finalizarPedido } from "@/lib/pedidos";
+import { buildCestaPayloadFromState } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders } from "@/lib/checkoutAccess";
 import { montarMensagemWhats, montarLinkWhats } from "@/lib/whatsappMsg";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
@@ -366,11 +367,7 @@ export function Quiz({
       cliente: { nome: nomeAtual, whatsapp: whatsAtual },
       destinatario: st.destinatario ?? null,
       cesta: st.cesta
-        ? {
-            nome: st.cesta.cesta.nome,
-            quantidade: st.cesta.quantidade,
-            preco: selectPrecoEfetivo(st),
-          }
+        ? buildCestaPayloadFromState(st.cesta, st.tamanhoId, selectPrecoEfetivo(st))
         : undefined,
       sobremesas: Object.values(st.sobremesas).map((s) => ({
         nome: s.sobremesa.nome,
@@ -1454,11 +1451,7 @@ export function Quiz({
                   cliente: st.cliente,
                   destinatario: st.destinatario ?? null,
                   cesta: st.cesta
-                    ? {
-                        nome: st.cesta.cesta.nome,
-                        quantidade: st.cesta.quantidade,
-                        preco: selectPrecoEfetivo(st),
-                      }
+                    ? buildCestaPayloadFromState(st.cesta, st.tamanhoId, selectPrecoEfetivo(st))
                     : undefined,
                   sobremesas: Object.values(st.sobremesas).map((s) => ({
                     nome: s.sobremesa.nome,

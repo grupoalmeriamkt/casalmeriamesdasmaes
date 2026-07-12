@@ -179,10 +179,12 @@ function PlanilhaMobileCard({
   const salvando = salvandoPedidoId === pedidoId;
   const selecionado = selectedIds.has(pedidoId);
   const prazo = prazoStatus({ data: l.dataIso, concluidoAt: l.concluidoAt }, hojeIsoLocal());
+  const formatItemResumo = (item: EncomendaLinha) =>
+    item.tamanho ? `${item.produto} (${item.tamanho}) × ${item.qtd}` : `${item.produto} × ${item.qtd}`;
   const resumoProdutos =
     itens.length === 1
-      ? `${itens[0].produto} × ${itens[0].qtd}`
-      : `${itens[0].produto} × ${itens[0].qtd} +${itens.length - 1}`;
+      ? formatItemResumo(itens[0])
+      : `${formatItemResumo(itens[0])} +${itens.length - 1}`;
 
   return (
     <article

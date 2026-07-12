@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { useCampanhaAtiva, calcTaxaEntrega } from "@/store/admin";
 import { finalizarPedido } from "@/lib/pedidos";
+import { buildCestaPayloadFromState } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
@@ -250,11 +251,11 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
           cliente: pedidoState.cliente,
           destinatario: pedidoState.destinatario,
           cesta: pedidoState.cesta
-            ? {
-                nome: pedidoState.cesta.cesta.nome + (tamanhoSelecionado ? ` · Tam. ${tamanhoSelecionado.label}` : ""),
-                quantidade: pedidoState.cesta.quantidade,
-                preco: precoEfetivo,
-              }
+            ? buildCestaPayloadFromState(
+                pedidoState.cesta,
+                pedidoState.tamanhoId,
+                precoEfetivo,
+              )
             : undefined,
           sobremesas: Object.values(pedidoState.sobremesas).map((s) => ({
             nome: s.sobremesa.nome,

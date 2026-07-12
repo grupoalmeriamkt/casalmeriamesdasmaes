@@ -15,6 +15,7 @@ import {
   resolveProductionSector,
   type ProductionSector,
 } from "@/lib/availability";
+import { parseTamanhoDoNome, resolveCestaItem } from "@/lib/cestaTamanho";
 
 export type EncomendaLinha = {
   linhaId: string;
@@ -28,6 +29,7 @@ export type EncomendaLinha = {
   setorKey: string;
   productionSector: SetorOperacional | null;
   produto: string;
+  tamanho: string | null;
   qtd: number;
   localRetirada: string;
   localKey: string;
@@ -226,16 +228,19 @@ function resolveSetor(
 
 function pushLinha(
   out: EncomendaLinha[],
-  base: Omit<EncomendaLinha, "linhaId" | "produto" | "qtd" | "setor" | "setorKey">,
+  base: Omit<EncomendaLinha, "linhaId" | "produto" | "tamanho" | "qtd" | "setor" | "setorKey">,
   produto: string,
   qtd: number,
+  tamanho: string | null,
   sector?: SetorOperacional | ProductionSector | null,
 ) {
-  const setor = resolveSetor(sector, produto);
+  const nomeSetor = tamanho ? `${produto} · Tam. ${tamanho}` : produto;
+  const setor = resolveSetor(sector, nomeSetor);
   out.push({
     ...base,
     linhaId: `${base.pedidoId}-${produto}-${out.length}`,
     produto,
+    tamanho,
     qtd,
     setor: setor.label,
     setorKey: setor.key,
@@ -282,24 +287,27 @@ export function flattenPedidosParaLinhas(
       setor: "",
       setorKey: "outro",
       produto: "",
+      tamanho: null,
       qtd: 0,
     };
 
     if (p.cesta?.nome) {
-      pushLinha(linhas, base, p.cesta.nome, p.cesta.quantidade, sector);
+      const item = resolveCestaItem(p.cesta);
+      pushLinha(linhas, base, item.nomeBase, item.quantidade, item.tamanho, sector);
     }
     for (const s of p.sobremesas) {
-      pushLinha(linhas, base, s.nome, s.quantidade, sector);
+      const parsed = parseTamanhoDoNome(s.nome);
+      pushLinha(linhas, base, parsed.nomeBase, s.quantidade, parsed.tamanho, sector);
     }
     for (const c of p.pagamento?.extras?.cartoes ?? []) {
-      pushLinha(linhas, base, c.nome, 1, sector);
+      pushLinha(linhas, base, c.nome, 1, null, sector);
     }
     for (const po of p.pagamento?.extras?.polaroids ?? []) {
-      pushLinha(linhas, base, po.nome, 1, sector);
+      pushLinha(linhas, base, po.nome, 1, null, sector);
     }
 
     if (!p.cesta && p.sobremesas.length === 0 && !(p.pagamento?.extras?.cartoes?.length) && !(p.pagamento?.extras?.polaroids?.length)) {
-      pushLinha(linhas, base, "(sem produto)", 0, sector);
+      pushLinha(linhas, base, "(sem produto)", 0, null, sector);
     }
   }
 
@@ -314,6 +322,7 @@ export const ENCOMENDAS_CSV_HEAD = [
   "NOME DO CLIENTE",
   "SETOR RESPONSÁVEL",
   "PRODUTO",
+  "TAMANHO",
   "QTD",
   "LOCAL DE RETIRADA",
 ] as const;
@@ -327,6 +336,7 @@ export function linhasParaCsvRows(linhas: EncomendaLinha[]): string[][] {
     l.nomeCliente,
     l.setor,
     l.produto,
+    l.tamanho ?? "",
     String(l.qtd),
     l.localRetirada,
   ]);

@@ -265,7 +265,7 @@ export type PedidoSalvo = {
   criadoEm: string;
   cliente: { nome: string; whatsapp: string };
   destinatario?: { nome: string; whatsapp: string } | null;
-  cesta?: { nome: string; quantidade: number; preco: number };
+  cesta?: { nome: string; quantidade: number; preco: number; tamanho?: string };
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
   enderecoOuUnidade: string;
