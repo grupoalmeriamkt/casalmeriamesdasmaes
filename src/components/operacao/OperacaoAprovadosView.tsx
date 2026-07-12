@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PaymentStatusNormalized } from "@/lib/paymentStatus";
+import { statusKeyPedido, type StatusKey } from "@/lib/statusPedidoTela";
 import {
   arquivarPedidos,
   listarPedidosPorToken,
@@ -37,35 +37,10 @@ import { useAdmin } from "@/store/admin";
 import { DetalhesPedido } from "@/components/operacao/PedidoDetalheContent";
 import { labelTipoPedido } from "@/lib/asaasStatus";
 
-type StatusKey = "aprovado" | "pendente" | "rascunho" | "abandonado";
-
-const STATUS_ALIASES: Record<string, StatusKey> = {
-  CONFIRMED: "aprovado",
-  RECEIVED: "aprovado",
-  aprovado: "aprovado",
-  pago: "aprovado",
-  recebido: "aprovado",
-  PENDING: "pendente",
-  pendente: "pendente",
-  aguardando: "pendente",
-  rascunho: "rascunho",
-  abandonado: "abandonado",
-  cancelado: "abandonado",
-};
-
-function statusKeyFromNormalized(n: PaymentStatusNormalized): StatusKey {
-  if (n === "aprovado") return "aprovado";
-  if (n === "rascunho") return "rascunho";
-  if (n === "cancelado" || n === "abandonado") return "abandonado";
-  return "pendente";
-}
-
+// Defesa em profundidade: recomputa do pagamento relevante e NÃO confia na coluna
+// payment_status_normalized (que pode ficar defasada). Ver src/lib/statusPedidoTela.ts.
 function getStatus(p: PedidoSalvo, raw?: PedidoRow): StatusKey {
-  if (raw?.payment_status_normalized) {
-    return statusKeyFromNormalized(raw.payment_status_normalized as PaymentStatusNormalized);
-  }
-  const s = p.pagamento?.status || "";
-  return STATUS_ALIASES[s] ?? STATUS_ALIASES[s.toLowerCase()] ?? "rascunho";
+  return statusKeyPedido(p.pagamento?.status, raw?.status);
 }
 
 function horaNow() {

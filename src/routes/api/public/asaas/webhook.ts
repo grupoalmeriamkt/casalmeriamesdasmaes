@@ -97,10 +97,18 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
         try {
           event = (await request.json()) as AsaasWebhookEvent;
         } catch {
-          return new Response("invalid json", { status: 400 });
+          // Corpo ilegível não melhora com retry. Responde 200 (ignora) para não
+          // penalizar/pausar a fila inteira do Asaas por uma mensagem isolada.
+          console.warn("[asaas/webhook] corpo não-JSON ignorado");
+          return Response.json({ ok: true, ignored: "invalid_json" });
         }
         if (!event?.payment?.id || !event.event) {
-          return new Response("invalid payload", { status: 400 });
+          // Evento sem `payment` (ex.: eventos que não são de cobrança) é legítimo,
+          // mas não é processado aqui. Retornar 400 faz o Asaas re-tentar o MESMO
+          // evento 15x e PAUSAR a fila inteira (poison message), travando todos os
+          // webhooks de pagamento seguintes. Ignora com 200 e loga para análise.
+          console.warn("[asaas/webhook] evento sem payment.id ignorado:", event?.event);
+          return Response.json({ ok: true, ignored: "no_payment" });
         }
 
         const admin = getAdminClient();
