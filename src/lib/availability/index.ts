@@ -1,4 +1,4 @@
-import { nowSP, startOfDaySP, todayISOSP, TZ_SP } from "@/lib/timezone";
+import { amanhaISOSP, minutosDoDiaSP, nowSP, startOfDaySP, todayISOSP, TZ_SP } from "@/lib/timezone";
 import type {
   CarrinhoItem,
   DisponibilidadeInput,
@@ -7,6 +7,7 @@ import type {
   ProdutoRegras,
 } from "./types";
 import { defaultRegras, mergeRegras, regraMaisRestritiva } from "./rules";
+import { dataRetiradaBloqueada } from "./retirada";
 
 const DEFAULT_WINDOWS: JanelaDisponivel[] = [
   { label: "Entre 06h e 07h", inicioHora: 6, fimHora: 7 },
@@ -87,6 +88,9 @@ export function validateDisponibilidade(
 
   const orderNow = nowSP();
   const today = todayISOSP(orderNow);
+  const amanha = amanhaISOSP(orderNow);
+  const minutosAgora = minutosDoDiaSP(orderNow);
+  const ctxAntecedencia = { minutosAgoraSP: minutosAgora, amanhaISO: amanha };
 
   if (input.candidateDate) {
     const targetStart = startOfDaySP(input.candidateDate);
@@ -99,6 +103,13 @@ export function validateDisponibilidade(
 
     if (targetStart.getTime() < startOfDaySP(today).getTime()) {
       errors.push("Data de execução no passado.");
+    }
+
+    if (
+      dataRetiradaBloqueada(input.candidateDate, today, undefined, ctxAntecedencia) &&
+      input.candidateDate === amanha
+    ) {
+      errors.push("Retirada no sábado só é possível até sexta às 12h.");
     }
 
     if (targetStart.getTime() + 23 * 3600000 < earliest.getTime()) {
@@ -135,12 +146,23 @@ export function listAvailableDates(
   daysAhead: number,
 ): string[] {
   const today = todayISOSP(orderNow);
+  const amanha = amanhaISOSP(orderNow);
+  const minutosAgora = minutosDoDiaSP(orderNow);
+  const ctxAntecedencia = { minutosAgoraSP: minutosAgora, amanhaISO: amanha };
   const out: string[] = [];
   for (let i = 0; i <= daysAhead; i++) {
     const d = new Date(startOfDaySP(today));
     d.setDate(d.getDate() + i);
     const iso = todayISOSP(d);
+    if (iso < today) continue;
     if (!regra.same_day_allowed && iso === today) continue;
+    // Corte sexta 12h → sábado (sem reaplicar o bloqueio de mesmo dia).
+    if (
+      iso !== today &&
+      dataRetiradaBloqueada(iso, today, undefined, ctxAntecedencia)
+    ) {
+      continue;
+    }
     const lead = effectiveLeadHours(regra, orderNow, iso);
     const earliest = earliestExecution(orderNow, lead);
     if (startOfDaySP(iso).getTime() + 20 * 3600000 >= earliest.getTime()) {

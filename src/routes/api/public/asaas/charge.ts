@@ -10,6 +10,7 @@ import {
   horarioRetiradaBloqueado,
   REGRA_RETIRADA_PADRAO,
   type RegraAntecedenciaRetirada,
+  CORTE_SEXTA_SABADO_MINUTOS,
 } from "@/lib/availability/retirada";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
@@ -263,8 +264,18 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           const amanhaISO = amanhaISOSP(agoraSP);
           const minutosAgoraSP = minutosDoDiaSP();
           const erros: string[] = [];
-          if (dataRetiradaBloqueada(dataEntregaISO, hojeISO, regra)) {
-            erros.push(`${modoLabel} não disponível para o mesmo dia.`);
+          if (
+            dataRetiradaBloqueada(dataEntregaISO, hojeISO, regra, {
+              minutosAgoraSP,
+              amanhaISO,
+            })
+          ) {
+            erros.push(
+              dataEntregaISO === amanhaISO &&
+                minutosAgoraSP > CORTE_SEXTA_SABADO_MINUTOS
+                ? `${modoLabel} no sábado só é possível até sexta às 12h.`
+                : `${modoLabel} não disponível para o mesmo dia.`,
+            );
           }
           if (
             pedido.horario &&

@@ -5,10 +5,14 @@ import {
   horarioRetiradaBloqueado,
 } from "@/lib/availability/retirada";
 
-const HOJE = "2026-06-29";
+const HOJE = "2026-06-29"; // segunda
 const AMANHA = "2026-06-30";
 const DEPOIS = "2026-07-01";
 const regra = REGRA_RETIRADA_PADRAO; // corte 17h, tarde a partir de 14h
+
+// Sexta 2026-07-31 → sábado 2026-08-01
+const SEXTA = "2026-07-31";
+const SABADO = "2026-08-01";
 
 describe("dataRetiradaBloqueada", () => {
   it("bloqueia o mesmo dia", () => {
@@ -19,6 +23,42 @@ describe("dataRetiradaBloqueada", () => {
   });
   it("libera o dia seguinte", () => {
     expect(dataRetiradaBloqueada(AMANHA, HOJE, regra)).toBe(false);
+  });
+
+  it("sexta às 12h00 → sábado ainda liberado", () => {
+    expect(
+      dataRetiradaBloqueada(SABADO, SEXTA, regra, {
+        minutosAgoraSP: 12 * 60,
+        amanhaISO: SABADO,
+      }),
+    ).toBe(false);
+  });
+
+  it("sexta às 12h01 → sábado bloqueado", () => {
+    expect(
+      dataRetiradaBloqueada(SABADO, SEXTA, regra, {
+        minutosAgoraSP: 12 * 60 + 1,
+        amanhaISO: SABADO,
+      }),
+    ).toBe(true);
+  });
+
+  it("sexta à tarde → domingo (depois de amanhã) continua liberado", () => {
+    expect(
+      dataRetiradaBloqueada("2026-08-02", SEXTA, regra, {
+        minutosAgoraSP: 15 * 60,
+        amanhaISO: SABADO,
+      }),
+    ).toBe(false);
+  });
+
+  it("quinta à tarde → sexta seguinte não usa o corte de sábado", () => {
+    expect(
+      dataRetiradaBloqueada("2026-07-31", "2026-07-30", regra, {
+        minutosAgoraSP: 18 * 60,
+        amanhaISO: "2026-07-31",
+      }),
+    ).toBe(false);
   });
 });
 

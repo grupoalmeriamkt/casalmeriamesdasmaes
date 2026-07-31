@@ -143,10 +143,12 @@ export function Quiz({
   const amanhaISO = amanhaISOSP(agoraSP);
   const minutosAgoraSP = minutosDoDiaSP();
 
+  const ctxAntecedencia = { minutosAgoraSP, amanhaISO };
   const datasDisponiveis = datas.filter((d) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.id)) return true; // labels legados
     if (d.id < hojeISO) return false; // datas passadas
-    if (dataRetiradaBloqueada(d.id, hojeISO, regraAntecedencia)) return false; // sem mesmo dia
+    // Sem mesmo dia + sexta após 12h bloqueia sábado
+    if (dataRetiradaBloqueada(d.id, hojeISO, regraAntecedencia, ctxAntecedencia)) return false;
     return true;
   });
 
@@ -1018,7 +1020,8 @@ export function Quiz({
                         disabled={(date) => {
                           const iso = toISODateString(date);
                           if (iso < hojeISO) return true; // passado
-                          return dataRetiradaBloqueada(iso, hojeISO, regraAntecedencia); // sem mesmo dia
+                          // Sem mesmo dia + sexta após 12h bloqueia sábado
+                          return dataRetiradaBloqueada(iso, hojeISO, regraAntecedencia, ctxAntecedencia);
                         }}
                         fromMonth={new Date()}
                         onSelect={(date) => {
