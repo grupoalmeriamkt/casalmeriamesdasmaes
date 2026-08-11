@@ -7,6 +7,7 @@ import {
   readCheckoutAccessToken,
   verifyPedidoAccess,
 } from "@/lib/checkoutAccess.server";
+import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 
 const ItemSchema = z.object({
   title: z.string().min(1).max(256),
@@ -40,6 +41,14 @@ export const Route = createFileRoute("/api/public/mp-preference")({
       POST: async ({ request }) => {
         const limited = rateLimit(request, "public/mp-preference", { max: 20, windowMs: 60_000 });
         if (limited) return limited;
+
+        // Domingo: loja não recebe novos pedidos.
+        if (novosPedidosBloqueados()) {
+          return Response.json(
+            { error: "loja_fechada", motivo: MSG_LOJA_FECHADA },
+            { status: 403 },
+          );
+        }
 
         let json: unknown;
         try {

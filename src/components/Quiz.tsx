@@ -34,6 +34,7 @@ import { useIsPreview } from "@/components/admin/PreviewContext";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckoutAsaas } from "@/components/CheckoutAsaas";
 import { uploadPolaroid } from "@/lib/uploadPolaroid";
+import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -1445,6 +1446,11 @@ export function Quiz({
                 if (isPreview) {
                   toast.info("Prévia: pedido não é enviado.");
                   onConcluir();
+                  return;
+                }
+                // Domingo: loja não recebe novos pedidos.
+                if (novosPedidosBloqueados()) {
+                  toast.error(MSG_LOJA_FECHADA);
                   return;
                 }
                 setEnviando(true);

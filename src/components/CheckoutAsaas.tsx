@@ -11,6 +11,7 @@ import { useCampanhaAtiva, calcTaxaEntrega } from "@/store/admin";
 import { finalizarPedido } from "@/lib/pedidos";
 import { buildCestaPayloadFromState } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
+import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
@@ -102,6 +103,12 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
 
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  // Domingo: loja fechada para novos pedidos (revalida caso a página fique aberta).
+  const [lojaFechada, setLojaFechada] = useState(() => novosPedidosBloqueados());
+  useEffect(() => {
+    const id = setInterval(() => setLojaFechada(novosPedidosBloqueados()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const totalComDesconto = useMemo(
     () => Math.max(0, total - (cupomAplicado?.desconto ?? 0)),
@@ -138,6 +145,11 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
   }
 
   async function pagar() {
+    if (novosPedidosBloqueados()) {
+      setLojaFechada(true);
+      toast.error(MSG_LOJA_FECHADA);
+      return;
+    }
     setErros({});
     const cliente = ClienteSchema.safeParse({
       nome: pedidoState.cliente.nome,
@@ -645,8 +657,15 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         )}
       </div>
 
+      {lojaFechada && (
+        <div className="flex items-start gap-2 rounded-2xl bg-terracotta/10 p-4 text-sm text-charcoal ring-1 ring-terracotta/30">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-terracotta" />
+          <span>{MSG_LOJA_FECHADA}</span>
+        </div>
+      )}
+
       <Button
-        disabled={enviando}
+        disabled={enviando || lojaFechada}
         onClick={pagar}
         className="w-full bg-terracotta py-6 text-base font-semibold text-white hover:bg-terracotta/90"
       >
@@ -655,7 +674,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando…
           </>
         ) : (
-          `Pagar ${formatBRL(totalComDesconto)}`
+          lojaFechada ? "Fechado aos domingos" : `Pagar ${formatBRL(totalComDesconto)}`
         )}
       </Button>
 

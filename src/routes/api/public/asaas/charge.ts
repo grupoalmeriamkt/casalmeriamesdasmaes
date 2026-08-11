@@ -12,6 +12,7 @@ import {
   type RegraAntecedenciaRetirada,
   CORTE_SEXTA_SABADO_MINUTOS,
 } from "@/lib/availability/retirada";
+import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
 import { syncPedidoPaymentFields, registrarFalhaPagamentoCartao } from "@/lib/pedidoSync";
@@ -95,6 +96,14 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
       POST: async ({ request }) => {
         const limited = rateLimit(request, "public/asaas/charge", { max: 20, windowMs: 60_000 });
         if (limited) return limited;
+
+        // Domingo: loja não recebe novos pedidos.
+        if (novosPedidosBloqueados()) {
+          return Response.json(
+            { error: "loja_fechada", motivo: MSG_LOJA_FECHADA },
+            { status: 403 },
+          );
+        }
 
         let json: unknown;
         try {
