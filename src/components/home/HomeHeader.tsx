@@ -2,17 +2,13 @@ import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { useAdmin } from "@/store/admin";
 import { useCarrinhoTotal } from "@/store/carrinho";
-import { ShoppingBag, MapPin, Menu, X } from "lucide-react";
+import { ShoppingBag, Menu, X } from "lucide-react";
 
 export function HomeHeader() {
   const categorias = useAdmin((s) => s.categorias);
   const cestas = useAdmin((s) => s.cestas);
-  const unidades = useAdmin((s) => s.unidades);
   const { qtdItens } = useCarrinhoTotal();
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const primeiraUnidade = unidades.find((u) => u.status === "ativa");
-  const enderecoLabel = primeiraUnidade?.nome ?? "Casa Almeria";
 
   const catsComProduto = categorias
     .filter((cat) =>
@@ -24,16 +20,10 @@ export function HomeHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-charcoal/10 bg-linen/95 backdrop-blur-md">
       {/* ── Mobile ── */}
       <div className="flex items-center justify-between px-4 py-3 md:hidden">
-        {/* Localização */}
-        <div className="flex items-center gap-1 text-xs text-charcoal/60">
-          <MapPin className="h-3.5 w-3.5 shrink-0 text-terracotta" />
-          <span className="max-w-[120px] truncate font-medium">{enderecoLabel}</span>
-        </div>
-
-        {/* Logo centralizada */}
-        <div className="absolute left-1/2 -translate-x-1/2">
+        {/* Logo */}
+        <a href="/" className="shrink-0">
           <Logo />
-        </div>
+        </a>
 
         {/* Carrinho + menu */}
         <div className="flex items-center gap-1">
@@ -100,16 +90,8 @@ export function HomeHeader() {
           {/* Spacer se não há nav */}
           {catsComProduto.length === 0 && <div className="flex-1" />}
 
-          {/* Localização + Sacola */}
+          {/* Sacola */}
           <div className="flex items-center gap-4">
-            {primeiraUnidade && (
-              <div className="flex items-center gap-1.5 text-xs text-charcoal/50">
-                <MapPin className="h-3.5 w-3.5 text-terracotta" />
-                <span className="max-w-[160px] truncate font-medium">
-                  {primeiraUnidade.endereco || primeiraUnidade.nome}
-                </span>
-              </div>
-            )}
             <CartButtonDesktop qtd={qtdItens} />
           </div>
         </div>

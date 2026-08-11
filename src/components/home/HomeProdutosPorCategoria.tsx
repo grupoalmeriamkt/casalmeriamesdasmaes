@@ -13,16 +13,25 @@ type ProdutoItem = {
   descricao: string;
   itens: string[];
   imagem: string;
+  tamanhos?: { id: string; label: string; preco: number; imagem?: string }[];
 };
 
 type Props = { search?: string };
+
+function precoLabel(p: ProdutoItem) {
+  if (p.tamanhos && p.tamanhos.length > 0) {
+    const min = Math.min(...p.tamanhos.map((t) => t.preco));
+    return `A partir de ${formatBRL(min)}`;
+  }
+  return formatBRL(p.preco);
+}
 
 export function HomeProdutosPorCategoria({ search = "" }: Props) {
   const categorias = useAdmin((s) => s.categorias);
   const cestas = useAdmin((s) => s.cestas);
   const add = useCarrinho((s) => s.add);
 
-  const { ativos, grupos, emDestaque, preferidos } = useMemo(() => {
+  const { ativos, grupos, preferidos } = useMemo(() => {
     const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
     const cats = [...categorias].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
     const out: { id: string; nome: string; produtos: typeof ativos }[] = [];
@@ -35,10 +44,9 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
     );
     if (semCat.length) out.push({ id: "outros", nome: "Outros", produtos: semCat });
 
-    const emDestaque = ativos.slice(0, 4);
     const preferidos = ativos.slice(0, 8);
 
-    return { ativos, grupos: out, emDestaque, preferidos };
+    return { ativos, grupos: out, preferidos };
   }, [categorias, cestas]);
 
   const doAdd = (p: ProdutoItem) => {
@@ -96,32 +104,6 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
   return (
     <div id="cardapio" className="pb-10 pt-8 md:pb-14 md:pt-10">
       <div className="mx-auto max-w-6xl">
-
-        {/* ── Em destaque ── */}
-        <div className="mb-10 md:mb-12">
-          {/* Mobile title */}
-          <div className="mb-4 flex items-baseline justify-between px-5 md:hidden">
-            <h2 className="font-serif text-[22px] font-semibold text-charcoal">Em destaque</h2>
-          </div>
-
-          {/* Mobile: horizontal scroll */}
-          <div
-            className="scrollbar-hide overflow-x-auto pb-1.5 md:hidden"
-            style={{ padding: "0 20px 6px" }}
-          >
-            <div className="flex gap-3.5">
-              {emDestaque.map((p) => (
-                <FeatureCardMobile key={p.id} produto={p} onAdd={() => doAdd(p)} />
-              ))}
-            </div>
-          </div>
-
-          {/* Desktop */}
-          <div className="hidden px-6 md:block lg:px-8">
-            <SectionTitleDesktop action="Ver todos" href="#cardapio">Em destaque</SectionTitleDesktop>
-            <ProductGrid products={emDestaque} onAdd={doAdd} />
-          </div>
-        </div>
 
         {/* ── Os preferidos da casa ── */}
         {preferidos.length > 0 && (
@@ -259,7 +241,7 @@ function ProductCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
 
       {/* Body */}
       <div className="flex flex-1 flex-col" style={{ padding: "16px 18px 18px" }}>
-        <h3 className="font-serif font-semibold leading-snug text-charcoal" style={{ fontSize: 17, marginBottom: 3 }}>
+        <h3 className="font-serif font-bold leading-snug text-charcoal" style={{ fontSize: 17, marginBottom: 3 }}>
           {p.nome}
         </h3>
         {(p.descricao || p.itens?.[0]) && (
@@ -271,7 +253,7 @@ function ProductCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
         <div className="flex items-center justify-between">
           <div>
             <div className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 17 }}>
-              {formatBRL(p.preco)}
+              {precoLabel(p)}
             </div>
             <div className="mt-0.5 flex items-center gap-1">
               <Star className="h-[11px] w-[11px] fill-terracotta text-terracotta" />
@@ -283,54 +265,6 @@ function ProductCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
             aria-label={`Adicionar ${p.nome}`}
             className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
             style={{ width: 36, height: 36 }}
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-// ── Mobile Feature Card (220px horizontal scroll) ─────────────────────────
-function FeatureCardMobile({ produto: p, onAdd }: { produto: ProdutoItem; onAdd: () => void }) {
-  return (
-    <article
-      className="shrink-0 overflow-hidden rounded-[20px] border border-charcoal/8 bg-white"
-      style={{ width: 220 }}
-    >
-      <div className="relative aspect-square w-full overflow-hidden bg-parchment">
-        {p.imagem ? (
-          <img src={p.imagem} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center font-serif text-3xl text-charcoal/20">
-            {p.nome.charAt(0)}
-          </div>
-        )}
-        {p.badge && (
-          <span className="absolute left-2.5 top-2.5 rounded-full bg-terracotta px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
-            {p.badge}
-          </span>
-        )}
-      </div>
-      <div className="p-3.5">
-        <h3 className="font-serif text-[17px] font-semibold leading-snug text-charcoal">
-          {p.nome}
-        </h3>
-        {(p.descricao || p.itens?.[0]) && (
-          <p className="mt-1 line-clamp-1 text-[12px] text-charcoal/50">
-            {p.descricao || p.itens.slice(0, 2).join(" · ")}
-          </p>
-        )}
-        <div className="mt-3 flex items-center justify-between">
-          <span className="font-serif text-[16px] font-bold tabular-nums text-charcoal">
-            {formatBRL(p.preco)}
-          </span>
-          <button
-            onClick={(e) => { e.preventDefault(); onAdd(); }}
-            aria-label={`Adicionar ${p.nome}`}
-            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
-            style={{ width: 32, height: 32 }}
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -357,7 +291,7 @@ function CompactCard({ produto: p, onAdd }: { produto: ProdutoItem; onAdd: () =>
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <h3 className="font-serif text-[16px] font-semibold leading-snug text-charcoal">
+        <h3 className="font-serif text-[16px] font-bold leading-snug text-charcoal">
           {p.nome}
         </h3>
         {(p.descricao || p.itens?.[0]) && (
@@ -374,7 +308,7 @@ function CompactCard({ produto: p, onAdd }: { produto: ProdutoItem; onAdd: () =>
         )}
         <div className="mt-auto flex items-center justify-between pt-2">
           <span className="font-serif text-[15px] font-bold tabular-nums text-charcoal">
-            {formatBRL(p.preco)}
+            {precoLabel(p)}
           </span>
           <button
             onClick={(e) => { e.preventDefault(); onAdd(); }}
@@ -407,7 +341,7 @@ function CompactCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <h3 className="font-serif font-semibold leading-snug text-charcoal" style={{ fontSize: 16 }}>
+        <h3 className="font-serif font-bold leading-snug text-charcoal" style={{ fontSize: 16 }}>
           {p.nome}
         </h3>
         {(p.descricao || p.itens?.[0]) && (
@@ -424,7 +358,7 @@ function CompactCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
         )}
         <div className="mt-auto flex items-center justify-between pt-2">
           <span className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
-            {formatBRL(p.preco)}
+            {precoLabel(p)}
           </span>
           <button
             onClick={(e) => { e.preventDefault(); onAdd(); }}
