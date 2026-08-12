@@ -25,6 +25,11 @@ import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas, useAdmin } fro
 import { calcularTotal, manualOrderItemKey } from "@/lib/orderForm/buildPayload";
 import { expandirTamanhos } from "@/lib/produtoGrupos";
 import { buscarCep, formatarEndereco } from "@/lib/cep";
+import {
+  atendeAreaEntrega,
+  MSG_AREA_ENTREGA,
+  MSG_FORA_AREA,
+} from "@/lib/entregaArea";
 import { montarEnderecoFinal } from "@/lib/enderecoEntrega";
 import { cpfParaLinkSchema } from "@/lib/orderForm/schema";
 import {
@@ -171,6 +176,17 @@ export function PedidoManualStepper({
       return;
     }
     patch({ enderecoOuUnidade: formatarEndereco(end) });
+    if (
+      !atendeAreaEntrega({
+        city: end.city,
+        neighborhood: end.neighborhood,
+        street: end.street,
+        state: end.state,
+      })
+    ) {
+      toast.error(MSG_FORA_AREA);
+      return;
+    }
     toast.success("Endereço preenchido pelo CEP!");
   };
 
@@ -458,6 +474,9 @@ export function PedidoManualStepper({
               </div>
             ) : (
               <>
+              <p className="field-anim rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                {MSG_AREA_ENTREGA}
+              </p>
               <div className="field-anim flex flex-col gap-1.5">
                 <Label htmlFor="pm-cep">CEP</Label>
                 <div className="relative">

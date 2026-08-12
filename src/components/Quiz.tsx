@@ -20,6 +20,13 @@ import {
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
+import { buscarCep as consultarCep } from "@/lib/cep";
+import {
+  atendeAreaEntrega,
+  MSG_AREA_ENTREGA,
+  MSG_FORA_AREA,
+  salvarCepEntrega,
+} from "@/lib/entregaArea";
 import { parseDateId, toISODateString, formatDatePtBR, parseDatePtBRToDate } from "@/lib/dateUtils";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import {
@@ -259,16 +266,33 @@ export function Quiz({
     setBuscando(true);
     setForaDeRaio(false);
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
-      const d = await r.json();
-      if (d.erro) throw new Error();
+      const d = await consultarCep(limpo);
+      if (!d) throw new Error();
       const novoEnd = {
-        rua: d.logradouro || "",
-        bairro: d.bairro || "",
-        cidade: d.localidade || "",
-        estado: d.uf || "",
+        rua: d.street || "",
+        bairro: d.neighborhood || "",
+        cidade: d.city || "",
+        estado: d.state || "",
       };
       setEnd((s) => ({ ...s, ...novoEnd }));
+
+      const naArea = atendeAreaEntrega({
+        city: novoEnd.cidade,
+        neighborhood: novoEnd.bairro,
+        street: novoEnd.rua,
+        state: novoEnd.estado,
+      });
+      salvarCepEntrega({
+        cep: limpo,
+        neighborhood: novoEnd.bairro,
+        city: novoEnd.cidade,
+        atende: naArea,
+      });
+      if (!naArea) {
+        setForaDeRaio(true);
+        toast.error(MSG_FORA_AREA);
+        return;
+      }
 
       const zonasConfig = campanhaAtiva?.delivery?.zonas;
       const usandoZonas = zonasConfig?.ativo && zonasConfig.zonas.length > 0;
@@ -466,9 +490,7 @@ export function Quiz({
         if (!end.rua || !end.numero || !end.bairro)
           return toast.error("Preencha o endereço completo.");
         if (foraDeRaio)
-          return toast.error(
-            "Este endereço está fora da nossa área de entrega. Escolha retirada ou outro CEP.",
-          );
+          return toast.error(MSG_FORA_AREA);
         const zonasAtivas = !!(
           campanhaAtiva?.delivery?.zonas?.ativo &&
           (campanhaAtiva?.delivery?.zonas?.zonas?.length ?? 0) > 0
@@ -824,7 +846,7 @@ export function Quiz({
                 <div className="min-w-0">
                   <p className="font-medium text-charcoal">Delivery</p>
                   <p className="truncate text-xs text-ink/60">
-                    Entregamos no seu endereço em Brasília
+                    Somente Plano Piloto (Asa Norte, Asa Sul, Noroeste…)
                   </p>
                 </div>
               </button>
@@ -832,6 +854,9 @@ export function Quiz({
 
             {entregaTipo === "delivery" && entregaConfig.delivery && (
               <div className="animate-fade-up space-y-4 rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
+                <p className="rounded-lg bg-charcoal/5 px-3 py-2 text-xs leading-relaxed text-charcoal/80">
+                  {MSG_AREA_ENTREGA}
+                </p>
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
                     <CampoInput
@@ -855,8 +880,7 @@ export function Quiz({
                 </div>
                 {foraDeRaio && (
                   <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
-                    Este endereço está fora da nossa área de entrega. Tente um CEP mais próximo ou
-                    escolha a opção de retirada.
+                    {MSG_FORA_AREA}
                   </p>
                 )}
                 <CampoInput

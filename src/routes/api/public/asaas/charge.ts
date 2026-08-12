@@ -13,6 +13,7 @@ import {
   CORTE_SEXTA_SABADO_MINUTOS,
 } from "@/lib/availability/retirada";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
+import { atendeAreaEntregaFromTexto, MSG_FORA_AREA } from "@/lib/entregaArea";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
 import { syncPedidoPaymentFields, registrarFalhaPagamentoCartao } from "@/lib/pedidoSync";
@@ -212,6 +213,12 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Carrega a campanha do pedido uma vez: horários configurados + regra de antecedência
         // (delivery ou retirada, conforme o tipo do pedido).
         const isDelivery = pedido.tipo === "delivery";
+        if (isDelivery && !atendeAreaEntregaFromTexto(String(pedido.endereco_ou_unidade ?? ""))) {
+          return Response.json(
+            { error: "fora_area_entrega", motivo: MSG_FORA_AREA },
+            { status: 403 },
+          );
+        }
         let horariosCampanha: string[] | undefined;
         let regraAntecedencia: RegraAntecedenciaRetirada | undefined;
         if (pedido.campanha_id) {

@@ -12,6 +12,7 @@ import { finalizarPedido } from "@/lib/pedidos";
 import { buildCestaPayloadFromState } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
+import { atendeAreaEntrega, MSG_AREA_ENTREGA, MSG_FORA_AREA } from "@/lib/entregaArea";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
@@ -149,6 +150,21 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
       setLojaFechada(true);
       toast.error(MSG_LOJA_FECHADA);
       return;
+    }
+    if (pedidoState.entregaTipo === "delivery") {
+      const e = pedidoState.endereco;
+      const ok = e
+        ? atendeAreaEntrega({
+            city: e.cidade,
+            neighborhood: e.bairro,
+            street: e.rua,
+            state: e.estado,
+          })
+        : false;
+      if (!ok) {
+        toast.error(MSG_FORA_AREA);
+        return;
+      }
     }
     setErros({});
     const cliente = ClienteSchema.safeParse({
@@ -419,6 +435,11 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
               {formatBRL(totalComDesconto)}
             </span>
           </div>
+          {pedidoState.entregaTipo === "delivery" && (
+            <p className="mt-3 text-[11px] leading-relaxed text-ink/60">
+              {MSG_AREA_ENTREGA}
+            </p>
+          )}
         </div>
       </div>
 

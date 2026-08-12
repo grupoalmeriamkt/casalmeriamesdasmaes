@@ -16,6 +16,14 @@ import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock } from "lucide-react";
 import { useAdmin } from "@/store/admin";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackBeginCheckout, trackAddPaymentInfo } from "@/lib/gtm";
+import { buscarCep } from "@/lib/cep";
+import {
+  atendeAreaEntrega,
+  atendeAreaEntregaFromTexto,
+  MSG_AREA_ENTREGA,
+  MSG_FORA_AREA,
+  salvarCepEntrega,
+} from "@/lib/entregaArea";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -89,6 +97,9 @@ function CheckoutPage() {
   const [whatsapp, setWhatsapp] = useState("");
   const [tipoEntrega, setTipoEntrega] = useState<"delivery" | "retirada">("retirada");
   const [enderecoStr, setEnderecoStr] = useState("");
+  const [cepEntrega, setCepEntrega] = useState("");
+  const [foraArea, setForaArea] = useState(false);
+  const [buscandoCep, setBuscandoCep] = useState(false);
 
   const [cep, setCep] = useState("");
   const [numero, setNumero] = useState("");
@@ -232,6 +243,12 @@ function CheckoutPage() {
     }
     if (tipoEntrega === "delivery" && enderecoStr.trim().length < 6) {
       setErros({ endereco: "Informe o endereço de entrega" });
+      return;
+    }
+    if (tipoEntrega === "delivery" && (foraArea || !atendeAreaEntregaFromTexto(enderecoStr))) {
+      setForaArea(true);
+      setErros({ endereco: MSG_FORA_AREA });
+      toast.error(MSG_FORA_AREA);
       return;
     }
 
@@ -444,17 +461,82 @@ function CheckoutPage() {
               ))}
             </div>
             {tipoEntrega === "delivery" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="end">Endereço completo</Label>
-                <Input
-                  id="end"
-                  value={enderecoStr}
-                  onChange={(e) => setEnderecoStr(e.target.value)}
-                  placeholder="Rua, número, bairro, complemento"
-                  maxLength={250}
-                  required
-                />
-                {erroLine("endereco")}
+              <div className="space-y-3">
+                <p className="rounded-lg bg-linen px-3 py-2 text-xs leading-relaxed text-charcoal/80">
+                  {MSG_AREA_ENTREGA}
+                </p>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1.5">
+                    <Label htmlFor="cep-entrega">CEP</Label>
+                    <Input
+                      id="cep-entrega"
+                      inputMode="numeric"
+                      value={cepEntrega}
+                      onChange={(e) => {
+                        setCepEntrega(maskCep(e.target.value));
+                        if (foraArea) setForaArea(false);
+                      }}
+                      placeholder="00000-000"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={buscandoCep}
+                    onClick={async () => {
+                      const limpo = onlyDigits(cepEntrega);
+                      if (limpo.length !== 8) {
+                        toast.error("CEP inválido");
+                        return;
+                      }
+                      setBuscandoCep(true);
+                      const d = await buscarCep(limpo);
+                      setBuscandoCep(false);
+                      if (!d) {
+                        toast.error("CEP não encontrado");
+                        return;
+                      }
+                      const linha = [d.street, d.neighborhood, `${d.city}/${d.state}`]
+                        .filter(Boolean)
+                        .join(", ");
+                      setEnderecoStr(linha);
+                      const ok = atendeAreaEntrega({
+                        city: d.city,
+                        neighborhood: d.neighborhood,
+                        street: d.street,
+                        state: d.state,
+                      });
+                      salvarCepEntrega({
+                        cep: limpo,
+                        neighborhood: d.neighborhood,
+                        city: d.city,
+                        atende: ok,
+                      });
+                      setForaArea(!ok);
+                      if (!ok) toast.error(MSG_FORA_AREA);
+                      else toast.success("Endereço encontrado — área atendida.");
+                    }}
+                    className="bg-charcoal text-white hover:bg-charcoal/90"
+                  >
+                    {buscandoCep ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                  </Button>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="end">Endereço completo</Label>
+                  <Input
+                    id="end"
+                    value={enderecoStr}
+                    onChange={(e) => setEnderecoStr(e.target.value)}
+                    placeholder="Rua, número, bairro, complemento"
+                    maxLength={250}
+                    required
+                  />
+                  {erroLine("endereco")}
+                </div>
+                {foraArea && (
+                  <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
+                    {MSG_FORA_AREA}
+                  </p>
+                )}
               </div>
             )}
           </section>
