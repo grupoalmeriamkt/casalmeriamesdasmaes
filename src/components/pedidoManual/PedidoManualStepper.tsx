@@ -21,9 +21,9 @@ import {
   pagarPos,
   gerarPix,
 } from "@/lib/pedidos";
-import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas } from "@/store/admin";
-import { calcularTotal } from "@/lib/orderForm/buildPayload";
-import { particionarCestas } from "@/lib/produtoGrupos";
+import { useCestasAtivas, useSobremesasAtivas, useUnidadesAtivas, useAdmin } from "@/store/admin";
+import { calcularTotal, manualOrderItemKey } from "@/lib/orderForm/buildPayload";
+import { expandirTamanhos } from "@/lib/produtoGrupos";
 import { buscarCep, formatarEndereco } from "@/lib/cep";
 import { montarEnderecoFinal } from "@/lib/enderecoEntrega";
 import { cpfParaLinkSchema } from "@/lib/orderForm/schema";
@@ -46,7 +46,7 @@ const TITULOS: Record<Etapa, string> = {
 
 const LEGENDAS: Record<Etapa, string> = {
   cliente: "Contato de quem recebe o pedido",
-  produto: "Cestas e sobremesas",
+  produto: "Produtos e tamanhos",
   entrega: "Onde e quando entregar",
   revisao: "Confira antes de finalizar",
   pagamento: "Como o cliente vai pagar",
@@ -84,6 +84,7 @@ export function PedidoManualStepper({
   const { etapa, etapaIndex, state, patch, erros, avancar, voltar } = useManualOrder();
   const cestas = useCestasAtivas();
   const sobremesas = useSobremesasAtivas();
+  const categorias = useAdmin((s) => s.categorias);
   const unidades = useUnidadesAtivas();
   const isMobile = useIsMobile();
 
@@ -147,11 +148,13 @@ export function PedidoManualStepper({
   );
 
   const setQuantidade = (item: Omit<ManualOrderItem, "quantidade">, qtd: number) => {
-    const restantes = state.itens.filter((i) => i.produto_id !== item.produto_id);
+    const key = manualOrderItemKey(item);
+    const restantes = state.itens.filter((i) => manualOrderItemKey(i) !== key);
     patch({ itens: qtd > 0 ? [...restantes, { ...item, quantidade: qtd }] : restantes });
   };
-  const getQtd = (produtoId: string) =>
-    state.itens.find((i) => i.produto_id === produtoId)?.quantidade ?? 0;
+  const getQtd = (produtoId: string, tamanho?: string) =>
+    state.itens.find((i) => manualOrderItemKey(i) === `${produtoId}::${tamanho ?? ""}`)
+      ?.quantidade ?? 0;
 
   const [cep, setCep] = useState("");
   const [buscandoCep, setBuscandoCep] = useState(false);
@@ -354,22 +357,69 @@ export function PedidoManualStepper({
         {etapa === "produto" && (
           <div className="flex flex-col gap-4">
             {(() => {
-              const { padrao, especiais } = particionarCestas(cestas);
-              return (
-                <>
-                  {padrao.length > 0 && (
-                    <ProdutoGrupo titulo="Cestas" itens={padrao} getQtd={getQtd}
-                      onQtd={(c, q) => setQuantidade({ produto_id: c.id, produto_tipo: "cesta", nome: c.nome, preco: c.preco }, q)} />
-                  )}
-                  {especiais.length > 0 && (
-                    <ProdutoGrupo titulo="Cestas Especiais / Campanha" itens={especiais} getQtd={getQtd}
-                      onQtd={(c, q) => setQuantidade({ produto_id: c.id, produto_tipo: "cesta", nome: c.nome, preco: c.preco }, q)} />
-                  )}
-                </>
+              const cats = [...categorias].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+              const grupos = cats
+                .map((cat) => {
+                  const produtos = cestas.filter((c) => c.categoriaId === cat.id);
+                  return {
+                    id: cat.id,
+                    titulo: cat.nome,
+                    itens: expandirTamanhos(produtos),
+                  };
+                })
+                .filter((g) => g.itens.length > 0);
+
+              const semCat = cestas.filter(
+                (c) => !c.categoriaId || !cats.some((cat) => cat.id === c.categoriaId),
               );
+              if (semCat.length) {
+                grupos.push({
+                  id: "outros",
+                  titulo: "Outros",
+                  itens: expandirTamanhos(semCat),
+                });
+              }
+
+              return grupos.map((g) => (
+                <ProdutoGrupo
+                  key={g.id}
+                  titulo={g.titulo}
+                  itens={g.itens}
+                  getQtd={(line) => getQtd(line.produtoId, line.tamanho)}
+                  onQtd={(line, q) =>
+                    setQuantidade(
+                      {
+                        produto_id: line.produtoId,
+                        produto_tipo: "cesta",
+                        nome: line.nome,
+                        preco: line.preco,
+                        ...(line.tamanho ? { tamanho: line.tamanho } : {}),
+                      },
+                      q,
+                    )
+                  }
+                />
+              ));
             })()}
-            <ProdutoGrupo titulo="Sobremesas" itens={sobremesas} getQtd={getQtd}
-              onQtd={(s, q) => setQuantidade({ produto_id: s.id, produto_tipo: "sobremesa", nome: s.nome, preco: s.preco }, q)} />
+            {sobremesas.length > 0 && (
+              <ProdutoGrupo
+                titulo="Sobremesas"
+                itens={expandirTamanhos(sobremesas)}
+                getQtd={(line) => getQtd(line.produtoId, line.tamanho)}
+                onQtd={(line, q) =>
+                  setQuantidade(
+                    {
+                      produto_id: line.produtoId,
+                      produto_tipo: "sobremesa",
+                      nome: line.nome,
+                      preco: line.preco,
+                      ...(line.tamanho ? { tamanho: line.tamanho } : {}),
+                    },
+                    q,
+                  )
+                }
+              />
+            )}
             <div className="field-anim flex items-center justify-between rounded-lg bg-foreground px-4 py-3 text-background">
               <span className="text-sm opacity-70">Total</span>
               <span className="text-lg font-semibold">{formatBRL(total)}</span>
@@ -661,12 +711,12 @@ export function PedidoManualStepper({
 
 /* ---------- Subcomponentes ---------- */
 
-function ProdutoGrupo<T extends { id: string; nome: string; preco: number }>({
+function ProdutoGrupo<T extends { lineId: string; nome: string; preco: number }>({
   titulo, itens, getQtd, onQtd,
 }: {
   titulo: string;
   itens: T[];
-  getQtd: (id: string) => number;
+  getQtd: (item: T) => number;
   onQtd: (item: T, qtd: number) => void;
 }) {
   if (!itens.length) return null;
@@ -675,9 +725,9 @@ function ProdutoGrupo<T extends { id: string; nome: string; preco: number }>({
       <Label>{titulo}</Label>
       <ul className="flex flex-col gap-2">
         {itens.map((it) => {
-          const q = getQtd(it.id);
+          const q = getQtd(it);
           return (
-            <li key={it.id}
+            <li key={it.lineId}
               className={cn(
                 "flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors",
                 q > 0 ? "border-olive/40 bg-olive/5" : "bg-background",
@@ -687,12 +737,12 @@ function ProdutoGrupo<T extends { id: string; nome: string; preco: number }>({
                 <p className="text-xs text-muted-foreground">{formatBRL(it.preco)}</p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => onQtd(it, Math.max(0, q - 1))} disabled={q === 0}
+                <button type="button" onClick={() => onQtd(it, Math.max(0, q - 1))} disabled={q === 0}
                   className="grid h-7 w-7 place-items-center rounded-full border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30">
                   −
                 </button>
                 <span className="w-5 text-center text-sm font-semibold">{q}</span>
-                <button onClick={() => onQtd(it, q + 1)}
+                <button type="button" onClick={() => onQtd(it, q + 1)}
                   className="grid h-7 w-7 place-items-center rounded-full bg-foreground text-background transition-transform hover:scale-105">
                   +
                 </button>

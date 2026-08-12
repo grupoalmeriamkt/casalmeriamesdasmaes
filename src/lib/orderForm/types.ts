@@ -4,6 +4,8 @@ export type ManualOrderItem = {
   nome: string;
   preco: number;
   quantidade: number;
+  /** Label do tamanho (P/M/G), quando o produto tem variantes. */
+  tamanho?: string;
 };
 
 export type ManualOrderInput = {

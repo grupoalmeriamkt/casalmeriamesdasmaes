@@ -1199,8 +1199,19 @@ export const useAdmin = create<AdminState>()(
           };
         }
         // Limpar textos hardcoded de Dia das Mães em instalações antigas
-        if (state.textos && /dia das m[aã]es/i.test(state.textos.heroTitulo ?? "")) {
-          state.textos = { ...state.textos, ...initial.textos };
+        if (
+          state.textos &&
+          /dia das m[aã]es|sua m[aã]e|presenteie sua m[aã]e/i.test(
+            `${state.textos.heroTitulo ?? ""} ${state.textos.heroSubtitulo ?? ""} ${state.textos.badgePrazo ?? ""}`,
+          )
+        ) {
+          state.textos = {
+            ...state.textos,
+            heroTitulo: initial.textos.heroTitulo,
+            heroSubtitulo: initial.textos.heroSubtitulo,
+            badgePrazo: initial.textos.badgePrazo,
+            ctaPrincipal: state.textos.ctaPrincipal || initial.textos.ctaPrincipal,
+          };
         }
 
         return state;
@@ -1231,10 +1242,9 @@ export const useCestasAtivas = () =>
 export const useSobremesasAtivas = () =>
   useAdmin(
     useShallow((s) => {
-      if (!Array.isArray(s.sobremesas) || s.sobremesas.length === 0)
-        return FALLBACK_SOBREMESAS;
-      const ativas = s.sobremesas.filter((sb) => sb.ativo !== false);
-      return ativas.length === 0 ? FALLBACK_SOBREMESAS : ativas;
+      // Sem array no store → seed. Lista presente (mesmo vazia/inativa) = fonte da verdade.
+      if (!Array.isArray(s.sobremesas)) return FALLBACK_SOBREMESAS;
+      return s.sobremesas.filter((sb) => sb.ativo !== false);
     }),
   );
 

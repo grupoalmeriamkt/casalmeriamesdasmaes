@@ -4,6 +4,7 @@ import {
   resolveProductionSector,
   type CarrinhoItem,
 } from "@/lib/availability";
+import { appendTamanhoAoNome } from "@/lib/cestaTamanho";
 import type { ManualOrderInput, ManualOrderItem } from "./types";
 
 export type PedidoManualPayload = {
@@ -13,7 +14,7 @@ export type PedidoManualPayload = {
   cliente_whatsapp: string;
   cliente_email: string | null;
   cliente_cpf: string | null;
-  cesta: { nome: string; quantidade: number; preco: number } | null;
+  cesta: { nome: string; quantidade: number; preco: number; tamanho?: string } | null;
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
   endereco_ou_unidade: string;
@@ -34,12 +35,31 @@ export function calcularTotal(itens: ManualOrderItem[]): number {
   return itens.reduce((acc, i) => acc + i.preco * i.quantidade, 0);
 }
 
+function itemKey(i: Pick<ManualOrderItem, "produto_id" | "tamanho">) {
+  return `${i.produto_id}::${i.tamanho ?? ""}`;
+}
+
+export { itemKey as manualOrderItemKey };
+
+function toLinhaSalva(i: ManualOrderItem) {
+  return {
+    nome: appendTamanhoAoNome(i.nome.replace(/\s*[·\-]\s*Tam\.\s*.+$/i, "").trim(), i.tamanho) || i.nome,
+    quantidade: i.quantidade,
+    preco: i.preco,
+    ...(i.tamanho ? { tamanho: i.tamanho } : {}),
+  };
+}
+
 export function buildPedidoManualPayload(
   input: ManualOrderInput,
   operatorId: string | null,
 ): PedidoManualPayload {
-  const cestaItem = input.itens.find((i) => i.produto_tipo === "cesta") ?? null;
+  const cestaItens = input.itens.filter((i) => i.produto_tipo === "cesta");
   const sobremesaItens = input.itens.filter((i) => i.produto_tipo === "sobremesa");
+  const cestaItem = cestaItens[0] ?? null;
+  // Demais cestas (ex.: outro sabor/tamanho) vão como linhas extras em sobremesas,
+  // para não perder itens no schema atual (1 slot de cesta).
+  const extrasComoSobremesa = cestaItens.slice(1).map(toLinhaSalva);
 
   const itensCarrinho: CarrinhoItem[] = input.itens.map((i) => ({
     produto_id: i.produto_id,
@@ -53,6 +73,8 @@ export function buildPedidoManualPayload(
   const emailTrim = input.cliente.email?.trim();
   const cpfTrim = input.cliente.cpf?.trim();
 
+  const cestaSalva = cestaItem ? toLinhaSalva(cestaItem) : null;
+
   return {
     origin: "manual",
     operator_id: operatorId,
@@ -60,12 +82,22 @@ export function buildPedidoManualPayload(
     cliente_whatsapp: input.cliente.whatsapp,
     cliente_email: emailTrim ? emailTrim : null,
     cliente_cpf: cpfTrim ? cpfTrim : null,
-    cesta: cestaItem
-      ? { nome: cestaItem.nome, quantidade: cestaItem.quantidade, preco: cestaItem.preco }
+    cesta: cestaSalva
+      ? {
+          nome: cestaSalva.nome,
+          quantidade: cestaSalva.quantidade,
+          preco: cestaSalva.preco,
+          ...(cestaSalva.tamanho ? { tamanho: cestaSalva.tamanho } : {}),
+        }
       : null,
-    sobremesas: sobremesaItens.map((s) => ({
-      nome: s.nome, quantidade: s.quantidade, preco: s.preco,
-    })),
+    sobremesas: [
+      ...sobremesaItens.map((s) => ({
+        nome: appendTamanhoAoNome(s.nome.replace(/\s*[·\-]\s*Tam\.\s*.+$/i, "").trim(), s.tamanho) || s.nome,
+        quantidade: s.quantidade,
+        preco: s.preco,
+      })),
+      ...extrasComoSobremesa.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
+    ],
     tipo: input.tipo,
     endereco_ou_unidade: input.enderecoOuUnidade,
     data_entrega: input.data ?? null,

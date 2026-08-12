@@ -38,12 +38,39 @@ describe("buildPedidoManualPayload", () => {
     const p = buildPedidoManualPayload(input, null);
     expect(p.execution_at).toBeTruthy();
   });
-  it("normaliza cpf/email vazios para null", () => {
+  it("grava tamanho na cesta e extras como sobremesas", () => {
     const p = buildPedidoManualPayload(
-      { ...input, cliente: { nome: "Ana Paula", whatsapp: "61988887777" } },
+      {
+        ...input,
+        itens: [
+          {
+            produto_id: "bolo-choco",
+            produto_tipo: "cesta",
+            nome: "Bolo de Chocolate · Tam. M",
+            preco: 280,
+            quantidade: 1,
+            tamanho: "M",
+          },
+          {
+            produto_id: "bolo-pistache",
+            produto_tipo: "cesta",
+            nome: "Bolo de Pistache · Tam. G",
+            preco: 360,
+            quantidade: 1,
+            tamanho: "G",
+          },
+        ],
+      },
       null,
     );
-    expect(p.cliente_cpf).toBeNull();
-    expect(p.cliente_email).toBeNull();
+    expect(p.cesta).toMatchObject({
+      nome: "Bolo de Chocolate · Tam. M",
+      preco: 280,
+      tamanho: "M",
+    });
+    expect(p.sobremesas).toEqual([
+      { nome: "Bolo de Pistache · Tam. G", quantidade: 1, preco: 360 },
+    ]);
+    expect(p.total).toBe(640);
   });
 });
