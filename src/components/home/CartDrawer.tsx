@@ -8,7 +8,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { useCarrinho, useCarrinhoTotal } from "@/store/carrinho";
+import { carrinhoLineKey, useCarrinho, useCarrinhoTotal } from "@/store/carrinho";
 import { formatBRL } from "@/store/pedido";
 import { ShoppingCart, Trash2, Minus, Plus } from "lucide-react";
 
@@ -49,7 +49,7 @@ export function CartDrawer() {
             <ul className="flex-1 space-y-3 overflow-y-auto py-4">
               {itens.map((it) => (
                 <li
-                  key={it.produtoId}
+                  key={carrinhoLineKey(it)}
                   className="flex gap-3 rounded-lg bg-card p-3 ring-1 ring-border"
                 >
                   <img
@@ -61,6 +61,9 @@ export function CartDrawer() {
                     <p className="truncate text-sm font-semibold text-charcoal">
                       {it.nome}
                     </p>
+                    {it.tamanho && (
+                      <p className="text-[11px] font-semibold text-terracotta">Tam. {it.tamanho}</p>
+                    )}
                     <p className="text-xs font-bold text-terracotta">
                       {formatBRL(it.preco)}
                     </p>
@@ -69,7 +72,7 @@ export function CartDrawer() {
                         size="icon"
                         variant="outline"
                         className="h-7 w-7"
-                        onClick={() => setQtd(it.produtoId, it.quantidade - 1)}
+                        onClick={() => setQtd(carrinhoLineKey(it), it.quantidade - 1)}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
@@ -80,7 +83,7 @@ export function CartDrawer() {
                         size="icon"
                         variant="outline"
                         className="h-7 w-7"
-                        onClick={() => setQtd(it.produtoId, it.quantidade + 1)}
+                        onClick={() => setQtd(carrinhoLineKey(it), it.quantidade + 1)}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -88,7 +91,7 @@ export function CartDrawer() {
                         size="icon"
                         variant="ghost"
                         className="ml-auto h-7 w-7 text-terracotta"
-                        onClick={() => remove(it.produtoId)}
+                        onClick={() => remove(carrinhoLineKey(it))}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>

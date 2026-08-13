@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAdmin } from "@/store/admin";
 import { useCarrinho } from "@/store/carrinho";
 import { formatBRL } from "@/store/pedido";
-import { Plus, Star, ArrowRight } from "lucide-react";
+import { Plus, Star, ArrowRight, X } from "lucide-react";
 import { toast } from "sonner";
 
 type ProdutoItem = {
@@ -30,6 +31,8 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
   const categorias = useAdmin((s) => s.categorias);
   const cestas = useAdmin((s) => s.cestas);
   const add = useCarrinho((s) => s.add);
+  const [picker, setPicker] = useState<ProdutoItem | null>(null);
+  const [tamanhoId, setTamanhoId] = useState<string | undefined>();
 
   const { ativos, grupos, preferidos } = useMemo(() => {
     const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
@@ -49,9 +52,25 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
     return { ativos, grupos: out, preferidos };
   }, [categorias, cestas]);
 
+  const confirmarAdd = (p: ProdutoItem, tam?: { id: string; label: string; preco: number; imagem?: string }) => {
+    const nome = tam ? `${p.nome} · Tam. ${tam.label}` : p.nome;
+    add({
+      produtoId: p.id,
+      nome,
+      preco: tam?.preco ?? p.preco,
+      imagem: tam?.imagem || p.imagem,
+      ...(tam ? { tamanho: tam.label } : {}),
+    });
+    toast.success(`${nome} adicionado`);
+  };
+
   const doAdd = (p: ProdutoItem) => {
-    add({ produtoId: p.id, nome: p.nome, preco: p.preco, imagem: p.imagem });
-    toast.success(`${p.nome} adicionado`);
+    if (p.tamanhos && p.tamanhos.length > 0) {
+      setTamanhoId(undefined);
+      setPicker(p);
+      return;
+    }
+    confirmarAdd(p);
   };
 
   if (search.trim()) {
@@ -63,6 +82,16 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
     );
     return (
       <div id="cardapio" className="py-6">
+        <SizePicker
+          produto={picker}
+          tamanhoId={tamanhoId}
+          onTamanho={setTamanhoId}
+          onClose={() => setPicker(null)}
+          onConfirm={(tam) => {
+            if (picker) confirmarAdd(picker, tam);
+            setPicker(null);
+          }}
+        />
         <div className="mx-auto max-w-6xl px-5 md:px-6 lg:px-8">
           <h2
             className="mb-[22px] font-serif font-semibold text-charcoal"
@@ -79,7 +108,12 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
               {/* Mobile */}
               <div className="flex flex-col gap-3 md:hidden">
                 {results.map((p) => (
-                  <CompactCard key={p.id} produto={p} onAdd={() => doAdd(p)} />
+                  <CompactCard
+                    key={p.id}
+                    produto={p}
+                    onAdd={() => doAdd(p)}
+                    onAddSize={(tam) => confirmarAdd(p, tam)}
+                  />
                 ))}
               </div>
               {/* Desktop */}
@@ -103,6 +137,16 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
 
   return (
     <div id="cardapio" className="pb-10 pt-8 md:pb-14 md:pt-10">
+      <SizePicker
+        produto={picker}
+        tamanhoId={tamanhoId}
+        onTamanho={setTamanhoId}
+        onClose={() => setPicker(null)}
+        onConfirm={(tam) => {
+          if (picker) confirmarAdd(picker, tam);
+          setPicker(null);
+        }}
+      />
       <div className="mx-auto max-w-6xl">
 
         {/* ── Os preferidos da casa ── */}
@@ -116,7 +160,12 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
             {/* Mobile: compact list */}
             <div className="flex flex-col gap-3 px-5 md:hidden">
               {preferidos.slice(0, 3).map((p) => (
-                <CompactCard key={p.id} produto={p} onAdd={() => doAdd(p)} />
+                <CompactCard
+                  key={p.id}
+                  produto={p}
+                  onAdd={() => doAdd(p)}
+                  onAddSize={(tam) => confirmarAdd(p, tam)}
+                />
               ))}
             </div>
 
@@ -140,7 +189,12 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
               {/* Mobile: compact list */}
               <div className="flex flex-col gap-3 px-5 md:hidden">
                 {g.produtos.map((p) => (
-                  <CompactCard key={p.id} produto={p} onAdd={() => doAdd(p)} />
+                  <CompactCard
+                    key={p.id}
+                    produto={p}
+                    onAdd={() => doAdd(p)}
+                    onAddSize={(tam) => confirmarAdd(p, tam)}
+                  />
                 ))}
               </div>
 
@@ -149,7 +203,12 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
                 <SectionTitleDesktop>{g.nome}</SectionTitleDesktop>
                 <div className="grid grid-cols-2 gap-[18px] lg:grid-cols-3">
                   {g.produtos.map((p) => (
-                    <CompactCardDesktop key={p.id} produto={p} onAdd={() => doAdd(p)} />
+                    <CompactCardDesktop
+                      key={p.id}
+                      produto={p}
+                      onAdd={() => doAdd(p)}
+                      onAddSize={(tam) => confirmarAdd(p, tam)}
+                    />
                   ))}
                 </div>
               </div>
@@ -157,6 +216,108 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SizePicker({
+  produto,
+  tamanhoId,
+  onTamanho,
+  onClose,
+  onConfirm,
+}: {
+  produto: ProdutoItem | null;
+  tamanhoId?: string;
+  onTamanho: (id: string) => void;
+  onClose: () => void;
+  onConfirm: (tam: { id: string; label: string; preco: number; imagem?: string }) => void;
+}) {
+  if (!produto?.tamanhos?.length || typeof document === "undefined") return null;
+  const tam = produto.tamanhos.find((t) => t.id === tamanhoId);
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-charcoal/50 p-0 sm:items-center sm:p-4">
+      <button type="button" className="absolute inset-0" aria-label="Fechar" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-elevated sm:rounded-3xl">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-charcoal/45">
+              Escolha o tamanho
+            </p>
+            <h3 className="mt-1 font-serif text-xl font-bold text-charcoal">{produto.nome}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-charcoal/6 text-charcoal"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className={`grid gap-2 ${produto.tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+          {produto.tamanhos.map((t) => {
+            const sel = tamanhoId === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onTamanho(t.id)}
+                className={`flex min-h-[96px] flex-col items-center justify-center gap-1 rounded-2xl border-2 px-2 py-3 ${
+                  sel ? "border-terracotta bg-terracotta/5" : "border-charcoal/12 bg-white"
+                }`}
+              >
+                <span className={`font-serif text-2xl font-bold ${sel ? "text-terracotta" : "text-charcoal"}`}>
+                  {t.label}
+                </span>
+                <span className={`font-serif text-sm font-bold ${sel ? "text-terracotta" : "text-charcoal/70"}`}>
+                  {formatBRL(t.preco)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          disabled={!tam}
+          onClick={() => tam && onConfirm(tam)}
+          className="mt-5 w-full rounded-xl bg-charcoal py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          {tam ? `Adicionar ${formatBRL(tam.preco)}` : "Selecione P, M ou G"}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+type TamanhoOpcao = { id: string; label: string; preco: number; imagem?: string };
+
+function SizeChips({
+  tamanhos,
+  onPick,
+}: {
+  tamanhos: TamanhoOpcao[];
+  onPick: (tam: TamanhoOpcao) => void;
+}) {
+  return (
+    <div className={`grid gap-1.5 ${tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+      {tamanhos.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onPick(t);
+          }}
+          className="flex min-h-[44px] flex-col items-center justify-center rounded-xl border border-charcoal/12 bg-parchment/70 px-1 py-1.5 active:border-terracotta active:bg-terracotta/8"
+        >
+          <span className="font-serif text-[13px] font-bold leading-none text-charcoal">{t.label}</span>
+          <span className="mt-1 text-[10px] font-semibold tabular-nums text-charcoal/55">
+            {formatBRL(t.preco)}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -275,7 +436,16 @@ function ProductCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
 }
 
 // ── Compact Card (mobile + desktop category list) ─────────────────────────
-function CompactCard({ produto: p, onAdd }: { produto: ProdutoItem; onAdd: () => void }) {
+function CompactCard({
+  produto: p,
+  onAdd,
+  onAddSize,
+}: {
+  produto: ProdutoItem;
+  onAdd: () => void;
+  onAddSize?: (tam: TamanhoOpcao) => void;
+}) {
+  const tamanhos = p.tamanhos ?? [];
   return (
     <article className="flex gap-3.5 rounded-2xl border border-charcoal/8 bg-white p-3 transition-all duration-200 hover:shadow-soft">
       <div
@@ -306,26 +476,44 @@ function CompactCard({ produto: p, onAdd }: { produto: ProdutoItem; onAdd: () =>
             </span>
           </div>
         )}
-        <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="font-serif text-[15px] font-bold tabular-nums text-charcoal">
-            {precoLabel(p)}
-          </span>
-          <button
-            onClick={(e) => { e.preventDefault(); onAdd(); }}
-            aria-label={`Adicionar ${p.nome}`}
-            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
-            style={{ width: 30, height: 30 }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        {tamanhos.length > 0 && onAddSize ? (
+          <div className="mt-auto pt-2">
+            <p className="mb-1.5 font-serif text-[13px] font-bold tabular-nums text-charcoal">
+              {precoLabel(p)}
+            </p>
+            <SizeChips tamanhos={tamanhos} onPick={onAddSize} />
+          </div>
+        ) : (
+          <div className="mt-auto flex items-center justify-between pt-2">
+            <span className="font-serif text-[15px] font-bold tabular-nums text-charcoal">
+              {precoLabel(p)}
+            </span>
+            <button
+              onClick={(e) => { e.preventDefault(); onAdd(); }}
+              aria-label={`Adicionar ${p.nome}`}
+              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+              style={{ width: 30, height: 30 }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
 // ── Desktop Compact Card (category sections) ──────────────────────────────
-function CompactCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd: () => void }) {
+function CompactCardDesktop({
+  produto: p,
+  onAdd,
+  onAddSize,
+}: {
+  produto: ProdutoItem;
+  onAdd: () => void;
+  onAddSize?: (tam: TamanhoOpcao) => void;
+}) {
+  const tamanhos = p.tamanhos ?? [];
   return (
     <article className="flex gap-4 rounded-2xl border border-charcoal/8 bg-white p-3.5 transition-all duration-200 hover:shadow-soft">
       <div
@@ -356,19 +544,28 @@ function CompactCardDesktop({ produto: p, onAdd }: { produto: ProdutoItem; onAdd
             </span>
           </div>
         )}
-        <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
-            {precoLabel(p)}
-          </span>
-          <button
-            onClick={(e) => { e.preventDefault(); onAdd(); }}
-            aria-label={`Adicionar ${p.nome}`}
-            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
-            style={{ width: 32, height: 32 }}
-          >
-            <Plus className="h-[15px] w-[15px]" />
-          </button>
-        </div>
+        {tamanhos.length > 0 && onAddSize ? (
+          <div className="mt-auto pt-2">
+            <p className="mb-1.5 font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 14 }}>
+              {precoLabel(p)}
+            </p>
+            <SizeChips tamanhos={tamanhos} onPick={onAddSize} />
+          </div>
+        ) : (
+          <div className="mt-auto flex items-center justify-between pt-2">
+            <span className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
+              {precoLabel(p)}
+            </span>
+            <button
+              onClick={(e) => { e.preventDefault(); onAdd(); }}
+              aria-label={`Adicionar ${p.nome}`}
+              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+              style={{ width: 32, height: 32 }}
+            >
+              <Plus className="h-[15px] w-[15px]" />
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );

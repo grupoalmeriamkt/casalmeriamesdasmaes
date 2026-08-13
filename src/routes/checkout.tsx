@@ -671,7 +671,7 @@ function CheckoutPage() {
             <ul className="space-y-2 text-sm">
               {itens.map((it) => (
                 <li
-                  key={it.produtoId}
+                  key={`${it.produtoId}::${it.tamanho ?? ""}`}
                   className="flex justify-between gap-3 border-b border-border/60 pb-2"
                 >
                   <span className="text-charcoal">
