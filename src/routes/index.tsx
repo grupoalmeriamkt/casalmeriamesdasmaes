@@ -6,7 +6,6 @@ import { useAdmin } from "@/store/admin";
 import { Logo } from "@/components/Logo";
 import { HomeBanner } from "@/components/home/HomeBanner";
 import { HomeCampanhasDestaque } from "@/components/home/HomeCampanhasDestaque";
-import { HomeCategoriasCarousel } from "@/components/home/HomeCategoriasCarousel";
 import { HomeProdutosPorCategoria } from "@/components/home/HomeProdutosPorCategoria";
 import { HomeFooter } from "@/components/home/HomeFooter";
 import { CartDrawer } from "@/components/home/CartDrawer";
@@ -57,7 +56,6 @@ function Index() {
         {!search.trim() && (
           <>
             <HomeCampanhasDestaque />
-            <HomeCategoriasCarousel />
           </>
         )}
         <HomeProdutosPorCategoria search={search} />
