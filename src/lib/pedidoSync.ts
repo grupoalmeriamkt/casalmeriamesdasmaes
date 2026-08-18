@@ -17,6 +17,23 @@ export type PaymentPatch = {
   conciliacao_pendente?: boolean;
 };
 
+/**
+ * Pedido concluído cedo demais (ainda sem pagamento) some da planilha.
+ * Quando o pagamento entra depois, reabre — mas não mexe se a operação
+ * concluiu DEPOIS do pagamento (fluxo normal pós-entrega).
+ */
+export function deveReabrirPedidoAoPagar(input: {
+  concluidoAt?: string | null;
+  paymentConfirmedAt?: string | null;
+  pagamentoAprovado: boolean;
+}): boolean {
+  if (!input.pagamentoAprovado || !input.concluidoAt) return false;
+  if (input.paymentConfirmedAt && input.concluidoAt > input.paymentConfirmedAt) {
+    return false;
+  }
+  return true;
+}
+
 export function buildPaymentPatch(
   pagamentos: { status: string; criado_em: string; asaas_payment_id?: string; id?: string }[],
   pedidoStatus: string,
@@ -65,11 +82,15 @@ export function buildPagamentoManualPatch(input: {
   metodo: PagamentoManualMetodo;
   confirmedAt: string;
   pos?: unknown;
+  concluidoAt?: string | null;
+  paymentConfirmedAt?: string | null;
 }): {
   status: "pago";
   payment_status_normalized: "aprovado";
   payment_confirmed_at: string;
   pagamento: Record<string, unknown>;
+  concluido_at?: null;
+  concluido_by?: null;
 } {
   const { pagamentoAtual, metodo, confirmedAt, pos } = input;
   const pagamento: Record<string, unknown> =
@@ -85,12 +106,32 @@ export function buildPagamentoManualPatch(input: {
         }
       : { ...pagamentoAtual, metodo: "dinheiro", status: "pago" };
 
-  return {
+  const patch: {
+    status: "pago";
+    payment_status_normalized: "aprovado";
+    payment_confirmed_at: string;
+    pagamento: Record<string, unknown>;
+    concluido_at?: null;
+    concluido_by?: null;
+  } = {
     status: "pago",
     payment_status_normalized: "aprovado",
     payment_confirmed_at: confirmedAt,
     pagamento,
   };
+
+  if (
+    deveReabrirPedidoAoPagar({
+      concluidoAt: input.concluidoAt,
+      paymentConfirmedAt: input.paymentConfirmedAt,
+      pagamentoAprovado: true,
+    })
+  ) {
+    patch.concluido_at = null;
+    patch.concluido_by = null;
+  }
+
+  return patch;
 }
 
 export async function syncPedidoPaymentFields(
@@ -105,7 +146,7 @@ export async function syncPedidoPaymentFields(
       .order("criado_em", { ascending: false }),
     admin
       .from("pedidos")
-      .select("status, pagamento, payment_confirmed_at, data_entrega, horario")
+      .select("status, pagamento, payment_confirmed_at, data_entrega, horario, concluido_at")
       .eq("id", pedidoId)
       .maybeSingle(),
   ]);
@@ -125,12 +166,25 @@ export async function syncPedidoPaymentFields(
     pedido.horario as string | null,
   );
 
+  const update: Record<string, unknown> = {
+    ...patch,
+    execution_at: executionAt,
+  };
+
+  if (
+    deveReabrirPedidoAoPagar({
+      concluidoAt: pedido.concluido_at as string | null,
+      paymentConfirmedAt: pedido.payment_confirmed_at as string | null,
+      pagamentoAprovado: patch.payment_status_normalized === "aprovado",
+    })
+  ) {
+    update.concluido_at = null;
+    update.concluido_by = null;
+  }
+
   const { error } = await admin
     .from("pedidos")
-    .update({
-      ...patch,
-      execution_at: executionAt,
-    })
+    .update(update)
     .eq("id", pedidoId);
 
   if (error) {

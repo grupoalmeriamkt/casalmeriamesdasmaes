@@ -455,7 +455,7 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const { id } = parsed.data;
           const { data: pedido, error: pErr } = await auth.admin
             .from("pedidos")
-            .select("pagamento")
+            .select("pagamento, concluido_at, payment_confirmed_at")
             .eq("id", id)
             .maybeSingle();
           if (pErr || !pedido) {
@@ -469,6 +469,8 @@ export const Route = createFileRoute("/api/admin/pedidos")({
                 pagamentoAtual: pagAtual,
                 metodo: "dinheiro",
                 confirmedAt: new Date().toISOString(),
+                concluidoAt: pedido.concluido_at,
+                paymentConfirmedAt: pedido.payment_confirmed_at,
               }),
             )
             .eq("id", id);
@@ -484,7 +486,7 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           const { id, pos } = parsed.data;
           const { data: pedido, error: pErr } = await auth.admin
             .from("pedidos")
-            .select("pagamento")
+            .select("pagamento, concluido_at, payment_confirmed_at")
             .eq("id", id)
             .maybeSingle();
           if (pErr || !pedido) {
@@ -499,6 +501,8 @@ export const Route = createFileRoute("/api/admin/pedidos")({
                 metodo: "pos",
                 confirmedAt: new Date().toISOString(),
                 pos,
+                concluidoAt: pedido.concluido_at,
+                paymentConfirmedAt: pedido.payment_confirmed_at,
               }),
             )
             .eq("id", id);
