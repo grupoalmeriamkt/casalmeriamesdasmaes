@@ -9,6 +9,7 @@ import { labelTipoPedido } from "@/lib/asaasStatus";
 import { PAYMENT_STATUS_LABEL } from "@/lib/paymentStatus";
 import { labelGrupoExecucao } from "@/lib/timezone";
 import { formatBRL } from "@/store/pedido";
+import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import type { PedidoSalvo } from "@/store/admin";
 import { Button } from "@/components/ui/button";
 import { Eye, MessageCircle, Printer } from "lucide-react";
@@ -65,7 +66,7 @@ export function OperacaoPedidoCard({ p, onDetalhe, onImprimir }: Props) {
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-charcoal">
             {p.cesta?.nome && (
               <span className="font-medium">
-                {p.cesta.nome} × {p.cesta.quantidade}
+                {formatItemPedidoLabel(p.cesta)} × {p.cesta.quantidade}
               </span>
             )}
             {p.sobremesas.length > 0 && (

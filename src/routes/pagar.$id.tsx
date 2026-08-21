@@ -51,7 +51,7 @@ function PagarPage() {
           return;
         }
         if (res.status === 410) {
-          setMsgIndisponivel("Este pedido foi cancelado.");
+          setMsgIndisponivel("Este pedido não está mais disponível para pagamento.");
           setEstado("indisponivel");
           return;
         }

@@ -34,6 +34,15 @@ export function deveReabrirPedidoAoPagar(input: {
   return true;
 }
 
+/** Pedido concluído sem pagamento não pode mais gerar cobrança. */
+export function checkoutBloqueadoPorConclusao(input: {
+  status?: string | null;
+  concluidoAt?: string | null;
+}): boolean {
+  if (input.status === "pago") return false;
+  return !!input.concluidoAt;
+}
+
 export function buildPaymentPatch(
   pagamentos: { status: string; criado_em: string; asaas_payment_id?: string; id?: string }[],
   pedidoStatus: string,

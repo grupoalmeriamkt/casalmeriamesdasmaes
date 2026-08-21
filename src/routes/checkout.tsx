@@ -11,6 +11,7 @@ import { ThemeApplier } from "@/components/ThemeApplier";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { upsertRascunho } from "@/lib/pedidos";
+import { appendTamanhoAoNome } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
 import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock } from "lucide-react";
 import { useAdmin } from "@/store/admin";
@@ -308,17 +309,27 @@ function CheckoutPage() {
 
     setEnviando(true);
     try {
-      const sobremesas = itens.map((it) => ({
-        nome: it.nome,
+      const linhas = itens.map((it) => ({
+        nome: appendTamanhoAoNome(it.nome, it.tamanho),
         quantidade: it.quantidade,
         preco: it.preco,
+        ...(it.tamanho ? { tamanho: it.tamanho } : {}),
       }));
+      const [primeiro, ...demais] = linhas;
 
       // 1. cria/atualiza pedido como rascunho (subtotal sem desconto;
       // o /charge revalida cupom server-side e atualiza pedido.total = valorFinal)
       const { id: pedidoId, error: erRasc } = await upsertRascunho({
         cliente: { nome: cliente.data.nome, whatsapp: cliente.data.whatsapp },
-        sobremesas,
+        cesta: primeiro
+          ? {
+              nome: primeiro.nome,
+              quantidade: primeiro.quantidade,
+              preco: primeiro.preco,
+              ...(primeiro.tamanho ? { tamanho: primeiro.tamanho } : {}),
+            }
+          : undefined,
+        sobremesas: demais.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
         tipo: tipoEntrega,
         enderecoOuUnidade: tipoEntrega === "delivery" ? enderecoStr : "Retirada na loja",
         pagamento: { metodo: metodo.toLowerCase(), status: "pendente" },
@@ -341,7 +352,7 @@ function CheckoutPage() {
             email: cliente.data.email,
             whatsapp: cliente.data.whatsapp,
           },
-          itens: sobremesas,
+          itens: linhas.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
           total, // subtotal (sem desconto) — backend revalida cupom e calcula desconto
           metodo,
           cupomCodigo: cupomAplicado?.codigo,

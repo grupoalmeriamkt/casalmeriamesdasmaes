@@ -3,6 +3,7 @@ import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
 import { labelStatusPagamento, labelTipoPedido, labelPagamentoDetalhado } from "@/lib/asaasStatus";
 import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
+import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { ComprovanteAsaas } from "./ComprovanteAsaas";
 import { cn } from "@/lib/utils";
@@ -250,7 +251,7 @@ export function DetalhesPedido({
             {p.cesta && (
               <div className="flex items-start justify-between gap-3">
                 <span className="min-w-0 text-charcoal">
-                  {p.cesta.nome} × {p.cesta.quantidade}
+                  {formatItemPedidoLabel(p.cesta)} × {p.cesta.quantidade}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">
                   {formatBRL(p.cesta.preco * p.cesta.quantidade)}
@@ -260,7 +261,7 @@ export function DetalhesPedido({
             {p.sobremesas.map((item, i) => (
               <div key={i} className="flex items-start justify-between gap-3">
                 <span className="min-w-0 text-charcoal">
-                  {item.nome} × {item.quantidade}
+                  {formatItemPedidoLabel(item)} × {item.quantidade}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">
                   {formatBRL(item.preco * item.quantidade)}
@@ -398,13 +399,13 @@ export function DetalhesPedido({
         <div className="mt-1 space-y-1 text-charcoal">
           {p.cesta && (
             <div className="flex justify-between">
-              <span>{p.cesta.nome} × {p.cesta.quantidade}</span>
+              <span>{formatItemPedidoLabel(p.cesta)} × {p.cesta.quantidade}</span>
               <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
             </div>
           )}
           {p.sobremesas.map((item, i) => (
             <div key={i} className="flex justify-between">
-              <span>{item.nome} × {item.quantidade}</span>
+              <span>{formatItemPedidoLabel(item)} × {item.quantidade}</span>
               <span className="font-semibold">{formatBRL(item.preco * item.quantidade)}</span>
             </div>
           ))}

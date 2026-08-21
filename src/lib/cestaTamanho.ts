@@ -23,6 +23,20 @@ export function appendTamanhoAoNome(nome: string, tamanho?: string | null): stri
   return `${nomeBase} · Tam. ${tamanho}`;
 }
 
+/** Nome para tela/impressão: usa `tamanho` gravado ou o sufixo "· Tam. X" do nome. */
+export function formatItemPedidoLabel(item: {
+  nome: string;
+  tamanho?: string | null;
+}): string {
+  const { nomeBase, tamanho } = resolveCestaItem({
+    nome: item.nome,
+    quantidade: 1,
+    preco: 0,
+    ...(item.tamanho ? { tamanho: item.tamanho } : {}),
+  });
+  return appendTamanhoAoNome(nomeBase, tamanho);
+}
+
 export function resolveCestaItem(item: CestaItemSalvo): {
   nomeBase: string;
   tamanho: string | null;

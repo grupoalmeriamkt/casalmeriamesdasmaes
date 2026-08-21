@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendTamanhoAoNome,
   buildCestaPayloadFromState,
+  formatItemPedidoLabel,
   parseTamanhoDoNome,
   resolveCestaItem,
 } from "./cestaTamanho";
@@ -67,5 +68,21 @@ describe("buildCestaPayloadFromState", () => {
 describe("appendTamanhoAoNome", () => {
   it("substitui tamanho existente", () => {
     expect(appendTamanhoAoNome("Cesta · Tam. P", "G")).toBe("Cesta · Tam. G");
+  });
+});
+
+describe("formatItemPedidoLabel", () => {
+  it("mostra tamanho gravado mesmo se o nome não tiver sufixo", () => {
+    expect(
+      formatItemPedidoLabel({ nome: "Cesta de Café da Manhã", tamanho: "G" }),
+    ).toBe("Cesta de Café da Manhã · Tam. G");
+  });
+
+  it("reaproveita o sufixo do nome", () => {
+    expect(formatItemPedidoLabel({ nome: "Bolo Dragê · Tam. P" })).toBe("Bolo Dragê · Tam. P");
+  });
+
+  it("não inventa tamanho quando não há", () => {
+    expect(formatItemPedidoLabel({ nome: "Cesta de Café da Manhã" })).toBe("Cesta de Café da Manhã");
   });
 });

@@ -16,6 +16,23 @@ export const ASAAS_FINAL_DONE = new Set([
   "OVERDUE",
 ]);
 
+/** Cobrança ainda aberta no Asaas (PIX, link, boleto) — pode ser excluída. */
+export function isCobrancaAsaasCancelavel(status: string | null | undefined): boolean {
+  const s = (status ?? "").trim();
+  if (!s) return true;
+  if (ASAAS_FINAL_PAID.has(s)) return false;
+  if (ASAAS_FINAL_FAILED.has(s)) return false;
+  return true;
+}
+
+export function cobrancasPendentesCancelaveis<
+  T extends { asaas_payment_id?: string | null; status: string },
+>(pagamentos: T[]): T[] {
+  return pagamentos.filter(
+    (p) => !!p.asaas_payment_id && isCobrancaAsaasCancelavel(p.status),
+  );
+}
+
 export type PagamentoLike = {
   id?: string;
   asaas_payment_id?: string;

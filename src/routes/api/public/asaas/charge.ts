@@ -16,7 +16,11 @@ import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loj
 import { atendeAreaEntregaFromTexto, MSG_FORA_AREA } from "@/lib/entregaArea";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
-import { syncPedidoPaymentFields, registrarFalhaPagamentoCartao } from "@/lib/pedidoSync";
+import {
+  checkoutBloqueadoPorConclusao,
+  registrarFalhaPagamentoCartao,
+  syncPedidoPaymentFields,
+} from "@/lib/pedidoSync";
 import { limparFalhaPagamento } from "@/lib/pagamentoFalha";
 import {
   checkoutAccessDenied,
@@ -141,7 +145,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, campanha_id")
+          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, campanha_id, concluido_at")
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
@@ -152,6 +156,14 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         }
         if (pedido.status === "cancelado") {
           return Response.json({ error: "cancelado" }, { status: 410 });
+        }
+        if (
+          checkoutBloqueadoPorConclusao({
+            status: pedido.status,
+            concluidoAt: pedido.concluido_at as string | null,
+          })
+        ) {
+          return Response.json({ error: "pedido_concluido" }, { status: 410 });
         }
 
         const totalPedido = Number(pedido.total ?? 0);

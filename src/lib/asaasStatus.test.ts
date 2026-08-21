@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  cobrancasPendentesCancelaveis,
+  isCobrancaAsaasCancelavel,
   labelPagamentoDetalhado,
   pagamentoRelevante,
   pedidoStatusFromPagamentos,
@@ -109,5 +111,29 @@ describe("RECEIVED_IN_CASH (baixa manual no Asaas) conta como pago", () => {
       { id: "2", status: "RECEIVED_IN_CASH", criado_em: "2026-07-08T11:00:00Z", asaas_payment_id: "b" },
     ];
     expect(pagamentoRelevante(lista)?.status).toBe("RECEIVED_IN_CASH");
+  });
+});
+
+describe("isCobrancaAsaasCancelavel", () => {
+  it("cancela PIX/link ainda abertos", () => {
+    expect(isCobrancaAsaasCancelavel("PENDING")).toBe(true);
+    expect(isCobrancaAsaasCancelavel("OVERDUE")).toBe(true);
+    expect(isCobrancaAsaasCancelavel("")).toBe(true);
+  });
+
+  it("não cancela cobrança já paga ou já encerrada", () => {
+    expect(isCobrancaAsaasCancelavel("CONFIRMED")).toBe(false);
+    expect(isCobrancaAsaasCancelavel("RECEIVED")).toBe(false);
+    expect(isCobrancaAsaasCancelavel("PAYMENT_DELETED")).toBe(false);
+    expect(isCobrancaAsaasCancelavel("REFUNDED")).toBe(false);
+  });
+
+  it("filtra só cobranças com id Asaas ainda abertas", () => {
+    const lista = cobrancasPendentesCancelaveis([
+      { asaas_payment_id: "pay_1", status: "PENDING" },
+      { asaas_payment_id: "pay_2", status: "CONFIRMED" },
+      { asaas_payment_id: null, status: "PENDING" },
+    ]);
+    expect(lista).toEqual([{ asaas_payment_id: "pay_1", status: "PENDING" }]);
   });
 });

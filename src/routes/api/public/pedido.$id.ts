@@ -6,6 +6,7 @@ import {
   verifyPedidoAccessOrStaff,
 } from "@/lib/checkoutAccess.server";
 import { rateLimit } from "@/lib/rateLimit.server";
+import { checkoutBloqueadoPorConclusao } from "@/lib/pedidoSync";
 
 const ParamSchema = z.string().uuid();
 
@@ -44,7 +45,7 @@ export const Route = createFileRoute("/api/public/pedido/$id")({
         const { data, error } = await admin
           .from("pedidos")
           .select(
-            "id, status, cliente_nome, cliente_whatsapp, cliente_email, cliente_cpf, cesta, sobremesas, total",
+            "id, status, cliente_nome, cliente_whatsapp, cliente_email, cliente_cpf, cesta, sobremesas, total, concluido_at",
           )
           .eq("id", parsed.data)
           .maybeSingle();
@@ -62,6 +63,14 @@ export const Route = createFileRoute("/api/public/pedido/$id")({
           return Response.json({ error: "ja_pago" }, { status: 409 });
         }
         if (data.status === "cancelado") {
+          return Response.json({ error: "cancelado" }, { status: 410 });
+        }
+        if (
+          checkoutBloqueadoPorConclusao({
+            status: data.status,
+            concluidoAt: data.concluido_at,
+          })
+        ) {
           return Response.json({ error: "cancelado" }, { status: 410 });
         }
 

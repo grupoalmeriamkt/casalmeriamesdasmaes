@@ -85,6 +85,12 @@ export function makeAsaasClient(apiKey: string) {
     async getPayment(paymentId: string): Promise<AsaasPayment> {
       return asaasFetch<AsaasPayment>(apiKey, `/payments/${paymentId}`);
     },
+
+    async deletePayment(paymentId: string): Promise<{ deleted?: boolean; id?: string }> {
+      return asaasFetch<{ deleted?: boolean; id?: string }>(apiKey, `/payments/${paymentId}`, {
+        method: "DELETE",
+      });
+    },
   };
 }
 

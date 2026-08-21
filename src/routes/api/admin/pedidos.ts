@@ -9,6 +9,7 @@ import { makeAsaasClient } from "@/integrations/asaas/client.server";
 import type { AsaasCreatePayment } from "@/integrations/asaas/types";
 import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
 import { buildPagamentoManualPatch } from "@/lib/pedidoSync";
+import { cancelarCobrancasPendentesDosPedidos } from "@/lib/cancelarCobrancasPendentes.server";
 
 function deriveDueDate(dataEntrega: string | null): string {
   // Asaas exige YYYY-MM-DD. Usa a data de entrega se valida; senao hoje + 2 dias.
@@ -245,7 +246,17 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             console.error("[admin/pedidos] concluir error", error);
             return Response.json({ error: error.message }, { status: 500 });
           }
-          return Response.json({ ok: true, concluidos: data?.length ?? 0 });
+          const concluidosIds = (data ?? []).map((r) => r.id as string);
+          if (concluidosIds.length > 0) {
+            const cobrancas = await cancelarCobrancasPendentesDosPedidos(
+              auth.admin,
+              concluidosIds,
+            );
+            if (cobrancas.erros > 0) {
+              console.warn("[admin/pedidos] concluir cancelou cobranças com erros", cobrancas);
+            }
+          }
+          return Response.json({ ok: true, concluidos: concluidosIds.length });
         }
 
         if (action === "reabrir") {

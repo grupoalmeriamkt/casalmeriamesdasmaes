@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildPagamentoManualPatch, deveReabrirPedidoAoPagar } from "@/lib/pedidoSync";
+import {
+  buildPagamentoManualPatch,
+  checkoutBloqueadoPorConclusao,
+  deveReabrirPedidoAoPagar,
+} from "@/lib/pedidoSync";
 
 describe("deveReabrirPedidoAoPagar", () => {
   it("reabre se concluiu antes do pagamento", () => {
@@ -45,6 +49,35 @@ describe("deveReabrirPedidoAoPagar", () => {
         concluidoAt: "2026-08-10T12:56:28.656Z",
         paymentConfirmedAt: null,
         pagamentoAprovado: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("checkoutBloqueadoPorConclusao", () => {
+  it("bloqueia pedido concluído ainda sem pagamento", () => {
+    expect(
+      checkoutBloqueadoPorConclusao({
+        status: "aguardando_pagamento",
+        concluidoAt: "2026-08-10T12:56:28.656Z",
+      }),
+    ).toBe(true);
+  });
+
+  it("não bloqueia pedido pago mesmo se estiver concluído", () => {
+    expect(
+      checkoutBloqueadoPorConclusao({
+        status: "pago",
+        concluidoAt: "2026-08-18T15:00:00.000Z",
+      }),
+    ).toBe(false);
+  });
+
+  it("não bloqueia pedido aberto", () => {
+    expect(
+      checkoutBloqueadoPorConclusao({
+        status: "aguardando_pagamento",
+        concluidoAt: null,
       }),
     ).toBe(false);
   });

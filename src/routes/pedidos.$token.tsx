@@ -2481,9 +2481,21 @@ function FolhaImpressao({ p }: { p: PedidoSalvo }) {
           </div>
         );
       })()}
-      {p.sobremesas.map((s, i) => (
-        <p key={i} style={{ margin: "3pt 0", fontSize: "12pt" }}>• {s.nome} × {s.quantidade}</p>
-      ))}
+      {p.sobremesas.map((s, i) => {
+        const item = resolveCestaItem(s);
+        return (
+          <div key={i} style={{ marginBottom: "6pt" }}>
+            <p style={{ margin: "3pt 0", fontSize: "12pt" }}>
+              • {item.nomeBase} × {item.quantidade}
+            </p>
+            {item.tamanho && (
+              <p style={{ margin: "2pt 0 0 14pt", fontSize: "13pt", fontWeight: "bold" }}>
+                Tamanho: {item.tamanho}
+              </p>
+            )}
+          </div>
+        );
+      })}
 
       {/* Personalizações */}
       {(cartoes.length > 0 || polaroids.length > 0) && (

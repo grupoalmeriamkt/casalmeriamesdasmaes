@@ -1,4 +1,5 @@
 import { getAdminClient } from "@/integrations/supabase/client.server";
+import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import { sendEmail } from "@/lib/email";
 import {
   renderPedidoOperacaoEmail,
@@ -17,8 +18,8 @@ type PedidoOperacaoRow = {
   criado_em: string;
   cliente_nome: string;
   cliente_whatsapp: string;
-  cesta: { nome: string; quantidade: number; preco: number } | null;
-  sobremesas: { nome: string; quantidade: number; preco: number }[] | null;
+  cesta: { nome: string; quantidade: number; preco: number; tamanho?: string } | null;
+  sobremesas: { nome: string; quantidade: number; preco: number; tamanho?: string }[] | null;
   tipo: string;
   endereco_ou_unidade: string;
   data_entrega: string | null;
@@ -55,10 +56,18 @@ function labelFormaPagamento(metodo?: string): string {
 function mapPedidoParaEmail(row: PedidoOperacaoRow): PedidoOperacaoEmailData {
   const itens: PedidoOperacaoEmailItem[] = [];
   if (row.cesta) {
-    itens.push({ nome: row.cesta.nome, quantidade: row.cesta.quantidade, preco: row.cesta.preco });
+    itens.push({
+      nome: formatItemPedidoLabel(row.cesta),
+      quantidade: row.cesta.quantidade,
+      preco: row.cesta.preco,
+    });
   }
   for (const s of row.sobremesas ?? []) {
-    itens.push({ nome: s.nome, quantidade: s.quantidade, preco: s.preco });
+    itens.push({
+      nome: formatItemPedidoLabel(s),
+      quantidade: s.quantidade,
+      preco: s.preco,
+    });
   }
 
   const pagamento = row.pagamento ?? {};

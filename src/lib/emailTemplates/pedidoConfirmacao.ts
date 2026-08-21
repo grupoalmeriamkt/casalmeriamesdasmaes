@@ -1,5 +1,6 @@
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
+import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import { labelTipoPedido } from "@/lib/asaasStatus";
 import { emailLayout, escapeHtml } from "@/lib/emailTemplates/layout";
 
@@ -27,12 +28,14 @@ export function pedidoConfirmacaoEmail(pedido: PedidoSalvo): {
   const linhasHtml: string[] = [];
 
   if (pedido.cesta) {
-    itens.push(`${pedido.cesta.quantidade}x ${pedido.cesta.nome} — ${formatBRL(pedido.cesta.preco * pedido.cesta.quantidade)}`);
-    linhasHtml.push(linhaItem(pedido.cesta.nome, pedido.cesta.quantidade, pedido.cesta.preco));
+    const nomeCesta = formatItemPedidoLabel(pedido.cesta);
+    itens.push(`${pedido.cesta.quantidade}x ${nomeCesta} — ${formatBRL(pedido.cesta.preco * pedido.cesta.quantidade)}`);
+    linhasHtml.push(linhaItem(nomeCesta, pedido.cesta.quantidade, pedido.cesta.preco));
   }
   for (const s of pedido.sobremesas ?? []) {
-    itens.push(`${s.quantidade}x ${s.nome} — ${formatBRL(s.preco * s.quantidade)}`);
-    linhasHtml.push(linhaItem(s.nome, s.quantidade, s.preco));
+    const nomeSobremesa = formatItemPedidoLabel(s);
+    itens.push(`${s.quantidade}x ${nomeSobremesa} — ${formatBRL(s.preco * s.quantidade)}`);
+    linhasHtml.push(linhaItem(nomeSobremesa, s.quantidade, s.preco));
   }
   const extras = pedido.pagamento?.extras;
   for (const c of extras?.cartoes ?? []) {

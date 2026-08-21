@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { formatBRL } from "@/store/pedido";
+import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import { toast } from "sonner";
 import { ListOrdered, RefreshCw, Link2, Copy, ExternalLink, Trash2, MessageCircle, Ban, AlertTriangle } from "lucide-react";
 import {
@@ -242,8 +243,8 @@ export function AbaPedidos() {
         r.cliente_cpf ?? "",
         r.cliente_email ?? "",
         r.cliente_whatsapp,
-        p.cesta ? `${p.cesta.nome} x${p.cesta.quantidade}` : "",
-        p.sobremesas.map((s) => `${s.nome} x${s.quantidade}`).join(" | "),
+        p.cesta ? `${formatItemPedidoLabel(p.cesta)} x${p.cesta.quantidade}` : "",
+        p.sobremesas.map((s) => `${formatItemPedidoLabel(s)} x${s.quantidade}`).join(" | "),
         p.tipo,
         p.enderecoOuUnidade,
         p.data ?? "",
@@ -702,13 +703,13 @@ function DetalhesPedidoAdmin({
         <div className="mt-1 space-y-1 text-charcoal">
           {p.cesta && (
             <div className="flex justify-between">
-              <span>{p.cesta.nome} × {p.cesta.quantidade}</span>
+              <span>{formatItemPedidoLabel(p.cesta)} × {p.cesta.quantidade}</span>
               <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
             </div>
           )}
           {p.sobremesas.map((s, i) => (
             <div key={i} className="flex justify-between">
-              <span>{s.nome} × {s.quantidade}</span>
+              <span>{formatItemPedidoLabel(s)} × {s.quantidade}</span>
               <span className="font-semibold">{formatBRL(s.preco * s.quantidade)}</span>
             </div>
           ))}

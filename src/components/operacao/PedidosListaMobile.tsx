@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { PedidoSalvo } from "@/store/admin";
 import { formatBRL } from "@/store/pedido";
+import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import { labelTipoPedido } from "@/lib/asaasStatus";
 import { cn } from "@/lib/utils";
 
@@ -41,11 +42,11 @@ const STATUS_ORDER: PedidoStatusKey[] = [
 function resumoItens(p: PedidoSalvo): string {
   const partes: string[] = [];
   if (p.cesta?.nome) {
-    partes.push(`${p.cesta.nome} × ${p.cesta.quantidade}`);
+    partes.push(`${formatItemPedidoLabel(p.cesta)} × ${p.cesta.quantidade}`);
   }
   if (!p.cesta && p.sobremesas.length > 0) {
     const [primeiro, ...resto] = p.sobremesas;
-    partes.push(`${primeiro.nome} × ${primeiro.quantidade}`);
+    partes.push(`${formatItemPedidoLabel(primeiro)} × ${primeiro.quantidade}`);
     if (resto.length > 0) partes.push(`+${resto.length}`);
   } else if (p.sobremesas.length > 0) {
     partes.push(`+${p.sobremesas.length} item${p.sobremesas.length !== 1 ? "ns" : ""}`);
