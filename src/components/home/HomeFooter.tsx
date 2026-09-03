@@ -1,5 +1,5 @@
 import { useAdmin } from "@/store/admin";
-import { Instagram, MessageCircle, Facebook } from "lucide-react";
+import { Instagram, Facebook } from "lucide-react";
 
 export function HomeFooter() {
   const rodape = useAdmin((s) => s.home.rodape);
@@ -63,17 +63,6 @@ export function HomeFooter() {
                 className="rounded-full bg-white/10 p-2 transition-colors hover:bg-white/20"
               >
                 <Instagram className="h-5 w-5" />
-              </a>
-            )}
-            {rodape.redes.whatsapp && (
-              <a
-                href={rodape.redes.whatsapp}
-                target="_blank"
-                rel="noreferrer"
-                aria-label="WhatsApp"
-                className="rounded-full bg-white/10 p-2 transition-colors hover:bg-white/20"
-              >
-                <MessageCircle className="h-5 w-5" />
               </a>
             )}
             {rodape.redes.facebook && (

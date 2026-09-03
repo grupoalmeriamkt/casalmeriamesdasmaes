@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAdmin } from "@/store/admin";
 import { useCarrinho } from "@/store/carrinho";
 import { formatBRL } from "@/store/pedido";
-import { Plus, Star, ArrowRight, X } from "lucide-react";
+import { Plus, Minus, Star, ArrowRight, X, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 import { completarTamanhoBolo, resumoTamanho, type TamanhoComResumo } from "@/lib/tamanhoBolo";
 import { aplicarCestasCafePorTamanho, ehCestaCafeAgrupada } from "@/lib/cestasCafe";
@@ -65,7 +65,10 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
     return { ativos, grupos: out, preferidos };
   }, [categorias, cestas]);
 
-  const confirmarAdd = (p: ProdutoItem, tam?: { id: string; label: string; preco: number; imagem?: string }) => {
+  const confirmarAdd = (
+    p: ProdutoItem,
+    tam?: { id: string; label: string; preco: number; imagem?: string },
+  ) => {
     const nome = tam ? `${p.nome} · Tam. ${tam.label}` : p.nome;
     add({
       produtoId: p.id,
@@ -77,30 +80,24 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
     toast.success(`${nome} adicionado`);
   };
 
-  const doAdd = (p: ProdutoItem) => {
-    if (p.tamanhos && p.tamanhos.length > 0) {
-      setTamanhoId(undefined);
-      setPicker(p);
-      return;
-    }
-    confirmarAdd(p);
+  const abrirDetalhe = (p: ProdutoItem) => {
+    setTamanhoId(undefined);
+    setPicker(p);
   };
 
   if (search.trim()) {
     const q = search.toLowerCase();
     const results = ativos.filter(
-      (p) =>
-        p.nome.toLowerCase().includes(q) ||
-        p.descricao?.toLowerCase().includes(q),
+      (p) => p.nome.toLowerCase().includes(q) || p.descricao?.toLowerCase().includes(q),
     );
     return (
       <div id="cardapio" className="py-6">
-        <SizePicker
+        <ProductDetail
           produto={picker}
           tamanhoId={tamanhoId}
           onTamanho={setTamanhoId}
           onClose={() => setPicker(null)}
-          onConfirm={(tam) => {
+          onAdd={(tam) => {
             if (picker) confirmarAdd(picker, tam);
             setPicker(null);
           }}
@@ -121,27 +118,12 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
               {/* Mobile */}
               <div className="flex flex-col gap-3 md:hidden">
                 {results.map((p) => (
-                  <CompactCard
-                    key={p.id}
-                    produto={p}
-                    onAdd={() => doAdd(p)}
-                    onAddSize={(tam) => {
-                      setTamanhoId(tam.id);
-                      setPicker(p);
-                    }}
-                  />
+                  <CompactCard key={p.id} produto={p} onOpen={() => abrirDetalhe(p)} />
                 ))}
               </div>
               {/* Desktop */}
               <div className="hidden md:block">
-                <ProductGrid
-                  products={results}
-                  onAdd={doAdd}
-                  onAddSize={(p, tam) => {
-                    setTamanhoId(tam.id);
-                    setPicker(p);
-                  }}
-                />
+                <ProductGrid products={results} onOpen={abrirDetalhe} />
               </div>
             </>
           )}
@@ -160,52 +142,38 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
 
   return (
     <div id="cardapio" className="pb-10 pt-8 md:pb-14 md:pt-10">
-      <SizePicker
+      <ProductDetail
         produto={picker}
         tamanhoId={tamanhoId}
         onTamanho={setTamanhoId}
         onClose={() => setPicker(null)}
-        onConfirm={(tam) => {
+        onAdd={(tam) => {
           if (picker) confirmarAdd(picker, tam);
           setPicker(null);
         }}
       />
       <div className="mx-auto max-w-6xl">
-
         {/* ── Os preferidos da casa ── */}
         {preferidos.length > 0 && (
           <div className="mb-10 md:mb-12">
             {/* Mobile title */}
             <div className="mb-4 flex items-baseline px-5 md:hidden">
-              <h2 className="font-serif text-[22px] font-semibold text-charcoal">Os preferidos da casa</h2>
+              <h2 className="font-serif text-[22px] font-semibold text-charcoal">
+                Os preferidos da casa
+              </h2>
             </div>
 
             {/* Mobile: compact list */}
             <div className="flex flex-col gap-3 px-5 md:hidden">
               {preferidos.slice(0, 3).map((p) => (
-                <CompactCard
-                  key={p.id}
-                  produto={p}
-                  onAdd={() => doAdd(p)}
-                  onAddSize={(tam) => {
-                    setTamanhoId(tam.id);
-                    setPicker(p);
-                  }}
-                />
+                <CompactCard key={p.id} produto={p} onOpen={() => abrirDetalhe(p)} />
               ))}
             </div>
 
             {/* Desktop */}
             <div className="hidden px-6 md:block lg:px-8">
               <SectionTitleDesktop>Os preferidos da casa</SectionTitleDesktop>
-              <ProductGrid
-                products={preferidos}
-                onAdd={doAdd}
-                onAddSize={(p, tam) => {
-                  setTamanhoId(tam.id);
-                  setPicker(p);
-                }}
-              />
+              <ProductGrid products={preferidos} onOpen={abrirDetalhe} />
             </div>
           </div>
         )}
@@ -222,15 +190,7 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
               {/* Mobile: compact list */}
               <div className="flex flex-col gap-3 px-5 md:hidden">
                 {g.produtos.map((p) => (
-                  <CompactCard
-                    key={p.id}
-                    produto={p}
-                    onAdd={() => doAdd(p)}
-                    onAddSize={(tam) => {
-                      setTamanhoId(tam.id);
-                      setPicker(p);
-                    }}
-                  />
+                  <CompactCard key={p.id} produto={p} onOpen={() => abrirDetalhe(p)} />
                 ))}
               </div>
 
@@ -239,15 +199,7 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
                 <SectionTitleDesktop>{g.nome}</SectionTitleDesktop>
                 <div className="grid grid-cols-2 gap-[18px] lg:grid-cols-3">
                   {g.produtos.map((p) => (
-                    <CompactCardDesktop
-                      key={p.id}
-                      produto={p}
-                      onAdd={() => doAdd(p)}
-                      onAddSize={(tam) => {
-                        setTamanhoId(tam.id);
-                        setPicker(p);
-                      }}
-                    />
+                    <CompactCardDesktop key={p.id} produto={p} onOpen={() => abrirDetalhe(p)} />
                   ))}
                 </div>
               </div>
@@ -259,95 +211,353 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
   );
 }
 
-function SizePicker({
+function ProductDetail({
   produto,
   tamanhoId,
   onTamanho,
   onClose,
-  onConfirm,
+  onAdd,
 }: {
   produto: ProdutoItem | null;
   tamanhoId?: string;
   onTamanho: (id: string) => void;
   onClose: () => void;
-  onConfirm: (tam: TamanhoOpcao) => void;
+  onAdd: (tam?: TamanhoOpcao) => void;
 }) {
-  if (!produto?.tamanhos?.length || typeof document === "undefined") return null;
-  const tamanhos = produto.tamanhos.map(completarTamanhoBolo);
+  const [zoom, setZoom] = useState(false);
+  const zoomAberto = useRef(false);
+  zoomAberto.current = zoom;
+
+  useEffect(() => {
+    setZoom(false);
+  }, [produto?.id]);
+
+  useEffect(() => {
+    if (!produto) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (zoomAberto.current) return;
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [produto, onClose]);
+
+  if (!produto || typeof document === "undefined") return null;
+
+  const tamanhos = (produto.tamanhos ?? []).map(completarTamanhoBolo);
+  const temTamanhos = tamanhos.length > 0;
   const tam = tamanhos.find((t) => t.id === tamanhoId);
+  const imagem = tam?.imagem || produto.imagem;
+  const itens = tam?.itens && tam.itens.length > 0 ? tam.itens : (produto.itens ?? []);
+  const preco =
+    tam?.preco ?? (temTamanhos ? Math.min(...tamanhos.map((t) => t.preco)) : produto.preco);
+
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-charcoal/50 p-0 sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0" aria-label="Fechar" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-elevated sm:rounded-3xl">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-charcoal/45">
-              Escolha o tamanho
-            </p>
-            <h3 className="mt-1 font-serif text-xl font-bold text-charcoal">{produto.nome}</h3>
-            {produto.descricao ? (
-              <p className="mt-1 text-sm leading-relaxed text-charcoal/60">{produto.descricao}</p>
-            ) : null}
+    <>
+      <div className="fixed inset-0 z-[200] flex items-end justify-center bg-charcoal/70 backdrop-blur-sm sm:items-center sm:p-4">
+        <button type="button" className="absolute inset-0" aria-label="Fechar" onClick={onClose} />
+        <div
+          className="relative z-10 flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-linen shadow-elevated sm:max-w-3xl sm:flex-row sm:rounded-3xl"
+          style={{ maxHeight: "min(92dvh, 760px)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="produto-detalhe-titulo"
+        >
+          <div className="relative h-52 w-full flex-none overflow-hidden bg-parchment sm:h-auto sm:min-h-[420px] sm:w-[44%]">
+            <div className="absolute left-1/2 top-2.5 z-10 h-1.5 w-10 -translate-x-1/2 rounded-full bg-white/80 shadow-sm sm:hidden" />
+            {imagem ? (
+              <button
+                type="button"
+                onClick={() => setZoom(true)}
+                className="group/img relative h-full w-full"
+                aria-label="Ampliar imagem"
+              >
+                <img src={imagem} alt={produto.nome} className="h-full w-full object-cover" />
+                <span className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-charcoal/70 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm">
+                  <ZoomIn className="h-3.5 w-3.5" />
+                  Ampliar
+                </span>
+              </button>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center font-serif text-6xl text-charcoal/20">
+                {produto.nome.charAt(0)}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-charcoal/60 text-white backdrop-blur-sm"
+              aria-label="Fechar"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4 sm:pb-5">
+            {produto.badge ? (
+              <span className="inline-block w-fit rounded-full bg-olive px-2.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-white">
+                {produto.badge}
+              </span>
+            ) : null}
+            <h3
+              id="produto-detalhe-titulo"
+              className="mt-2 font-serif text-xl font-bold text-charcoal sm:text-2xl"
+            >
+              {produto.nome}
+            </h3>
+            <p className="mt-1 font-serif text-xl font-semibold text-terracotta sm:text-2xl">
+              {temTamanhos && !tam ? `A partir de ${formatBRL(preco)}` : formatBRL(preco)}
+            </p>
+
+            {produto.descricao ? (
+              <p className="mt-3 text-sm leading-relaxed text-ink/70">{produto.descricao}</p>
+            ) : null}
+
+            {temTamanhos ? (
+              <div className="mt-4 space-y-2">
+                <p className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-charcoal/60">
+                  Escolha o tamanho
+                </p>
+                <div
+                  className={`grid gap-2 ${tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
+                >
+                  {tamanhos.map((t) => {
+                    const sel = tamanhoId === t.id;
+                    const serve = t.serve?.replace(/^serve\s+/i, "");
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => onTamanho(t.id)}
+                        className={`flex min-h-[120px] flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2.5 text-center ${
+                          sel
+                            ? "border-terracotta bg-terracotta/5 shadow-sm"
+                            : "border-charcoal/15 bg-white"
+                        }`}
+                      >
+                        <span
+                          className={`font-serif text-xl font-bold ${sel ? "text-terracotta" : "text-charcoal"}`}
+                        >
+                          {t.label}
+                        </span>
+                        {t.peso ? (
+                          <span className="text-[12px] font-semibold text-charcoal">{t.peso}</span>
+                        ) : null}
+                        {serve ? (
+                          <span className="text-[11px] leading-snug text-charcoal/60">
+                            Serve {serve}
+                          </span>
+                        ) : null}
+                        {t.diametro ? (
+                          <span className="text-[10px] text-charcoal/45">{t.diametro}</span>
+                        ) : null}
+                        <span
+                          className={`mt-auto font-serif text-xs font-bold ${sel ? "text-terracotta" : "text-charcoal/70"}`}
+                        >
+                          {formatBRL(t.preco)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {tam ? (
+                  <p className="rounded-xl bg-white/70 px-3 py-2 text-center text-sm text-charcoal/70">
+                    Tamanho {tam.label}: {resumoTamanho(tam)}
+                    {tam.diametro ? ` · ${tam.diametro}` : ""}
+                  </p>
+                ) : (
+                  <p className="text-center text-sm text-charcoal/50">
+                    Toque em P, M ou G para ver peso e quantas pessoas serve.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
+            {itens.length > 0 ? (
+              <ul className="mt-4 grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
+                {itens.map((i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 border-b border-charcoal/5 pb-1.5 text-sm text-ink"
+                  >
+                    <span className="mt-1.5 block h-1.5 w-1.5 flex-none rounded-full bg-terracotta" />
+                    <span>{i}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="flex-1" />
+
+            <button
+              type="button"
+              disabled={temTamanhos && !tam}
+              onClick={() => {
+                if (temTamanhos && !tam) {
+                  toast.error("Escolha um tamanho para continuar.");
+                  return;
+                }
+                onAdd(tam);
+              }}
+              className="mt-5 w-full rounded-xl bg-charcoal py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              {temTamanhos && !tam
+                ? "Selecione P, M ou G"
+                : `Adicionar ${formatBRL(tam?.preco ?? produto.preco)}`}
+            </button>
+          </div>
+        </div>
+      </div>
+      {zoom && imagem ? (
+        <ImageLightbox src={imagem} alt={produto.nome} onClose={() => setZoom(false)} />
+      ) : null}
+    </>,
+    document.body,
+  );
+}
+
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const pinch = useRef<{ dist: number; scale: number } | null>(null);
+
+  const clampScale = (s: number) => Math.min(4, Math.max(1, s));
+
+  const applyScale = (next: number) => {
+    const s = clampScale(next);
+    setScale(s);
+    if (s <= 1) setOffset({ x: 0, y: 0 });
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[220] flex flex-col bg-charcoal/95">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
+        <p className="min-w-0 truncate font-serif text-sm">{alt}</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => applyScale(scale - 0.5)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10"
+            aria-label="Diminuir zoom"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="w-10 text-center text-xs tabular-nums">{Math.round(scale * 100)}%</span>
+          <button
+            type="button"
+            onClick={() => applyScale(scale + 0.5)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10"
+            aria-label="Aumentar zoom"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-charcoal/6 text-charcoal"
-            aria-label="Fechar"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10"
+            aria-label="Fechar zoom"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {tamanhos.map((t) => {
-            const sel = tamanhoId === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => onTamanho(t.id)}
-                className={`flex min-h-[132px] flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center ${
-                  sel ? "border-terracotta bg-terracotta/5" : "border-charcoal/12 bg-white"
-                }`}
-              >
-                <span className={`font-serif text-2xl font-bold ${sel ? "text-terracotta" : "text-charcoal"}`}>
-                  {t.label}
-                </span>
-                {t.peso ? (
-                  <span className="text-[12px] font-semibold text-charcoal">{t.peso}</span>
-                ) : null}
-                {t.serve ? (
-                  <span className="text-[11px] leading-snug text-charcoal/60">Serve {t.serve.replace(/^serve\s+/i, "")}</span>
-                ) : null}
-                {t.diametro ? (
-                  <span className="text-[10px] text-charcoal/45">{t.diametro}</span>
-                ) : null}
-                <span className={`mt-auto font-serif text-sm font-bold ${sel ? "text-terracotta" : "text-charcoal/80"}`}>
-                  {formatBRL(t.preco)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {tam ? (
-          <p className="mt-3 rounded-xl bg-linen px-3 py-2 text-center text-sm text-charcoal/70">
-            Tamanho {tam.label}: {resumoTamanho(tam)}
-            {tam.diametro ? ` · ${tam.diametro}` : ""}
-          </p>
-        ) : (
-          <p className="mt-3 text-center text-sm text-charcoal/50">
-            Toque em P, M ou G para ver peso e quantas pessoas serve.
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={!tam}
-          onClick={() => tam && onConfirm(tam)}
-          className="mt-4 w-full rounded-xl bg-charcoal py-3.5 text-sm font-semibold text-white disabled:opacity-40"
-        >
-          {tam ? `Adicionar ${formatBRL(tam.preco)}` : "Selecione P, M ou G"}
-        </button>
       </div>
+      <div
+        className="relative min-h-0 flex-1 touch-none overflow-hidden"
+        onWheel={(e) => {
+          e.preventDefault();
+          applyScale(scale + (e.deltaY < 0 ? 0.25 : -0.25));
+        }}
+        onDoubleClick={() => applyScale(scale > 1 ? 1 : 2.5)}
+        onPointerDown={(e) => {
+          if (e.pointerType === "touch") return;
+          drag.current = { px: e.clientX, py: e.clientY, ox: offset.x, oy: offset.y };
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current || scale <= 1) return;
+          setOffset({
+            x: drag.current.ox + (e.clientX - drag.current.px),
+            y: drag.current.oy + (e.clientY - drag.current.py),
+          });
+        }}
+        onPointerUp={() => {
+          drag.current = null;
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length === 2) {
+            pinch.current = {
+              dist: Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY,
+              ),
+              scale,
+            };
+            drag.current = null;
+            return;
+          }
+          if (e.touches.length === 1) {
+            drag.current = {
+              px: e.touches[0].clientX,
+              py: e.touches[0].clientY,
+              ox: offset.x,
+              oy: offset.y,
+            };
+          }
+        }}
+        onTouchMove={(e) => {
+          if (e.touches.length === 2 && pinch.current) {
+            e.preventDefault();
+            const dist = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY,
+            );
+            applyScale(pinch.current.scale * (dist / pinch.current.dist));
+            return;
+          }
+          if (e.touches.length === 1 && drag.current && scale > 1) {
+            e.preventDefault();
+            setOffset({
+              x: drag.current.ox + (e.touches[0].clientX - drag.current.px),
+              y: drag.current.oy + (e.touches[0].clientY - drag.current.py),
+            });
+          }
+        }}
+        onTouchEnd={() => {
+          pinch.current = null;
+          drag.current = null;
+        }}
+      >
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="h-full w-full select-none object-contain"
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+            transformOrigin: "center center",
+            cursor: scale > 1 ? "grab" : "zoom-in",
+          }}
+        />
+      </div>
+      <p className="px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-center text-[11px] text-white/55">
+        Role o mouse ou use +/− para zoom · arraste para mover · toque duas vezes para ampliar
+      </p>
     </div>,
     document.body,
   );
@@ -386,42 +596,36 @@ function SectionTitleDesktop({
 // ── Desktop Product Grid (4-col, aspect 4:3) ──────────────────────────────
 function ProductGrid({
   products,
-  onAdd,
-  onAddSize,
+  onOpen,
 }: {
   products: ProdutoItem[];
-  onAdd: (p: ProdutoItem) => void;
-  onAddSize?: (p: ProdutoItem, tam: TamanhoOpcao) => void;
+  onOpen: (p: ProdutoItem) => void;
 }) {
   return (
     <div className="grid grid-cols-2 gap-[18px] md:grid-cols-3 lg:grid-cols-4">
       {products.map((p) => (
-        <ProductCardDesktop
-          key={p.id}
-          produto={p}
-          onAdd={() => onAdd(p)}
-          onAddSize={onAddSize ? (tam) => onAddSize(p, tam) : undefined}
-        />
+        <ProductCardDesktop key={p.id} produto={p} onOpen={() => onOpen(p)} />
       ))}
     </div>
   );
 }
 
 // ── Desktop Product Card (4:3 image) ──────────────────────────────────────
-function ProductCardDesktop({
-  produto: p,
-  onAdd,
-  onAddSize,
-}: {
-  produto: ProdutoItem;
-  onAdd: () => void;
-  onAddSize?: (tam: TamanhoOpcao) => void;
-}) {
-  const tamanhos = p.tamanhos ?? [];
-  const comTamanhos = tamanhos.length > 0 && !!onAddSize;
+function ProductCardDesktop({ produto: p, onOpen }: { produto: ProdutoItem; onOpen: () => void }) {
+  const comTamanhos = (p.tamanhos?.length ?? 0) > 0;
   return (
     <article
-      className="group flex flex-col overflow-hidden rounded-[18px] border border-charcoal/8 bg-white transition-all duration-200 hover:-translate-y-[3px] hover:border-charcoal/16"
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver ${p.nome}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-[18px] border border-charcoal/8 bg-white transition-all duration-200 hover:-translate-y-[3px] hover:border-charcoal/16"
       style={{ padding: 0 }}
     >
       <div className="relative overflow-hidden bg-parchment" style={{ aspectRatio: "4/3" }}>
@@ -448,51 +652,63 @@ function ProductCardDesktop({
       </div>
 
       <div className="flex flex-1 flex-col" style={{ padding: "16px 18px 18px" }}>
-        <h3 className="font-serif font-bold leading-snug text-charcoal" style={{ fontSize: 17, marginBottom: 3 }}>
+        <h3
+          className="font-serif font-bold leading-snug text-charcoal"
+          style={{ fontSize: 17, marginBottom: 3 }}
+        >
           {p.nome}
         </h3>
         {(p.descricao || p.itens?.[0]) && (
-          <p className="line-clamp-1 text-charcoal/50" style={{ fontSize: 12.5, marginBottom: 10, minHeight: 18 }}>
+          <p
+            className="line-clamp-1 text-charcoal/50"
+            style={{ fontSize: 12.5, marginBottom: 10, minHeight: 18 }}
+          >
             {p.descricao || p.itens.slice(0, 2).join(" · ")}
           </p>
         )}
         <div className="flex-1" />
-        {comTamanhos && onAddSize ? (
+        {comTamanhos ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
+              <p
+                className="font-serif font-bold tabular-nums text-charcoal"
+                style={{ fontSize: 15 }}
+              >
                 {precoLabel(p)}
               </p>
               <p className="mt-0.5 text-[11px] text-charcoal/50">P, M e G · peso e porções</p>
             </div>
-            <button
-              onClick={(e) => { e.preventDefault(); onAdd(); }}
-              aria-label={`Escolher tamanho de ${p.nome}`}
-              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+            <span
+              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all group-hover:bg-charcoal/85"
               style={{ width: 36, height: 36 }}
+              aria-hidden
             >
               <Plus className="h-4 w-4" />
-            </button>
+            </span>
           </div>
         ) : (
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 17 }}>
+              <div
+                className="font-serif font-bold tabular-nums text-charcoal"
+                style={{ fontSize: 17 }}
+              >
                 {precoLabel(p)}
               </div>
               <div className="mt-0.5 flex items-center gap-1">
                 <Star className="h-[11px] w-[11px] fill-terracotta text-terracotta" />
-                <span className="text-charcoal/50" style={{ fontSize: 11 }}>5.0</span>
+                <span className="text-charcoal/50" style={{ fontSize: 11 }}>
+                  5.0
+                </span>
               </div>
             </div>
-            <button
-              onClick={(e) => { e.preventDefault(); onAdd(); }}
-              aria-label={`Adicionar ${p.nome}`}
-              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+            <span
+              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all group-hover:bg-charcoal/85"
               style={{ width: 36, height: 36 }}
+              aria-hidden
             >
               <Plus className="h-4 w-4" />
-            </button>
+            </span>
           </div>
         )}
       </div>
@@ -501,17 +717,21 @@ function ProductCardDesktop({
 }
 
 // ── Compact Card (mobile + desktop category list) ─────────────────────────
-function CompactCard({
-  produto: p,
-  onAdd,
-}: {
-  produto: ProdutoItem;
-  onAdd: () => void;
-  onAddSize?: (tam: TamanhoOpcao) => void;
-}) {
-  const comTamanhos = (p.tamanhos?.length ?? 0) > 0;
+function CompactCard({ produto: p, onOpen }: { produto: ProdutoItem; onOpen: () => void }) {
   return (
-    <article className="flex gap-3.5 rounded-2xl border border-charcoal/8 bg-white p-3 transition-all duration-200 hover:shadow-soft">
+    <article
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver ${p.nome}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex cursor-pointer gap-3.5 rounded-2xl border border-charcoal/8 bg-white p-3 transition-all duration-200 hover:shadow-soft"
+    >
       <div
         className="shrink-0 overflow-hidden rounded-[12px] bg-parchment"
         style={{ width: 92, height: 92 }}
@@ -525,9 +745,7 @@ function CompactCard({
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <h3 className="font-serif text-[16px] font-bold leading-snug text-charcoal">
-          {p.nome}
-        </h3>
+        <h3 className="font-serif text-[16px] font-bold leading-snug text-charcoal">{p.nome}</h3>
         {(p.descricao || p.itens?.[0]) && (
           <p className="mt-0.5 line-clamp-2 text-[12px] text-charcoal/50">
             {p.descricao || p.itens.slice(0, 2).join(" · ")}
@@ -544,14 +762,13 @@ function CompactCard({
           <span className="font-serif text-[15px] font-bold tabular-nums text-charcoal">
             {precoLabel(p)}
           </span>
-          <button
-            onClick={(e) => { e.preventDefault(); onAdd(); }}
-            aria-label={comTamanhos ? `Escolher tamanho de ${p.nome}` : `Adicionar ${p.nome}`}
-            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+          <span
+            className="flex items-center justify-center rounded-full bg-charcoal text-white"
             style={{ width: 30, height: 30 }}
+            aria-hidden
           >
             <Plus className="h-3.5 w-3.5" />
-          </button>
+          </span>
         </div>
       </div>
     </article>
@@ -559,17 +776,21 @@ function CompactCard({
 }
 
 // ── Desktop Compact Card (category sections) ──────────────────────────────
-function CompactCardDesktop({
-  produto: p,
-  onAdd,
-}: {
-  produto: ProdutoItem;
-  onAdd: () => void;
-  onAddSize?: (tam: TamanhoOpcao) => void;
-}) {
-  const comTamanhos = (p.tamanhos?.length ?? 0) > 0;
+function CompactCardDesktop({ produto: p, onOpen }: { produto: ProdutoItem; onOpen: () => void }) {
   return (
-    <article className="flex gap-4 rounded-2xl border border-charcoal/8 bg-white p-3.5 transition-all duration-200 hover:shadow-soft">
+    <article
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver ${p.nome}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex cursor-pointer gap-4 rounded-2xl border border-charcoal/8 bg-white p-3.5 transition-all duration-200 hover:shadow-soft"
+    >
       <div
         className="shrink-0 overflow-hidden rounded-[14px] bg-parchment"
         style={{ width: 100, height: 100 }}
@@ -599,17 +820,19 @@ function CompactCardDesktop({
           </div>
         )}
         <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
+          <span
+            className="font-serif font-bold tabular-nums text-charcoal"
+            style={{ fontSize: 15 }}
+          >
             {precoLabel(p)}
           </span>
-          <button
-            onClick={(e) => { e.preventDefault(); onAdd(); }}
-            aria-label={comTamanhos ? `Escolher tamanho de ${p.nome}` : `Adicionar ${p.nome}`}
-            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+          <span
+            className="flex items-center justify-center rounded-full bg-charcoal text-white"
             style={{ width: 32, height: 32 }}
+            aria-hidden
           >
             <Plus className="h-[15px] w-[15px]" />
-          </button>
+          </span>
         </div>
       </div>
     </article>
