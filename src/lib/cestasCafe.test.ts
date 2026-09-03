@@ -27,6 +27,29 @@ describe("cestasCafe", () => {
     expect(ehCestaCafeAgrupada({ ...agrupada, id: CESTA_CAFE_IDS.p, tamanhos: [] })).toBe(false);
   });
 
+  it("não trata bolo/torta com selo TAMANHOS P, M E G como cesta", () => {
+    const bolo = {
+      id: "bolo-choco",
+      nome: "Bolo de Chocolate com Café",
+      badge: "TAMANHOS P, M E G",
+      descricao: "Bolo de chocolate, com brigadeiro...",
+      preco: 195,
+      tamanhos: [
+        { label: "P", preco: 195 },
+        { label: "M", preco: 280 },
+        { label: "G", preco: 360 },
+      ],
+    };
+    expect(ehCestaCafeAgrupada(bolo)).toBe(false);
+    const { cestas } = aplicarCestasCafePorTamanho(
+      [{ ...bolo, ativo: false, arquivado: true }, agrupada],
+      [],
+    );
+    expect(cestas.find((c) => c.id === "bolo-choco")?.arquivado).toBe(false);
+    expect(cestas.find((c) => c.id === "bolo-choco")?.ativo).toBe(true);
+    expect(cestas.find((c) => c.id === "cesta-unica")?.arquivado).toBe(true);
+  });
+
   it("reconhece variação de nome e labels com espaço", () => {
     expect(
       ehCestaCafeAgrupada({

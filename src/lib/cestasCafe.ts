@@ -133,12 +133,23 @@ export function ehCestaCafeSeparada(id: string): boolean {
   return IDS_SEPARADOS.has(id);
 }
 
+function ehNomeCestaCafe(nome: string | undefined): boolean {
+  return RE_CESTA_CAFE.test(nome ?? "");
+}
+
 /** Cesta de café ainda cadastrada como um único produto com P/M/G. */
 export function ehCestaCafeAgrupada(c: CestaLike): boolean {
   if (ehCestaCafeSeparada(c.id)) return false;
-  const blob = `${c.nome ?? ""} ${c.badge ?? ""} ${c.descricao ?? ""}`;
-  const pareceCafe = RE_CESTA_CAFE.test(c.nome ?? "") || RE_TAMANHOS_PMG.test(blob);
-  if (!pareceCafe) return false;
+  // Só o nome vale: o selo "TAMANHOS P, M E G" também existe nas tortas.
+  if (!ehNomeCestaCafe(c.nome)) return false;
+  const labels = labelsTamanho(c);
+  const pmg = ["P", "M", "G"].filter((l) => temTamanho(labels, l));
+  return pmg.length >= 2 || (c.tamanhos?.length ?? 0) >= 2;
+}
+
+/** Bolo/torta com P/M/G — não é cesta de café. */
+export function ehBoloComTamanhos(c: CestaLike): boolean {
+  if (ehCestaCafeSeparada(c.id) || ehNomeCestaCafe(c.nome)) return false;
   const labels = labelsTamanho(c);
   const pmg = ["P", "M", "G"].filter((l) => temTamanho(labels, l));
   return pmg.length >= 2 || (c.tamanhos?.length ?? 0) >= 2;
@@ -207,6 +218,15 @@ export function aplicarCestasCafePorTamanho<C extends CestaLike, Camp extends Ca
       };
       mudou = true;
     }
+  }
+
+  // O selo "TAMANHOS P, M E G" fez o filtro antigo arquivar as tortas. Reabre.
+  for (let i = 0; i < nextCestas.length; i++) {
+    const c = nextCestas[i];
+    if (!ehBoloComTamanhos(c)) continue;
+    if (c.ativo !== false && !c.arquivado) continue;
+    nextCestas[i] = { ...c, ativo: true, arquivado: false };
+    mudou = true;
   }
 
   const novosIds = CESTAS_CAFE_POR_TAMANHO.map((s) => s.id);
