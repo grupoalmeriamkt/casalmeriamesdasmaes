@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { useAdmin } from "@/store/admin";
 import { useCarrinhoTotal } from "@/store/carrinho";
+import { aplicarCestasCafePorTamanho } from "@/lib/cestasCafe";
+import { aplicarNomeCategoriaBolos } from "@/lib/tamanhoBolo";
 import { ShoppingBag, Menu, X } from "lucide-react";
 
 export function HomeHeader() {
@@ -10,11 +12,19 @@ export function HomeHeader() {
   const { qtdItens } = useCarrinhoTotal();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const catsComProduto = categorias
-    .filter((cat) =>
-      cestas.some((p) => p.ativo && !p.arquivado && p.categoriaId === cat.id),
-    )
-    .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  const catsComProduto = useMemo(() => {
+    const { cestas: expandida, categorias: catsCafe } = aplicarCestasCafePorTamanho(
+      cestas,
+      [],
+      categorias,
+    );
+    const { categorias: catsOut } = aplicarNomeCategoriaBolos(catsCafe);
+    return catsOut
+      .filter((cat) =>
+        expandida.some((p) => p.ativo && !p.arquivado && p.categoriaId === cat.id),
+      )
+      .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  }, [categorias, cestas]);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-charcoal/10 bg-linen/95 backdrop-blur-md">
@@ -68,14 +78,14 @@ export function HomeHeader() {
 
           {/* Nav pills */}
           {catsComProduto.length > 0 && (
-            <nav className="flex flex-1 items-center gap-1">
+            <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
               <a
                 href="#cardapio"
                 className="rounded-full px-3 py-1.5 text-sm font-medium text-charcoal/70 transition-colors hover:bg-charcoal/8 hover:text-charcoal"
               >
                 Cardápio
               </a>
-              {catsComProduto.slice(0, 5).map((cat) => (
+              {catsComProduto.map((cat) => (
                 <a
                   key={cat.id}
                   href={`#cat-${cat.id}`}

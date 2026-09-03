@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { aplicarTamanhosBoloPadrao, completarTamanhoBolo, resumoTamanho } from "./tamanhoBolo";
+import {
+  aplicarNomeCategoriaBolos,
+  aplicarSubtituloComBolos,
+  aplicarTamanhosBoloPadrao,
+  completarTamanhoBolo,
+  resumoTamanho,
+} from "./tamanhoBolo";
 
 describe("tamanhoBolo", () => {
   it("preenche P/M/G vazios com peso e porções", () => {
@@ -20,6 +26,22 @@ describe("tamanhoBolo", () => {
     });
     expect(t.peso).toBe("2 kg");
     expect(t.serve).toBe("15 pessoas");
+  });
+
+  it("renomeia Tortas para Bolos", () => {
+    const { categorias, mudou } = aplicarNomeCategoriaBolos([
+      { id: "cat-cestas-cafe", nome: "Cestas" },
+      { id: "cat-cestas", nome: "Tortas" },
+    ]);
+    expect(mudou).toBe(true);
+    expect(categorias.find((c) => c.id === "cat-cestas")?.nome).toBe("Bolos");
+    expect(aplicarNomeCategoriaBolos(categorias).mudou).toBe(false);
+  });
+
+  it("inclui bolos no subtítulo do hero", () => {
+    expect(aplicarSubtituloComBolos("Cestas, sobremesas e tábuas com entrega ou retirada em Brasília")).toBe(
+      "Cestas, bolos, sobremesas e tábuas com entrega ou retirada em Brasília",
+    );
   });
 
   it("não aplica peso de bolo na cesta de café agrupada", () => {

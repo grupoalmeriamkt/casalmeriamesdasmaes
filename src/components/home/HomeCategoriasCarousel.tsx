@@ -1,13 +1,21 @@
 import { useMemo } from "react";
 import { useAdmin } from "@/store/admin";
+import { aplicarCestasCafePorTamanho } from "@/lib/cestasCafe";
+import { aplicarNomeCategoriaBolos } from "@/lib/tamanhoBolo";
 
 export function HomeCategoriasCarousel() {
   const categorias = useAdmin((s) => s.categorias);
   const cestas = useAdmin((s) => s.cestas);
 
   const comProdutos = useMemo(() => {
-    const ativos = cestas.filter((c) => c.ativo && !c.arquivado);
-    return [...categorias]
+    const { cestas: expandida, categorias: catsCafe } = aplicarCestasCafePorTamanho(
+      cestas,
+      [],
+      categorias,
+    );
+    const { categorias: catsOut } = aplicarNomeCategoriaBolos(catsCafe);
+    const ativos = expandida.filter((c) => c.ativo && !c.arquivado);
+    return [...catsOut]
       .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
       .map((cat) => ({
         ...cat,

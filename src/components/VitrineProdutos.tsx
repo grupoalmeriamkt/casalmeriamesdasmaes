@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { useAdmin, type CestaAdmin } from "@/store/admin";
+import { aplicarCestasCafePorTamanho } from "@/lib/cestasCafe";
+import { aplicarNomeCategoriaBolos } from "@/lib/tamanhoBolo";
 import { formatBRL } from "@/store/pedido";
 import { Button } from "@/components/ui/button";
 
@@ -17,17 +19,24 @@ export function VitrineProdutos({ onEscolher }: Props) {
   );
 
   const grupos = useMemo(() => {
+    const { cestas: expandida, categorias: catsCafe } = aplicarCestasCafePorTamanho(
+      cestas,
+      [],
+      categorias,
+    );
+    const { categorias: catsOut } = aplicarNomeCategoriaBolos(catsCafe);
+    const listaAtivos = expandida.filter((c) => c.ativo && !c.arquivado);
     const out: { categoria: string; produtos: CestaAdmin[] }[] = [];
-    for (const cat of categorias) {
-      const lista = ativos.filter((p) => p.categoriaId === cat.id);
+    for (const cat of catsOut) {
+      const lista = listaAtivos.filter((p) => p.categoriaId === cat.id);
       if (lista.length > 0) out.push({ categoria: cat.nome, produtos: lista });
     }
-    const semCat = ativos.filter(
-      (p) => !p.categoriaId || !categorias.find((c) => c.id === p.categoriaId),
+    const semCat = listaAtivos.filter(
+      (p) => !p.categoriaId || !catsOut.find((c) => c.id === p.categoriaId),
     );
     if (semCat.length > 0) out.push({ categoria: "Outros", produtos: semCat });
     return out;
-  }, [ativos, categorias]);
+  }, [cestas, categorias]);
 
   if (ativos.length === 0) {
     return (

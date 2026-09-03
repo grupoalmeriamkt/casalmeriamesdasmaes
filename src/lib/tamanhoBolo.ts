@@ -47,6 +47,30 @@ export function resumoTamanho(t: TamanhoComResumo): string {
   return [c.peso, c.serve].filter(Boolean).join(" · ");
 }
 
+const RE_BOLOS = /^bolos?$/i;
+const RE_TORTAS = /^tortas?$/i;
+
+/** Renomeia a categoria Tortas → Bolos para o header e a seção do cardápio. */
+export function aplicarNomeCategoriaBolos<Cat extends { nome: string }>(
+  categorias: Cat[],
+): { categorias: Cat[]; mudou: boolean } {
+  if (categorias.some((c) => RE_BOLOS.test((c.nome ?? "").trim()))) {
+    return { categorias, mudou: false };
+  }
+  let mudou = false;
+  const next = categorias.map((c) => {
+    if (!RE_TORTAS.test((c.nome ?? "").trim())) return c;
+    mudou = true;
+    return { ...c, nome: "Bolos" };
+  });
+  return { categorias: next, mudou };
+}
+
+export function aplicarSubtituloComBolos(subtitulo: string): string {
+  if (!subtitulo || /bolo/i.test(subtitulo)) return subtitulo;
+  return subtitulo.replace(/cestas,\s*sobremesas/i, "Cestas, bolos, sobremesas");
+}
+
 export function aplicarTamanhosBoloPadrao<
   C extends { id?: string; nome?: string; tamanhos?: TamanhoVariante[] },
 >(cestas: C[]): { cestas: C[]; mudou: boolean } {

@@ -7,6 +7,7 @@ import { Plus, Star, ArrowRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { completarTamanhoBolo, resumoTamanho, type TamanhoComResumo } from "@/lib/tamanhoBolo";
 import { aplicarCestasCafePorTamanho, ehCestaCafeAgrupada } from "@/lib/cestasCafe";
+import { aplicarNomeCategoriaBolos } from "@/lib/tamanhoBolo";
 
 type TamanhoOpcao = TamanhoComResumo;
 
@@ -39,11 +40,16 @@ export function HomeProdutosPorCategoria({ search = "" }: Props) {
   const [tamanhoId, setTamanhoId] = useState<string | undefined>();
 
   const { ativos, grupos, preferidos } = useMemo(() => {
-    const { cestas: expandida } = aplicarCestasCafePorTamanho(cestas, []);
+    const { cestas: expandida, categorias: catsCafe } = aplicarCestasCafePorTamanho(
+      cestas,
+      [],
+      categorias,
+    );
+    const { categorias: catsOut } = aplicarNomeCategoriaBolos(catsCafe);
     const ativos = expandida.filter(
       (c) => c.ativo !== false && c.arquivado !== true && !ehCestaCafeAgrupada(c),
     );
-    const cats = [...categorias].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+    const cats = [...catsOut].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
     const out: { id: string; nome: string; produtos: typeof ativos }[] = [];
     for (const cat of cats) {
       const lista = ativos.filter((p) => p.categoriaId === cat.id);
@@ -347,47 +353,6 @@ function SizePicker({
   );
 }
 
-function SizeChips({
-  tamanhos,
-  onPick,
-}: {
-  tamanhos: TamanhoOpcao[];
-  onPick: (tam: TamanhoOpcao) => void;
-}) {
-  return (
-    <div className={`grid gap-1.5 ${tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-      {tamanhos.map((raw) => {
-        const t = completarTamanhoBolo(raw);
-        const serve = t.serve?.replace(/^serve\s+/i, "");
-        return (
-          <button
-            key={t.id}
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onPick(t);
-            }}
-            aria-label={`Tamanho ${t.label}${t.peso ? `, ${t.peso}` : ""}${serve ? `, serve ${serve}` : ""}, ${formatBRL(t.preco)}`}
-            className="flex min-h-[86px] flex-col items-center justify-center rounded-xl border border-charcoal/12 bg-parchment/70 px-1 py-2 text-center transition-colors hover:border-terracotta/50 hover:bg-terracotta/5 active:border-terracotta active:bg-terracotta/8"
-          >
-            <span className="font-serif text-[17px] font-bold leading-none text-charcoal">{t.label}</span>
-            {t.peso ? (
-              <span className="mt-1 text-[11px] font-semibold text-charcoal">{t.peso}</span>
-            ) : null}
-            {serve ? (
-              <span className="mt-0.5 text-[10px] leading-tight text-charcoal/60">Serve {serve}</span>
-            ) : null}
-            <span className="mt-1 text-[11px] font-semibold tabular-nums text-charcoal/75">
-              {formatBRL(t.preco)}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Desktop Section Title ──────────────────────────────────────────────────
 function SectionTitleDesktop({
   children,
@@ -493,11 +458,21 @@ function ProductCardDesktop({
         )}
         <div className="flex-1" />
         {comTamanhos && onAddSize ? (
-          <div>
-            <p className="mb-2 font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
-              {precoLabel(p)}
-            </p>
-            <SizeChips tamanhos={tamanhos} onPick={onAddSize} />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
+                {precoLabel(p)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-charcoal/50">P, M e G · peso e porções</p>
+            </div>
+            <button
+              onClick={(e) => { e.preventDefault(); onAdd(); }}
+              aria-label={`Escolher tamanho de ${p.nome}`}
+              className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+              style={{ width: 36, height: 36 }}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
           </div>
         ) : (
           <div className="flex items-center justify-between">
@@ -529,71 +504,56 @@ function ProductCardDesktop({
 function CompactCard({
   produto: p,
   onAdd,
-  onAddSize,
 }: {
   produto: ProdutoItem;
   onAdd: () => void;
   onAddSize?: (tam: TamanhoOpcao) => void;
 }) {
-  const tamanhos = p.tamanhos ?? [];
-  const comTamanhos = tamanhos.length > 0 && onAddSize;
+  const comTamanhos = (p.tamanhos?.length ?? 0) > 0;
   return (
-    <article className="flex flex-col rounded-2xl border border-charcoal/8 bg-white p-3 transition-all duration-200 hover:shadow-soft">
-      <div className="flex gap-3.5">
-        <div
-          className="shrink-0 overflow-hidden rounded-[12px] bg-parchment"
-          style={{ width: 92, height: 92 }}
-        >
-          {p.imagem ? (
-            <img src={p.imagem} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center font-serif text-2xl text-charcoal/20">
-              {p.nome.charAt(0)}
-            </div>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h3 className="font-serif text-[16px] font-bold leading-snug text-charcoal">
-            {p.nome}
-          </h3>
-          {(p.descricao || p.itens?.[0]) && (
-            <p className="mt-0.5 line-clamp-2 text-[12px] text-charcoal/50">
-              {p.descricao || p.itens.slice(0, 2).join(" · ")}
-            </p>
-          )}
-          {p.badge && (
-            <div className="mt-1.5 flex gap-1.5">
-              <span className="rounded-full bg-terracotta/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-terracotta">
-                {p.badge}
-              </span>
-            </div>
-          )}
-          {comTamanhos ? (
-            <p className="mt-auto pt-1.5 font-serif text-[13px] font-bold tabular-nums text-charcoal">
-              {precoLabel(p)}
-            </p>
-          ) : (
-            <div className="mt-auto flex items-center justify-between pt-2">
-              <span className="font-serif text-[15px] font-bold tabular-nums text-charcoal">
-                {precoLabel(p)}
-              </span>
-              <button
-                onClick={(e) => { e.preventDefault(); onAdd(); }}
-                aria-label={`Adicionar ${p.nome}`}
-                className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
-                style={{ width: 30, height: 30 }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
+    <article className="flex gap-3.5 rounded-2xl border border-charcoal/8 bg-white p-3 transition-all duration-200 hover:shadow-soft">
+      <div
+        className="shrink-0 overflow-hidden rounded-[12px] bg-parchment"
+        style={{ width: 92, height: 92 }}
+      >
+        {p.imagem ? (
+          <img src={p.imagem} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center font-serif text-2xl text-charcoal/20">
+            {p.nome.charAt(0)}
+          </div>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <h3 className="font-serif text-[16px] font-bold leading-snug text-charcoal">
+          {p.nome}
+        </h3>
+        {(p.descricao || p.itens?.[0]) && (
+          <p className="mt-0.5 line-clamp-2 text-[12px] text-charcoal/50">
+            {p.descricao || p.itens.slice(0, 2).join(" · ")}
+          </p>
+        )}
+        {p.badge && (
+          <div className="mt-1.5 flex gap-1.5">
+            <span className="rounded-full bg-terracotta/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-terracotta">
+              {p.badge}
+            </span>
+          </div>
+        )}
+        <div className="mt-auto flex items-center justify-between pt-2">
+          <span className="font-serif text-[15px] font-bold tabular-nums text-charcoal">
+            {precoLabel(p)}
+          </span>
+          <button
+            onClick={(e) => { e.preventDefault(); onAdd(); }}
+            aria-label={comTamanhos ? `Escolher tamanho de ${p.nome}` : `Adicionar ${p.nome}`}
+            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+            style={{ width: 30, height: 30 }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
-      {comTamanhos ? (
-        <div className="mt-3">
-          <SizeChips tamanhos={tamanhos} onPick={onAddSize} />
-        </div>
-      ) : null}
     </article>
   );
 }
@@ -602,71 +562,56 @@ function CompactCard({
 function CompactCardDesktop({
   produto: p,
   onAdd,
-  onAddSize,
 }: {
   produto: ProdutoItem;
   onAdd: () => void;
   onAddSize?: (tam: TamanhoOpcao) => void;
 }) {
-  const tamanhos = p.tamanhos ?? [];
-  const comTamanhos = tamanhos.length > 0 && onAddSize;
+  const comTamanhos = (p.tamanhos?.length ?? 0) > 0;
   return (
-    <article className="flex flex-col rounded-2xl border border-charcoal/8 bg-white p-3.5 transition-all duration-200 hover:shadow-soft">
-      <div className="flex gap-4">
-        <div
-          className="shrink-0 overflow-hidden rounded-[14px] bg-parchment"
-          style={{ width: 100, height: 100 }}
-        >
-          {p.imagem ? (
-            <img src={p.imagem} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center font-serif text-2xl text-charcoal/20">
-              {p.nome.charAt(0)}
-            </div>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h3 className="font-serif font-bold leading-snug text-charcoal" style={{ fontSize: 16 }}>
-            {p.nome}
-          </h3>
-          {(p.descricao || p.itens?.[0]) && (
-            <p className="mt-0.5 line-clamp-2 text-charcoal/50" style={{ fontSize: 12.5 }}>
-              {p.descricao || p.itens.slice(0, 2).join(" · ")}
-            </p>
-          )}
-          {p.badge && (
-            <div className="mt-1.5">
-              <span className="rounded-full bg-terracotta/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-terracotta">
-                {p.badge}
-              </span>
-            </div>
-          )}
-          {comTamanhos ? (
-            <p className="mt-auto pt-1.5 font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 14 }}>
-              {precoLabel(p)}
-            </p>
-          ) : (
-            <div className="mt-auto flex items-center justify-between pt-2">
-              <span className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
-                {precoLabel(p)}
-              </span>
-              <button
-                onClick={(e) => { e.preventDefault(); onAdd(); }}
-                aria-label={`Adicionar ${p.nome}`}
-                className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
-                style={{ width: 32, height: 32 }}
-              >
-                <Plus className="h-[15px] w-[15px]" />
-              </button>
-            </div>
-          )}
+    <article className="flex gap-4 rounded-2xl border border-charcoal/8 bg-white p-3.5 transition-all duration-200 hover:shadow-soft">
+      <div
+        className="shrink-0 overflow-hidden rounded-[14px] bg-parchment"
+        style={{ width: 100, height: 100 }}
+      >
+        {p.imagem ? (
+          <img src={p.imagem} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center font-serif text-2xl text-charcoal/20">
+            {p.nome.charAt(0)}
+          </div>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <h3 className="font-serif font-bold leading-snug text-charcoal" style={{ fontSize: 16 }}>
+          {p.nome}
+        </h3>
+        {(p.descricao || p.itens?.[0]) && (
+          <p className="mt-0.5 line-clamp-2 text-charcoal/50" style={{ fontSize: 12.5 }}>
+            {p.descricao || p.itens.slice(0, 2).join(" · ")}
+          </p>
+        )}
+        {p.badge && (
+          <div className="mt-1.5">
+            <span className="rounded-full bg-terracotta/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-terracotta">
+              {p.badge}
+            </span>
+          </div>
+        )}
+        <div className="mt-auto flex items-center justify-between pt-2">
+          <span className="font-serif font-bold tabular-nums text-charcoal" style={{ fontSize: 15 }}>
+            {precoLabel(p)}
+          </span>
+          <button
+            onClick={(e) => { e.preventDefault(); onAdd(); }}
+            aria-label={comTamanhos ? `Escolher tamanho de ${p.nome}` : `Adicionar ${p.nome}`}
+            className="flex items-center justify-center rounded-full bg-charcoal text-white transition-all hover:bg-charcoal/85 active:scale-90"
+            style={{ width: 32, height: 32 }}
+          >
+            <Plus className="h-[15px] w-[15px]" />
+          </button>
         </div>
       </div>
-      {comTamanhos ? (
-        <div className="mt-3">
-          <SizeChips tamanhos={tamanhos} onPick={onAddSize} />
-        </div>
-      ) : null}
     </article>
   );
 }

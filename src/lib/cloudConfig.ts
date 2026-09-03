@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAdmin } from "@/store/admin";
 import { aplicarCestasCafePorTamanho } from "@/lib/cestasCafe";
+import { aplicarNomeCategoriaBolos, aplicarSubtituloComBolos } from "@/lib/tamanhoBolo";
 
 const CONFIG_ID = "default";
 
@@ -159,11 +160,28 @@ export async function loadCloudConfig(): Promise<{
       const cestasIn = (patch.cestas as typeof current.cestas | undefined) ?? current.cestas;
       const campanhasIn =
         (patch.campanhas as typeof current.campanhas | undefined) ?? current.campanhas;
+      const categoriasIn =
+        (patch.categorias as typeof current.categorias | undefined) ?? current.categorias;
       if (Array.isArray(cestasIn)) {
-        const split = aplicarCestasCafePorTamanho(cestasIn, campanhasIn ?? []);
+        const split = aplicarCestasCafePorTamanho(
+          cestasIn,
+          campanhasIn ?? [],
+          categoriasIn ?? [],
+        );
+        const bolos = aplicarNomeCategoriaBolos(split.categorias);
         if (split.mudou) {
           patch.cestas = split.cestas;
           if (Array.isArray(campanhasIn)) patch.campanhas = split.campanhas;
+        }
+        if (split.mudou || bolos.mudou) {
+          patch.categorias = bolos.categorias;
+        }
+        const textosIn = (patch.textos as { heroSubtitulo?: string } | undefined) ?? current.textos;
+        if (textosIn?.heroSubtitulo) {
+          const nextSub = aplicarSubtituloComBolos(textosIn.heroSubtitulo);
+          if (nextSub !== textosIn.heroSubtitulo) {
+            patch.textos = { ...textosIn, heroSubtitulo: nextSub };
+          }
         }
       }
       useAdmin.setState(patch as Parameters<typeof useAdmin.setState>[0]);

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAdmin } from "@/store/admin";
+import { aplicarNomeCategoriaBolos, aplicarSubtituloComBolos } from "@/lib/tamanhoBolo";
 import { ArrowRight, Search, X } from "lucide-react";
 
 type Props = {
@@ -12,6 +13,7 @@ export function HomeBanner({ search, onSearch }: Props) {
   const banner = useAdmin((s) => s.home.banner);
   const textos = useAdmin((s) => s.textos);
   const campanhas = useAdmin((s) => s.campanhas);
+  const categorias = useAdmin((s) => s.categorias);
   const destaques = useAdmin((s) => s.home.campanhasDestaque);
 
   const primeiraCampanha = useMemo(() => {
@@ -20,8 +22,15 @@ export function HomeBanner({ search, onSearch }: Props) {
       .sort((a, b) => (destaques[a.id]?.ordem ?? 0) - (destaques[b.id]?.ordem ?? 0))[0];
   }, [campanhas, destaques]);
 
+  const catBolos = useMemo(() => {
+    const { categorias: cats } = aplicarNomeCategoriaBolos(categorias);
+    return cats.find((c) => /^bolos?$/i.test((c.nome ?? "").trim()) || /^tortas?$/i.test((c.nome ?? "").trim()));
+  }, [categorias]);
+
   const titulo = textos.heroTitulo || "Sabores que contam histórias";
-  const subtitulo = textos.heroSubtitulo || "Fermentação lenta, ingredientes selecionados e a tradição mediterrânea no coração de Brasília.";
+  const subtitulo = aplicarSubtituloComBolos(
+    textos.heroSubtitulo || "Fermentação lenta, ingredientes selecionados e a tradição mediterrânea no coração de Brasília.",
+  );
   const ctaLabel = textos.ctaPrincipal || "Explorar cardápio";
   const eyebrow = primeiraCampanha?.textos?.eyebrow || "Cardápio digital";
 
@@ -64,6 +73,14 @@ export function HomeBanner({ search, onSearch }: Props) {
                 {primeiraCampanha.textos?.titulo || primeiraCampanha.nome}
               </Link>
             )}
+            {catBolos && (
+              <a
+                href={`#cat-${catBolos.id}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/25 px-5 py-2.5 text-sm font-medium text-white/90 transition-all hover:border-white/50 hover:text-white active:scale-95"
+              >
+                Bolos
+              </a>
+            )}
           </div>
         </div>
       </section>
@@ -92,7 +109,7 @@ export function HomeBanner({ search, onSearch }: Props) {
               >
                 {subtitulo}
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <a
                   href="#cardapio"
                   className="inline-flex items-center gap-2 rounded-xl bg-terracotta px-[26px] py-3.5 text-[14px] font-semibold text-charcoal transition-all hover:bg-terracotta/90 active:scale-95"
@@ -106,6 +123,14 @@ export function HomeBanner({ search, onSearch }: Props) {
                 >
                   {primeiraCampanha?.textos?.titulo || primeiraCampanha?.nome || "Combos & cestas"}
                 </Link>
+                {catBolos && (
+                  <a
+                    href={`#cat-${catBolos.id}`}
+                    className="inline-flex items-center rounded-xl border border-white/25 px-[22px] py-3.5 text-[14px] font-medium text-white transition-all hover:border-white/50 active:scale-95"
+                  >
+                    Bolos
+                  </a>
+                )}
               </div>
             </div>
 

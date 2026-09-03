@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import { CESTAS, SOBREMESAS, UNIDADES, DATAS_ENTREGA, HORARIOS } from "@/lib/data";
 import { aplicarCestasCafePorTamanho, ehCestaCafeAgrupada } from "@/lib/cestasCafe";
-import { aplicarTamanhosBoloPadrao } from "@/lib/tamanhoBolo";
+import { aplicarNomeCategoriaBolos, aplicarSubtituloComBolos, aplicarTamanhosBoloPadrao } from "@/lib/tamanhoBolo";
 import { REGRA_RETIRADA_PADRAO } from "@/lib/availability/retirada";
 import type { Cesta, Sobremesa, Unidade } from "@/lib/types";
 
@@ -874,7 +874,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 15,
+      version: 16,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -1224,9 +1224,18 @@ export const useAdmin = create<AdminState>()(
         const splitCafe = aplicarCestasCafePorTamanho(
           Array.isArray(state.cestas) ? state.cestas : [],
           Array.isArray(state.campanhas) ? state.campanhas : [],
+          Array.isArray(state.categorias) ? state.categorias : [],
         );
         state.cestas = splitCafe.cestas;
         state.campanhas = splitCafe.campanhas;
+        const bolosCat = aplicarNomeCategoriaBolos(splitCafe.categorias);
+        state.categorias = bolosCat.categorias;
+        if (state.textos?.heroSubtitulo) {
+          state.textos = {
+            ...state.textos,
+            heroSubtitulo: aplicarSubtituloComBolos(state.textos.heroSubtitulo),
+          };
+        }
 
         return state;
       },
@@ -1364,6 +1373,7 @@ export const useProdutosDaCampanhaAtiva = () =>
       const { cestas: expandida, campanhas: camps } = aplicarCestasCafePorTamanho(
         s.cestas,
         s.campanhas,
+        s.categorias,
       );
       const campSplit =
         camps.find((c) => c.id === camp.id) ??
@@ -1462,16 +1472,26 @@ export function garantirSobremesas() {
 /** Separa a cesta de café P/M/G em três produtos e atualiza a campanha cestas-cafe. */
 export function garantirCestasCafePorTamanho() {
   const state = useAdmin.getState();
-  const { cestas, campanhas, mudou } = aplicarCestasCafePorTamanho(
+  const { cestas, campanhas, categorias, mudou } = aplicarCestasCafePorTamanho(
     state.cestas,
     state.campanhas,
+    state.categorias,
   );
-  if (mudou) useAdmin.setState({ cestas, campanhas });
+  if (mudou) useAdmin.setState({ cestas, campanhas, categorias });
 }
 
 /** Preenche peso, diâmetro e porções dos tamanhos P/M/G quando ainda estão vazios. */
 export function garantirTamanhosBolo() {
   const state = useAdmin.getState();
-  const { cestas, mudou } = aplicarTamanhosBoloPadrao(state.cestas);
-  if (mudou) useAdmin.setState({ cestas });
+  const { cestas, mudou: mudouTamanhos } = aplicarTamanhosBoloPadrao(state.cestas);
+  const { categorias, mudou: mudouCat } = aplicarNomeCategoriaBolos(state.categorias);
+  const sub = aplicarSubtituloComBolos(state.textos.heroSubtitulo ?? "");
+  const mudouSub = sub !== (state.textos.heroSubtitulo ?? "");
+  if (mudouTamanhos || mudouCat || mudouSub) {
+    useAdmin.setState({
+      cestas,
+      categorias,
+      ...(mudouSub ? { textos: { ...state.textos, heroSubtitulo: sub } } : {}),
+    });
+  }
 }

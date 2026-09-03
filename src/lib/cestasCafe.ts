@@ -111,6 +111,26 @@ type CampanhaLike = {
   upsellProdutoIds?: string[];
 };
 
+type CategoriaLike = {
+  id: string;
+  nome: string;
+  ordem?: number;
+};
+
+const RE_NOME_CESTAS = /^cestas?$/i;
+
+/** Garante uma categoria chamada "Cestas". Se `cat-cestas` foi renomeada (ex.: Tortas), cria outra. */
+export function garantirCategoriaCestas<Cat extends CategoriaLike>(
+  categorias: Cat[],
+): { categorias: Cat[]; id: string; mudou: boolean } {
+  const porNome = categorias.find((c) => RE_NOME_CESTAS.test((c.nome ?? "").trim()));
+  if (porNome) return { categorias, id: porNome.id, mudou: false };
+
+  const id = categorias.some((c) => c.id === "cat-cestas") ? "cat-cestas-cafe" : "cat-cestas";
+  const nova = { id, nome: "Cestas", ordem: 0 } as Cat;
+  return { categorias: [nova, ...categorias], id, mudou: true };
+}
+
 function precoDoTamanho(origem: CestaLike | undefined, label: string, fallback: number) {
   const t = origem?.tamanhos?.find((x) => {
     const l = String(x.label ?? "").trim().toUpperCase();
@@ -156,15 +176,23 @@ export function ehBoloComTamanhos(c: CestaLike): boolean {
 }
 
 /** Separa a cesta P/M/G em três produtos e troca o id na campanha cestas-cafe. */
-export function aplicarCestasCafePorTamanho<C extends CestaLike, Camp extends CampanhaLike>(
+export function aplicarCestasCafePorTamanho<
+  C extends CestaLike,
+  Camp extends CampanhaLike,
+  Cat extends CategoriaLike,
+>(
   cestas: C[],
   campanhas: Camp[],
-): { cestas: C[]; campanhas: Camp[]; mudou: boolean } {
+  categorias: Cat[] = [] as Cat[],
+): { cestas: C[]; campanhas: Camp[]; categorias: Cat[]; mudou: boolean } {
   const origens = cestas.filter(ehCestaCafeAgrupada);
   const origem = origens[0];
   const nextCestas = [...cestas];
   const index = new Map(nextCestas.map((c, i) => [c.id, i] as const));
-  let mudou = false;
+  const catCestas = garantirCategoriaCestas(categorias);
+  const categoriaCestasId = catCestas.id;
+  let nextCategorias = catCestas.categorias;
+  let mudou = catCestas.mudou;
 
   for (const seed of CESTAS_CAFE_POR_TAMANHO) {
     const label = seed.id === CESTA_CAFE_IDS.p ? "P" : seed.id === CESTA_CAFE_IDS.m ? "M" : "G";
@@ -174,7 +202,7 @@ export function aplicarCestasCafePorTamanho<C extends CestaLike, Camp extends Ca
       nextCestas.push({
         ...seed,
         preco,
-        categoriaId: origem?.categoriaId ?? seed.categoriaId,
+        categoriaId: categoriaCestasId,
         ativo: true,
         arquivado: false,
       } as unknown as C);
@@ -190,7 +218,8 @@ export function aplicarCestasCafePorTamanho<C extends CestaLike, Camp extends Ca
       /tamanhos p, m e g|slice cake disponível/i.test(atual.descricao);
     const nomeGenerico = !atual.nome || /tamanhos p, m e g|· Tam\./i.test(atual.nome) || atual.nome === "Cesta de Café da Manhã";
     const aindaAgrupada = (atual.tamanhos?.length ?? 0) > 0;
-    if (imagemVazia || itensVazios || descricaoGenerica || nomeGenerico || aindaAgrupada) {
+    const categoriaErrada = atual.categoriaId !== categoriaCestasId;
+    if (imagemVazia || itensVazios || descricaoGenerica || nomeGenerico || aindaAgrupada || categoriaErrada) {
       nextCestas[i] = {
         ...atual,
         nome: nomeGenerico ? seed.nome : atual.nome,
@@ -199,10 +228,10 @@ export function aplicarCestasCafePorTamanho<C extends CestaLike, Camp extends Ca
         descricao: descricaoGenerica ? seed.descricao : atual.descricao,
         itens: itensVazios ? seed.itens : atual.itens,
         imagem: imagemVazia ? seed.imagem : atual.imagem,
-        categoriaId: atual.categoriaId ?? seed.categoriaId,
+        categoriaId: categoriaCestasId,
         ativo: true,
         arquivado: false,
-        tamanhos: undefined,
+        tamanhos: aindaAgrupada ? undefined : atual.tamanhos,
       };
       mudou = true;
     }
@@ -259,5 +288,5 @@ export function aplicarCestasCafePorTamanho<C extends CestaLike, Camp extends Ca
     };
   });
 
-  return { cestas: nextCestas, campanhas: nextCampanhas, mudou };
+  return { cestas: nextCestas, campanhas: nextCampanhas, categorias: nextCategorias, mudou };
 }

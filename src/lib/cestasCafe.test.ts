@@ -88,8 +88,43 @@ describe("cestasCafe", () => {
       [agrupada],
       [{ slug: "cestas-cafe", produtosPrincipaisIds: ["cesta-unica"] }],
     );
-    const twice = aplicarCestasCafePorTamanho(once.cestas, once.campanhas);
+    const twice = aplicarCestasCafePorTamanho(once.cestas, once.campanhas, once.categorias);
     expect(twice.mudou).toBe(false);
+  });
+
+  it("coloca P/M/G em Cestas mesmo se cat-cestas foi renomeada para Tortas", () => {
+    const { cestas, categorias, mudou } = aplicarCestasCafePorTamanho(
+      [{ ...agrupada, categoriaId: "cat-cestas" }],
+      [],
+      [{ id: "cat-cestas", nome: "Tortas" }],
+    );
+    expect(mudou).toBe(true);
+    const cestasCat = categorias.find((c) => c.nome === "Cestas");
+    expect(cestasCat?.id).toBe("cat-cestas-cafe");
+    expect(categorias.find((c) => c.id === "cat-cestas")?.nome).toBe("Tortas");
+    expect(cestas.find((c) => c.id === CESTA_CAFE_IDS.p)?.categoriaId).toBe("cat-cestas-cafe");
+    expect(cestas.find((c) => c.id === CESTA_CAFE_IDS.m)?.categoriaId).toBe("cat-cestas-cafe");
+    expect(cestas.find((c) => c.id === CESTA_CAFE_IDS.g)?.categoriaId).toBe("cat-cestas-cafe");
+  });
+
+  it("move P/M/G já criados de Tortas para Cestas", () => {
+    const first = aplicarCestasCafePorTamanho(
+      [agrupada],
+      [],
+      [{ id: "cat-cestas", nome: "Tortas" }],
+    );
+    const jaNaTorta = first.cestas.map((c) =>
+      c.id.startsWith("cesta-cafe-") ? { ...c, categoriaId: "cat-cestas" } : c,
+    );
+    const { cestas, categorias, mudou } = aplicarCestasCafePorTamanho(
+      jaNaTorta,
+      [],
+      [{ id: "cat-cestas", nome: "Tortas" }],
+    );
+    expect(mudou).toBe(true);
+    const idCestas = categorias.find((c) => c.nome === "Cestas")?.id;
+    expect(idCestas).toBe("cat-cestas-cafe");
+    expect(cestas.find((c) => c.id === CESTA_CAFE_IDS.p)?.categoriaId).toBe(idCestas);
   });
 
   it("os três produtos não têm tamanhos e têm descrições próprias", () => {
