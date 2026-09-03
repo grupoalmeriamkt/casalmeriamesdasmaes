@@ -4,6 +4,8 @@ export type TamanhoVariante = {
   diametro?: string;
   fatias?: number;
   peso?: string;
+  /** Texto livre: "8 a 10 pessoas". */
+  serve?: string;
   preco: number;
   itens?: string[];
   imagem?: string;

@@ -145,7 +145,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, campanha_id, concluido_at")
+          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, unidade_id, campanha_id, concluido_at")
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
@@ -221,10 +221,30 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
 
         // data_entrega é gravado como rótulo PT-BR; converte para ISO p/ as validações.
         const dataEntregaISO = dataEntregaParaISO(pedido.data_entrega);
+        const isDelivery = pedido.tipo === "delivery";
+        const localRetirada = String(pedido.endereco_ou_unidade ?? "").trim();
+        if (!String(pedido.data_entrega ?? "").trim() || !String(pedido.horario ?? "").trim()) {
+          return Response.json(
+            {
+              error: "agendamento_obrigatorio",
+              motivo: "Informe a data e o horário de entrega ou retirada.",
+            },
+            { status: 400 },
+          );
+        }
+        if (
+          !isDelivery &&
+          !String(pedido.unidade_id ?? "").trim() &&
+          (!localRetirada || /^retirada na loja$/i.test(localRetirada))
+        ) {
+          return Response.json(
+            { error: "unidade_obrigatoria", motivo: "Selecione a loja de retirada." },
+            { status: 400 },
+          );
+        }
 
         // Carrega a campanha do pedido uma vez: horários configurados + regra de antecedência
         // (delivery ou retirada, conforme o tipo do pedido).
-        const isDelivery = pedido.tipo === "delivery";
         if (isDelivery && !atendeAreaEntregaFromTexto(String(pedido.endereco_ou_unidade ?? ""))) {
           return Response.json(
             { error: "fora_area_entrega", motivo: MSG_FORA_AREA },
@@ -233,7 +253,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         }
         let horariosCampanha: string[] | undefined;
         let regraAntecedencia: RegraAntecedenciaRetirada | undefined;
-        if (pedido.campanha_id) {
+        {
           const { data: cfgRow } = await admin
             .from("app_config")
             .select("payload")
@@ -243,11 +263,13 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             horarios?: { label: string; ativo: boolean }[];
             antecedencia?: RegraAntecedenciaRetirada;
           };
-          const camp = (
+          const campanhas = (
             cfgRow?.payload as {
               campanhas?: Array<{ id: string; delivery?: CampModo; retirada?: CampModo }>;
             } | null
-          )?.campanhas?.find((c) => c.id === pedido.campanha_id);
+          )?.campanhas ?? [];
+          const camp =
+            campanhas.find((c) => c.id === pedido.campanha_id) ?? campanhas[0];
           const modo = isDelivery ? camp?.delivery : camp?.retirada;
           const labels = (modo?.horarios ?? []).filter((h) => h.ativo).map((h) => h.label);
           horariosCampanha = labels.length > 0 ? labels : undefined;
@@ -268,7 +290,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             {
               itens: carrinhoItens,
               fulfillmentMode: (pedido.tipo as "delivery" | "retirada") ?? "retirada",
-              unidadeId: undefined,
+              unidadeId: (pedido.unidade_id as string | null) ?? undefined,
               candidateDate: dataEntregaISO,
               candidateHorario: pedido.horario ?? undefined,
             },

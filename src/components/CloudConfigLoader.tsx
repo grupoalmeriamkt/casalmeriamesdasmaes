@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadCloudConfig } from "@/lib/cloudConfig";
-import { garantirSobremesas } from "@/store/admin";
+import { garantirCestasCafePorTamanho, garantirSobremesas, garantirTamanhosBolo } from "@/store/admin";
 
 /**
  * Carrega as configurações compartilhadas (tema, textos, produtos, etc.)
@@ -18,8 +18,10 @@ export function CloudConfigLoader({ children }: { children: React.ReactNode }) {
     loadCloudConfig().finally(() => {
       try {
         garantirSobremesas();
+        garantirCestasCafePorTamanho();
+        garantirTamanhosBolo();
       } catch (e) {
-        console.warn("[CloudConfigLoader] garantirSobremesas falhou", e);
+        console.warn("[CloudConfigLoader] garantir produtos falhou", e);
       }
       if (!cancelled) setReady(true);
     });

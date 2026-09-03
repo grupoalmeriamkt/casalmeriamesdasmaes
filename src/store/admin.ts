@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import { CESTAS, SOBREMESAS, UNIDADES, DATAS_ENTREGA, HORARIOS } from "@/lib/data";
+import { aplicarCestasCafePorTamanho, ehCestaCafeAgrupada } from "@/lib/cestasCafe";
+import { aplicarTamanhosBoloPadrao } from "@/lib/tamanhoBolo";
 import { REGRA_RETIRADA_PADRAO } from "@/lib/availability/retirada";
 import type { Cesta, Sobremesa, Unidade } from "@/lib/types";
 
@@ -542,8 +544,7 @@ const initial = {
   },
   home: {
     banner: {
-      imagemUrl:
-        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=1600&q=80",
+      imagemUrl: "/banner-cesta.jpg",
       titulo: "Casa Almeria",
       subtitulo: "Sabores artesanais com entrega ou retirada em Brasília",
       ctaLabel: "Ver cardápio",
@@ -873,7 +874,7 @@ export const useAdmin = create<AdminState>()(
     }),
     {
       name: "casa-almeria-admin",
-      version: 13,
+      version: 14,
       partialize: (s) => ({
         tema: s.tema,
         textos: s.textos,
@@ -1197,6 +1198,12 @@ export const useAdmin = create<AdminState>()(
               },
             },
           };
+          if (
+            typeof state.home.banner.imagemUrl === "string" &&
+            state.home.banner.imagemUrl.includes("photo-1504754524776-8f4f37790ca0")
+          ) {
+            state.home.banner.imagemUrl = initial.home.banner.imagemUrl;
+          }
         }
         // Limpar textos hardcoded de Dia das Mães em instalações antigas
         if (
@@ -1213,6 +1220,13 @@ export const useAdmin = create<AdminState>()(
             ctaPrincipal: state.textos.ctaPrincipal || initial.textos.ctaPrincipal,
           };
         }
+
+        const splitCafe = aplicarCestasCafePorTamanho(
+          Array.isArray(state.cestas) ? state.cestas : [],
+          Array.isArray(state.campanhas) ? state.campanhas : [],
+        );
+        state.cestas = splitCafe.cestas;
+        state.campanhas = splitCafe.campanhas;
 
         return state;
       },
@@ -1347,12 +1361,24 @@ export const useProdutosDaCampanhaAtiva = () =>
         s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return [] as CestaAdmin[];
       const ids = camp.produtosPrincipaisIds ?? [];
-      const index = new Map(s.cestas.map((c) => [c.id, c] as const));
-      return ids
+      const { cestas: expandida, campanhas: camps } = aplicarCestasCafePorTamanho(
+        s.cestas,
+        s.campanhas,
+      );
+      const campSplit =
+        camps.find((c) => c.id === camp.id) ??
+        camps.find((c) => ("slug" in c ? c.slug === camp.slug : false)) ??
+        camp;
+      const idsSplit = campSplit.produtosPrincipaisIds ?? ids;
+      const index = new Map(expandida.map((c) => [c.id, c] as const));
+      return idsSplit
         .map((id) => index.get(id))
         .filter(
           (c): c is CestaAdmin =>
-            !!c && c.ativo !== false && c.arquivado !== true,
+            !!c &&
+            c.ativo !== false &&
+            c.arquivado !== true &&
+            !ehCestaCafeAgrupada(c),
         );
     }),
   );
@@ -1431,4 +1457,21 @@ export function garantirSobremesas() {
   }
 
   if (mudou) useAdmin.setState({ cestas, categorias });
+}
+
+/** Separa a cesta de café P/M/G em três produtos e atualiza a campanha cestas-cafe. */
+export function garantirCestasCafePorTamanho() {
+  const state = useAdmin.getState();
+  const { cestas, campanhas, mudou } = aplicarCestasCafePorTamanho(
+    state.cestas,
+    state.campanhas,
+  );
+  if (mudou) useAdmin.setState({ cestas, campanhas });
+}
+
+/** Preenche peso, diâmetro e porções dos tamanhos P/M/G quando ainda estão vazios. */
+export function garantirTamanhosBolo() {
+  const state = useAdmin.getState();
+  const { cestas, mudou } = aplicarTamanhosBoloPadrao(state.cestas);
+  if (mudou) useAdmin.setState({ cestas });
 }

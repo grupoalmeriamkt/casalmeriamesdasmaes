@@ -284,7 +284,7 @@ export function ProdutoFormDialog({ produto, open, onOpenChange, readOnly }: Pro
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                           <div className="space-y-1.5">
                             <Label>Diâmetro</Label>
                             <Input
@@ -312,9 +312,18 @@ export function ProdutoFormDialog({ produto, open, onOpenChange, readOnly }: Pro
                           <div className="space-y-1.5">
                             <Label>Peso</Label>
                             <Input
-                              placeholder="1.500 g"
+                              placeholder="1 kg"
                               value={t.peso ?? ""}
                               onChange={(e) => updTamanho(t.id, { peso: e.target.value })}
+                              disabled={readOnly}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Serve</Label>
+                            <Input
+                              placeholder="8 a 10 pessoas"
+                              value={t.serve ?? ""}
+                              onChange={(e) => updTamanho(t.id, { serve: e.target.value })}
                               disabled={readOnly}
                             />
                           </div>

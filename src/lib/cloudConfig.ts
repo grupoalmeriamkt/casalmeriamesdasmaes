@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAdmin } from "@/store/admin";
+import { aplicarCestasCafePorTamanho } from "@/lib/cestasCafe";
 
 const CONFIG_ID = "default";
 
@@ -106,6 +107,20 @@ export async function loadCloudConfig(): Promise<{
           const localOnly = localCampanhas.filter((c) => !cloudIds.has(c.id));
 
           patch.campanhas = [...cloudCampanhas, ...localOnly];
+        } else if (key === "home" && payload.home && typeof payload.home === "object") {
+          const home = payload.home as {
+            banner?: { imagemUrl?: string };
+            [k: string]: unknown;
+          };
+          const url = home.banner?.imagemUrl ?? "";
+          if (!url || url.includes("photo-1504754524776-8f4f37790ca0")) {
+            patch.home = {
+              ...home,
+              banner: { ...(home.banner ?? {}), imagemUrl: "/banner-cesta.jpg" },
+            };
+          } else {
+            patch.home = home;
+          }
         } else {
           patch[key] = payload[key];
         }
@@ -140,6 +155,17 @@ export async function loadCloudConfig(): Promise<{
     }
 
     if (Object.keys(patch).length > 0) {
+      const current = useAdmin.getState();
+      const cestasIn = (patch.cestas as typeof current.cestas | undefined) ?? current.cestas;
+      const campanhasIn =
+        (patch.campanhas as typeof current.campanhas | undefined) ?? current.campanhas;
+      if (Array.isArray(cestasIn)) {
+        const split = aplicarCestasCafePorTamanho(cestasIn, campanhasIn ?? []);
+        if (split.mudou) {
+          patch.cestas = split.cestas;
+          if (Array.isArray(campanhasIn)) patch.campanhas = split.campanhas;
+        }
+      }
       useAdmin.setState(patch as Parameters<typeof useAdmin.setState>[0]);
     }
     return { ok: true, found };

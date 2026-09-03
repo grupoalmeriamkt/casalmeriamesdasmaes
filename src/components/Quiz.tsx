@@ -19,6 +19,7 @@ import {
   calcTaxaEntrega,
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
+import { completarTamanhoBolo } from "@/lib/tamanhoBolo";
 import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
 import { buscarCep as consultarCep } from "@/lib/cep";
 import {
@@ -619,7 +620,7 @@ export function Quiz({
               </div>
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {cestasAtivas.map((c) => {
                 const sel = cesta?.cesta.id === c.id;
                 const temTamanhos = c.tamanhos && c.tamanhos.length > 0;
@@ -630,13 +631,9 @@ export function Quiz({
                   <article
                     key={c.id}
                     onClick={() => {
-                      if (temTamanhos) {
-                        setModalTamanhoId(cesta?.cesta.id === c.id ? tamanhoId : undefined);
-                        setModalQuantidade(cesta?.cesta.id === c.id ? cesta.quantidade : 1);
-                        setDetalhe(c);
-                      } else {
-                        setCesta(c);
-                      }
+                      setModalTamanhoId(cesta?.cesta.id === c.id ? tamanhoId : undefined);
+                      setModalQuantidade(cesta?.cesta.id === c.id ? cesta.quantidade : 1);
+                      setDetalhe(c);
                     }}
                     className={`group relative cursor-pointer overflow-hidden rounded-2xl bg-white transition-all hover:-translate-y-0.5 hover:shadow-soft ${
                       sel ? "ring-2 ring-terracotta shadow-warm" : "shadow-sm"
@@ -676,12 +673,13 @@ export function Quiz({
                         </p>
                       )}
                       {c.descricao ? (
-                        <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink/60">
+                        <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-ink/60">
                           {c.descricao}
                         </p>
-                      ) : (
-                        <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-ink/60">
-                          {c.itens.slice(0, 5).join(" · ")}
+                      ) : null}
+                      {c.itens.length > 0 && (
+                        <p className="mt-1.5 line-clamp-3 text-[11px] leading-relaxed text-ink/50">
+                          {c.itens.join(" · ")}
                         </p>
                       )}
                       <button
@@ -694,7 +692,7 @@ export function Quiz({
                         }}
                         className="mt-3 inline-block rounded-full border border-charcoal px-4 py-2 text-xs font-medium text-charcoal transition-colors active:bg-charcoal active:text-white"
                       >
-                        {temTamanhos ? "Escolher tamanho →" : "Ver itens completos"}
+                        {temTamanhos ? "Escolher tamanho →" : "Ver o que vai na cesta →"}
                       </button>
                     </div>
                   </article>
@@ -1712,14 +1710,16 @@ export function Quiz({
                     Escolha o tamanho
                   </p>
                   <div className={`grid gap-2 ${detalhe.tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                    {detalhe.tamanhos.map((t) => {
+                    {detalhe.tamanhos.map((raw) => {
+                      const t = completarTamanhoBolo(raw);
                       const tamSel = modalTamanhoId === t.id;
+                      const serve = t.serve?.replace(/^serve\s+/i, "");
                       return (
                         <button
                           key={t.id}
                           type="button"
                           onClick={() => setModalTamanhoId(t.id)}
-                          className={`flex min-h-[90px] flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2.5 text-center transition-all active:scale-[0.97] sm:min-h-[100px] sm:py-3 ${
+                          className={`flex min-h-[132px] flex-col items-center gap-1 rounded-2xl border-2 px-1.5 py-2.5 text-center transition-all active:scale-[0.97] sm:py-3 ${
                             tamSel
                               ? "border-terracotta bg-terracotta/5 shadow-sm"
                               : "border-charcoal/15 bg-white"
@@ -1728,26 +1728,15 @@ export function Quiz({
                           <span className={`font-serif text-xl font-bold sm:text-2xl ${tamSel ? "text-terracotta" : "text-charcoal"}`}>
                             {t.label}
                           </span>
-                          <div className="w-full space-y-0.5">
-                            {t.diametro && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-medium uppercase tracking-wide text-charcoal/40">Diâmetro</span>
-                                <span className="text-[11px] font-semibold text-charcoal">{t.diametro}</span>
-                              </div>
-                            )}
-                            {t.fatias && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-medium uppercase tracking-wide text-charcoal/40">Fatias</span>
-                                <span className="text-[11px] font-semibold text-charcoal">~{t.fatias}</span>
-                              </div>
-                            )}
-                            {t.peso && (
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-medium uppercase tracking-wide text-charcoal/40">Peso</span>
-                                <span className="text-[11px] font-semibold text-charcoal">{t.peso}</span>
-                              </div>
-                            )}
-                          </div>
+                          {t.peso ? (
+                            <span className="text-[12px] font-semibold text-charcoal">{t.peso}</span>
+                          ) : null}
+                          {serve ? (
+                            <span className="text-[11px] leading-snug text-charcoal/60">Serve {serve}</span>
+                          ) : null}
+                          {t.diametro ? (
+                            <span className="text-[10px] text-charcoal/45">{t.diametro}</span>
+                          ) : null}
                           <span className={`mt-auto font-serif text-xs font-bold sm:text-sm ${tamSel ? "text-terracotta" : "text-charcoal/70"}`}>
                             {formatBRL(t.preco)}
                           </span>
