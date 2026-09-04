@@ -61,9 +61,12 @@ export function formatDataEntregaLegivel(data?: string | null, compact = false):
   if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     const d = new Date(`${data}T12:00:00`);
     if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleDateString("pt-BR", compact
-        ? { weekday: "short", day: "numeric", month: "short", year: "numeric" }
-        : { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      return d.toLocaleDateString(
+        "pt-BR",
+        compact
+          ? { weekday: "short", day: "numeric", month: "short", year: "numeric" }
+          : { weekday: "long", day: "numeric", month: "long", year: "numeric" },
+      );
     }
   }
   return data;
@@ -83,13 +86,13 @@ function usePedidoDetalhe(p: PedidoSalvo) {
       ? "Cartão de crédito"
       : metodo?.toUpperCase() === "PIX"
         ? "PIX"
-        : metodo ?? null;
+        : (metodo ?? null);
   const itensSoma =
-    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0)
-    + p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0)
-    + cartoes.reduce((a, c) => a + c.preco, 0)
-    + polaroids.reduce((a, po) => a + po.preco, 0)
-    - desconto;
+    (p.cesta ? p.cesta.preco * p.cesta.quantidade : 0) +
+    p.sobremesas.reduce((a, s) => a + s.preco * s.quantidade, 0) +
+    cartoes.reduce((a, c) => a + c.preco, 0) +
+    polaroids.reduce((a, po) => a + po.preco, 0) -
+    desconto;
   const frete = p.tipo === "delivery" ? Math.max(0, p.total - itensSoma) : 0;
   const status = getStatus(p);
   const falhaPagamento = parseFalhaPagamento(p.pagamento as Record<string, unknown>);
@@ -100,8 +103,7 @@ function usePedidoDetalhe(p: PedidoSalvo) {
       metodo: p.pagamento?.metodo,
       falhaPagamento,
     });
-  const temDestinatarioDiferente =
-    !!p.destinatario?.nome && p.destinatario.nome !== p.cliente.nome;
+  const temDestinatarioDiferente = !!p.destinatario?.nome && p.destinatario.nome !== p.cliente.nome;
 
   return {
     dest,
@@ -168,14 +170,17 @@ export function DetalhesPedido({
     return (
       <div className="space-y-3 text-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", STATUS_CONFIG[status].bg)}>
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+              STATUS_CONFIG[status].bg,
+            )}
+          >
             {STATUS_CONFIG[status].label}
           </span>
           <span className="text-xs text-muted-foreground">{labelTipoPedido(p.tipo)}</span>
           <span className="text-xs text-muted-foreground">·</span>
-          <span className="text-xs text-muted-foreground">
-            {statusPagamentoLabel}
-          </span>
+          <span className="text-xs text-muted-foreground">{statusPagamentoLabel}</span>
         </div>
 
         <DetalheSection>
@@ -200,6 +205,9 @@ export function DetalhesPedido({
               {p.cliente.whatsapp ? ` · ${p.cliente.whatsapp}` : ""}
             </p>
           )}
+          {p.destinatario?.endereco ? (
+            <p className="mt-2 text-sm leading-snug text-charcoal/80">{p.destinatario.endereco}</p>
+          ) : null}
         </DetalheSection>
 
         {status === "aprovado" && <ComprovanteAsaas pedidoId={p.id} />}
@@ -280,9 +288,10 @@ export function DetalhesPedido({
                 <span className="shrink-0 font-semibold tabular-nums">{formatBRL(pol.preco)}</span>
               </div>
             ))}
-            {!p.cesta && p.sobremesas.length === 0 && cartoes.length === 0 && polaroids.length === 0 && (
-              <p className="text-muted-foreground">Sem itens</p>
-            )}
+            {!p.cesta &&
+              p.sobremesas.length === 0 &&
+              cartoes.length === 0 &&
+              polaroids.length === 0 && <p className="text-muted-foreground">Sem itens</p>}
           </div>
         </DetalheSection>
 
@@ -313,7 +322,9 @@ export function DetalhesPedido({
           )}
           <div className="mt-2 flex items-center justify-between border-t border-black/6 pt-2">
             <span className="font-semibold text-charcoal">Total</span>
-            <span className="text-lg font-bold tabular-nums text-charcoal">{formatBRL(p.total)}</span>
+            <span className="text-lg font-bold tabular-nums text-charcoal">
+              {formatBRL(p.total)}
+            </span>
           </div>
           {metodoLabel && (
             <p className="mt-1 text-xs text-muted-foreground">Pagamento via {metodoLabel}</p>
@@ -331,7 +342,12 @@ export function DetalhesPedido({
   return (
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
-        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", STATUS_CONFIG[status].bg)}>
+        <span
+          className={cn(
+            "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+            STATUS_CONFIG[status].bg,
+          )}
+        >
           {STATUS_CONFIG[status].label}
         </span>
         <span className="font-mono text-sm font-bold text-charcoal">
@@ -357,10 +373,15 @@ export function DetalhesPedido({
             📞 {dest.whatsapp}
           </a>
         )}
+        {p.destinatario?.endereco ? (
+          <p className="mt-1 text-sm leading-snug text-charcoal/80">{p.destinatario.endereco}</p>
+        ) : null}
       </div>
 
       <div className="rounded-lg border border-border bg-white px-4 py-2.5">
-        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">💳 Quem pagou</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          💳 Quem pagou
+        </p>
         <p className="mt-0.5 text-base font-semibold text-charcoal">{p.cliente.nome || "—"}</p>
         <p className="text-xs text-muted-foreground">
           {p.cliente.whatsapp ? `${p.cliente.whatsapp} · ` : ""}nome que consta no Asaas
@@ -388,7 +409,9 @@ export function DetalhesPedido({
             </p>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">🕐 Horário</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              🕐 Horário
+            </p>
             <p className="mt-0.5 font-semibold text-charcoal">{p.horario || "—"}</p>
           </div>
         </div>
@@ -399,13 +422,17 @@ export function DetalhesPedido({
         <div className="mt-1 space-y-1 text-charcoal">
           {p.cesta && (
             <div className="flex justify-between">
-              <span>{formatItemPedidoLabel(p.cesta)} × {p.cesta.quantidade}</span>
+              <span>
+                {formatItemPedidoLabel(p.cesta)} × {p.cesta.quantidade}
+              </span>
               <span className="font-semibold">{formatBRL(p.cesta.preco * p.cesta.quantidade)}</span>
             </div>
           )}
           {p.sobremesas.map((item, i) => (
             <div key={i} className="flex justify-between">
-              <span>{formatItemPedidoLabel(item)} × {item.quantidade}</span>
+              <span>
+                {formatItemPedidoLabel(item)} × {item.quantidade}
+              </span>
               <span className="font-semibold">{formatBRL(item.preco * item.quantidade)}</span>
             </div>
           ))}
@@ -421,9 +448,10 @@ export function DetalhesPedido({
               <span className="font-semibold">{formatBRL(pol.preco)}</span>
             </div>
           ))}
-          {!p.cesta && p.sobremesas.length === 0 && cartoes.length === 0 && polaroids.length === 0 && (
-            <p className="text-muted-foreground">— sem itens —</p>
-          )}
+          {!p.cesta &&
+            p.sobremesas.length === 0 &&
+            cartoes.length === 0 &&
+            polaroids.length === 0 && <p className="text-muted-foreground">— sem itens —</p>}
         </div>
       </div>
 
@@ -465,7 +493,9 @@ export function DetalhesPedido({
 
       {(cartoes.length > 0 || polaroids.length > 0) && (
         <div>
-          <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Fotos e Mensagens</p>
+          <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+            Fotos e Mensagens
+          </p>
           <PedidoExtrasView cartoes={cartoes} polaroids={polaroids} variant="admin" />
         </div>
       )}

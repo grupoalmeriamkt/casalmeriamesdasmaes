@@ -38,6 +38,13 @@ export type Unidade = {
   lng?: number;
 };
 
+/** Quem recebe a encomenda quando não é o comprador. */
+export type DestinatarioPedido = {
+  nome: string;
+  whatsapp: string;
+  endereco?: string;
+};
+
 export type EnderecoEntrega = {
   cep: string;
   rua: string;

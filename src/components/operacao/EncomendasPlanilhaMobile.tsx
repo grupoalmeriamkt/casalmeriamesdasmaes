@@ -234,6 +234,14 @@ function PlanilhaMobileCard({
             <p className="truncate text-[15px] font-semibold leading-tight text-charcoal">
               {l.nomeCliente}
             </p>
+            {l.isPresente ? (
+              <>
+                <p className="mt-0.5 truncate text-xs text-terracotta">Pediu: {l.quemPediu}</p>
+                {l.destTelefone ? (
+                  <p className="mt-0.5 truncate text-xs text-charcoal/70">{l.destTelefone}</p>
+                ) : null}
+              </>
+            ) : null}
             <p className="mt-0.5 truncate text-sm text-charcoal/70">{resumoProdutos}</p>
           </div>
           <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-charcoal/25" aria-hidden />

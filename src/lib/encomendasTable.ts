@@ -25,6 +25,11 @@ export type EncomendaLinha = {
   horarioRetirada: string;
   diaSemana: string;
   nomeCliente: string;
+  quemPediu: string;
+  paraQuem: string;
+  isPresente: boolean;
+  destTelefone: string;
+  destEndereco: string;
   setor: string;
   setorKey: string;
   productionSector: SetorOperacional | null;
@@ -262,11 +267,13 @@ export function flattenPedidosParaLinhas(
     const op = raw ? rowToPedidoOperacional(raw) : null;
     const exec = execucaoFromPedido(p, raw);
     const local = resolveLocal(p, raw, unidades);
-    const nomeCliente =
-      op?.recipientName ||
-      p.destinatario?.nome ||
-      p.cliente.nome ||
-      "(sem nome)";
+    const dest = p.destinatario;
+    const quemPediu = p.cliente.nome || "(sem nome)";
+    const paraQuem = dest?.nome || op?.recipientName || quemPediu;
+    const isPresente = Boolean(
+      dest?.nome && dest.nome.trim().toLowerCase() !== quemPediu.trim().toLowerCase(),
+    );
+    const nomeCliente = isPresente ? paraQuem : quemPediu;
 
     const sector = op?.productionSector ?? null;
     const chegada = isoToPartsSP(raw?.criado_em ?? p.criadoEm ?? "");
@@ -278,6 +285,11 @@ export function flattenPedidosParaLinhas(
       horarioRetirada: exec?.time ?? (p.horario ? `${String(parseHorarioInicio(p.horario)).padStart(2, "0")}:00:00` : "—"),
       diaSemana: exec?.weekday ?? "—",
       nomeCliente,
+      quemPediu,
+      paraQuem,
+      isPresente,
+      destTelefone: dest?.whatsapp || op?.recipientPhone || p.cliente.whatsapp || "",
+      destEndereco: dest?.endereco || (p.tipo === "delivery" ? p.enderecoOuUnidade : "") || "",
       localRetirada: local.label,
       localKey: local.key,
       unidadeId: inferUnidadeId(raw?.unidade_id, local, unidades),
@@ -320,6 +332,10 @@ export const ENCOMENDAS_CSV_HEAD = [
   "HORÁRIO DA ENTREGA",
   "DIA DA ENTREGA",
   "NOME DO CLIENTE",
+  "QUEM PEDIU",
+  "PARA QUEM",
+  "TEL QUEM RECEBE",
+  "ENDERECO QUEM RECEBE",
   "SETOR RESPONSÁVEL",
   "PRODUTO",
   "TAMANHO",
@@ -334,6 +350,10 @@ export function linhasParaCsvRows(linhas: EncomendaLinha[]): string[][] {
     l.horarioRetirada,
     l.diaSemana,
     l.nomeCliente,
+    l.quemPediu,
+    l.isPresente ? l.paraQuem : "",
+    l.isPresente ? l.destTelefone : "",
+    l.isPresente ? l.destEndereco : "",
     l.setor,
     l.produto,
     l.tamanho ?? "",

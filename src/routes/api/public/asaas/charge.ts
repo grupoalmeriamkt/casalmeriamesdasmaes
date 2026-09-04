@@ -145,7 +145,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         // Confere pedido existe e pertence ao fluxo
         const { data: pedido, error: pedErr } = await admin
           .from("pedidos")
-          .select("id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, unidade_id, campanha_id, concluido_at")
+          .select(
+            "id, total, status, pagamento, tipo, data_entrega, horario, cesta, sobremesas, endereco_ou_unidade, unidade_id, campanha_id, concluido_at",
+          )
           .eq("id", body.pedidoId)
           .maybeSingle();
         if (pedErr || !pedido) {
@@ -166,12 +168,45 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           return Response.json({ error: "pedido_concluido" }, { status: 410 });
         }
 
-        const totalPedido = Number(pedido.total ?? 0);
+        let totalPedido = Number(pedido.total ?? 0);
         if (totalPedido <= 0) {
           return Response.json({ error: "total_invalido" }, { status: 400 });
         }
-        // Usa o total gravado no pedido — rejeita manipulação do cliente.
-        if (Math.abs(body.total - totalPedido) > 0.01) {
+
+        const somaItens = body.itens.reduce((acc, it) => acc + it.preco * it.quantidade, 0);
+        if (pedido.tipo === "delivery") {
+          const { data: cfgFrete } = await admin
+            .from("app_config")
+            .select("payload")
+            .eq("id", "default")
+            .maybeSingle();
+          const campanhas =
+            (
+              cfgFrete?.payload as {
+                campanhas?: Array<{
+                  id: string;
+                  delivery?: { taxa?: { tipo?: string; valor?: number } };
+                }>;
+              } | null
+            )?.campanhas ?? [];
+          const camp = campanhas.find((c) => c.id === pedido.campanha_id) ?? campanhas[0];
+          const taxaCfg = camp?.delivery?.taxa;
+          const taxa = taxaCfg?.tipo === "fixa" ? Number(taxaCfg.valor ?? 0) : 0;
+          const comFrete = Number((somaItens + taxa).toFixed(2));
+          if (taxa > 0 && Math.abs(totalPedido - somaItens) < 0.011) {
+            totalPedido = comFrete;
+            await admin.from("pedidos").update({ total: totalPedido }).eq("id", body.pedidoId);
+          }
+          if (
+            taxa > 0 &&
+            Math.abs(body.total - somaItens) < 0.011 &&
+            Math.abs(totalPedido - comFrete) < 0.011
+          ) {
+            // cliente antigo enviou só os produtos — cobra com frete
+          } else if (Math.abs(body.total - totalPedido) > 0.01) {
+            return Response.json({ error: "total_mismatch" }, { status: 400 });
+          }
+        } else if (Math.abs(body.total - totalPedido) > 0.01) {
           return Response.json({ error: "total_mismatch" }, { status: 400 });
         }
 
@@ -263,13 +298,13 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             horarios?: { label: string; ativo: boolean }[];
             antecedencia?: RegraAntecedenciaRetirada;
           };
-          const campanhas = (
-            cfgRow?.payload as {
-              campanhas?: Array<{ id: string; delivery?: CampModo; retirada?: CampModo }>;
-            } | null
-          )?.campanhas ?? [];
-          const camp =
-            campanhas.find((c) => c.id === pedido.campanha_id) ?? campanhas[0];
+          const campanhas =
+            (
+              cfgRow?.payload as {
+                campanhas?: Array<{ id: string; delivery?: CampModo; retirada?: CampModo }>;
+              } | null
+            )?.campanhas ?? [];
+          const camp = campanhas.find((c) => c.id === pedido.campanha_id) ?? campanhas[0];
           const modo = isDelivery ? camp?.delivery : camp?.retirada;
           const labels = (modo?.horarios ?? []).filter((h) => h.ativo).map((h) => h.label);
           horariosCampanha = labels.length > 0 ? labels : undefined;
@@ -321,8 +356,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             })
           ) {
             erros.push(
-              dataEntregaISO === amanhaISO &&
-                minutosAgoraSP > CORTE_SEXTA_SABADO_MINUTOS
+              dataEntregaISO === amanhaISO && minutosAgoraSP > CORTE_SEXTA_SABADO_MINUTOS
                 ? `${modoLabel} no sábado só é possível até sexta às 12h.`
                 : `${modoLabel} não disponível para o mesmo dia.`,
             );
@@ -336,7 +370,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               regra,
             )
           ) {
-            erros.push(`Horário de ${modoLabel.toLowerCase()} indisponível para a data selecionada.`);
+            erros.push(
+              `Horário de ${modoLabel.toLowerCase()} indisponível para a data selecionada.`,
+            );
           }
           if (erros.length > 0) {
             return Response.json(
@@ -438,7 +474,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
               cliente_email: body.cliente.email,
               total: valorFinal,
               pagamento: limparFalhaPagamento({
-                ...(pedido.pagamento as Record<string, unknown> ?? {}),
+                ...((pedido.pagamento as Record<string, unknown>) ?? {}),
                 metodo: body.metodo.toLowerCase(),
                 status: payment.status,
                 pagamento_id: pagamentoIns.id,

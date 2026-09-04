@@ -29,7 +29,9 @@ export function pedidoConfirmacaoEmail(pedido: PedidoSalvo): {
 
   if (pedido.cesta) {
     const nomeCesta = formatItemPedidoLabel(pedido.cesta);
-    itens.push(`${pedido.cesta.quantidade}x ${nomeCesta} — ${formatBRL(pedido.cesta.preco * pedido.cesta.quantidade)}`);
+    itens.push(
+      `${pedido.cesta.quantidade}x ${nomeCesta} — ${formatBRL(pedido.cesta.preco * pedido.cesta.quantidade)}`,
+    );
     linhasHtml.push(linhaItem(nomeCesta, pedido.cesta.quantidade, pedido.cesta.preco));
   }
   for (const s of pedido.sobremesas ?? []) {
@@ -79,7 +81,9 @@ export function pedidoConfirmacaoEmail(pedido: PedidoSalvo): {
       <p style="margin: 8px 0 0;"><strong>Data:</strong> ${escapeHtml(entrega)}</p>
       ${
         destinatario
-          ? `<p style="margin: 8px 0 0;"><strong>Presenteado:</strong> ${escapeHtml(destinatario.nome)} · ${escapeHtml(destinatario.whatsapp)}</p>`
+          ? `<p style="margin: 8px 0 0;"><strong>Presenteado:</strong> ${escapeHtml(destinatario.nome)} · ${escapeHtml(destinatario.whatsapp)}${
+              destinatario.endereco ? ` · ${escapeHtml(destinatario.endereco)}` : ""
+            }</p>`
           : ""
       }
     </div>
@@ -101,7 +105,11 @@ export function pedidoConfirmacaoEmail(pedido: PedidoSalvo): {
     "",
     `${labelTipoPedido(pedido.tipo)}: ${pedido.enderecoOuUnidade || "—"}`,
     `Data: ${entrega}`,
-    destinatario ? `Presenteado: ${destinatario.nome} · ${destinatario.whatsapp}` : "",
+    destinatario
+      ? `Presenteado: ${destinatario.nome} · ${destinatario.whatsapp}${
+          destinatario.endereco ? ` · ${destinatario.endereco}` : ""
+        }`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");

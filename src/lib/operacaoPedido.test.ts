@@ -5,7 +5,7 @@ import {
   isPedidoConcluido,
   rowToPedidoOperacional,
 } from "@/lib/operacaoPedido";
-import type { PedidoRow } from "@/lib/pedidos";
+import { destinatarioFromRow, type PedidoRow } from "@/lib/pedidos";
 
 const baseRow = (patch: Partial<PedidoRow> = {}): PedidoRow => ({
   id: "abc-123",
@@ -52,6 +52,58 @@ describe("rowToPedidoOperacional", () => {
       }),
     );
     expect(op.recipientName).toBe("João");
+    expect(op.destinatario?.nome).toBe("João");
+    expect(op.recipientIsBuyer).toBe(false);
+  });
+
+  it("guarda o endereço de quem recebe no destinatário", () => {
+    const op = rowToPedidoOperacional(
+      baseRow({
+        recipient_is_buyer: false,
+        recipient_name: "João",
+        recipient_phone: "61888888888",
+        pagamento: {
+          metodo: "pix",
+          status: "CONFIRMED",
+          destinatario: {
+            nome: "João",
+            whatsapp: "61888888888",
+            endereco: "SQS 316 Bloco C, 102",
+          },
+        },
+      }),
+    );
+    expect(op.destinatario?.endereco).toBe("SQS 316 Bloco C, 102");
+  });
+});
+
+describe("destinatarioFromRow", () => {
+  it("retorna null quando a encomenda é para o próprio comprador", () => {
+    expect(destinatarioFromRow(baseRow())).toBeNull();
+  });
+
+  it("usa nome, telefone e endereço do JSON quando é presente", () => {
+    const dest = destinatarioFromRow(
+      baseRow({
+        recipient_is_buyer: false,
+        recipient_name: "João",
+        recipient_phone: "61888888888",
+        pagamento: {
+          metodo: "pix",
+          status: "CONFIRMED",
+          destinatario: {
+            nome: "João",
+            whatsapp: "61888888888",
+            endereco: "SQS 316 Bloco C, 102",
+          },
+        },
+      }),
+    );
+    expect(dest).toEqual({
+      nome: "João",
+      whatsapp: "61888888888",
+      endereco: "SQS 316 Bloco C, 102",
+    });
   });
 });
 

@@ -22,7 +22,16 @@ import {
   useTodosDias,
   useUnidadesAtivas,
   useUnidadesCadastradas,
+  type ZonaEntrega,
 } from "@/store/admin";
+import { taxaEntregaDoPedido } from "@/lib/checkout/taxaEntrega";
+import { ehItemCestaCafe } from "@/lib/cestasCafe";
+import {
+  encontrarZonaComTolerancia,
+  geocodificarCep,
+  geocodificarEndereco,
+  geocodificarViaBrasilAPI,
+} from "@/lib/geo";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackBeginCheckout, trackAddPaymentInfo } from "@/lib/gtm";
 import { buscarCep } from "@/lib/cep";
@@ -62,6 +71,12 @@ const ClienteSchema = z.object({
   cpf: z.string().regex(/^\d{11}$/, "CPF inválido"),
   email: z.string().email("E-mail inválido").max(180),
   whatsapp: z.string().regex(/^\d{10,11}$/, "WhatsApp 10–11 dígitos"),
+});
+
+const DestinatarioSchema = z.object({
+  nome: z.string().trim().min(2, "Informe o nome de quem vai receber").max(120),
+  whatsapp: z.string().regex(/^\d{10,11}$/, "Telefone 10–11 dígitos"),
+  endereco: z.string().trim().min(6, "Informe o endereço de quem vai receber").max(250),
 });
 
 const EnderecoSchema = z.object({
@@ -108,7 +123,7 @@ function maskPhone(v: string) {
 function CheckoutPage() {
   const itens = useCarrinho((s) => s.itens);
   const clear = useCarrinho((s) => s.clear);
-  const { total } = useCarrinhoTotal();
+  const { total: subtotal } = useCarrinhoTotal();
   const navigate = useNavigate();
   const pixelId = useAdmin((s) => s.integracoes.metaPixelId);
   const testEventCode = useAdmin((s) => s.integracoes.metaTestEventCode);
@@ -128,6 +143,18 @@ function CheckoutPage() {
   const [cepEntrega, setCepEntrega] = useState("");
   const [foraArea, setForaArea] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [zonaEntregaAtual, setZonaEntregaAtual] = useState<ZonaEntrega | null>(null);
+  const [destNome, setDestNome] = useState("");
+  const [destWhatsapp, setDestWhatsapp] = useState("");
+  const [destEndereco, setDestEndereco] = useState("");
+  const [outraPessoa, setOutraPessoa] = useState(false);
+
+  const temCestaCafe = useMemo(() => itens.some((it) => ehItemCestaCafe(it)), [itens]);
+  const usandoZonas = Boolean(
+    campanhaAtiva?.delivery?.zonas?.ativo && (campanhaAtiva.delivery.zonas.zonas?.length ?? 0) > 0,
+  );
+  const taxaEntrega = taxaEntregaDoPedido(tipoEntrega, campanhaAtiva?.delivery, zonaEntregaAtual);
+  const total = subtotal + taxaEntrega;
 
   const podeRetirada = entregaConfig.retirada !== false;
   const podeDelivery = entregaConfig.delivery !== false;
@@ -154,7 +181,8 @@ function CheckoutPage() {
     const filtradas = datasCampanha.filter((d) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.id)) return true;
       if (d.id < hojeISO) return false;
-      if (dataRetiradaBloqueada(d.id, hojeISO, REGRA_RETIRADA_PADRAO, ctxAntecedencia)) return false;
+      if (dataRetiradaBloqueada(d.id, hojeISO, REGRA_RETIRADA_PADRAO, ctxAntecedencia))
+        return false;
       return true;
     });
     if (filtradas.length > 0 || todosDias) return filtradas;
@@ -265,7 +293,11 @@ function CheckoutPage() {
     if (firedInitiate.current) return;
     firedInitiate.current = true;
     const eventId = newEventId("ic");
-    fbqTrack("InitiateCheckout", { value: total, currency: "BRL", num_items: itens.length }, eventId);
+    fbqTrack(
+      "InitiateCheckout",
+      { value: total, currency: "BRL", num_items: itens.length },
+      eventId,
+    );
     trackBeginCheckout({ value: total, currency: "BRL", num_items: itens.length });
     if (pixelId) {
       void sendCapiEvent({
@@ -276,7 +308,7 @@ function CheckoutPage() {
         customData: { value: total, currency: "BRL", num_items: itens.length },
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // AddPaymentInfo — dispara ao mudar o método de pagamento
@@ -289,7 +321,11 @@ function CheckoutPage() {
     if (prevMetodo.current === metodo) return;
     prevMetodo.current = metodo;
     const eventId = newEventId("api");
-    fbqTrack("AddPaymentInfo", { value: totalComDesconto, currency: "BRL", payment_type: metodo }, eventId);
+    fbqTrack(
+      "AddPaymentInfo",
+      { value: totalComDesconto, currency: "BRL", payment_type: metodo },
+      eventId,
+    );
     trackAddPaymentInfo({ value: totalComDesconto, currency: "BRL", payment_type: metodo });
     if (pixelId) {
       const [firstName, ...rest] = nome.trim().split(/\s+/);
@@ -367,11 +403,48 @@ function CheckoutPage() {
       });
       return;
     }
-    if (tipoEntrega === "delivery" && enderecoStr.trim().length < 6) {
+
+    let destinatario: {
+      nome: string;
+      whatsapp: string;
+      endereco?: string;
+    } | null = null;
+    if (outraPessoa) {
+      const dest = DestinatarioSchema.safeParse({
+        nome: destNome,
+        whatsapp: onlyDigits(destWhatsapp),
+        endereco: destEndereco,
+      });
+      if (!dest.success) {
+        const f = dest.error.flatten().fieldErrors;
+        setErros({
+          destNome: f.nome?.[0] ?? "",
+          destWhatsapp: f.whatsapp?.[0] ?? "",
+          destEndereco: f.endereco?.[0] ?? "",
+        });
+        toast.error("Preencha os dados de quem vai receber a encomenda.");
+        return;
+      }
+      destinatario = dest.data;
+    }
+
+    const enderecoEntrega =
+      tipoEntrega === "delivery"
+        ? outraPessoa
+          ? destEndereco.trim()
+          : enderecoStr.trim()
+        : enderecoStr.trim();
+
+    if (tipoEntrega === "delivery" && usandoZonas && !zonaEntregaAtual) {
+      setErros({ endereco: "Busque o CEP para calcular o frete da região." });
+      toast.error("Busque o CEP para calcular o frete.");
+      return;
+    }
+    if (tipoEntrega === "delivery" && enderecoEntrega.length < 6) {
       setErros({ endereco: "Informe o endereço de entrega" });
       return;
     }
-    if (tipoEntrega === "delivery" && (foraArea || !atendeAreaEntregaFromTexto(enderecoStr))) {
+    if (tipoEntrega === "delivery" && (foraArea || !atendeAreaEntregaFromTexto(enderecoEntrega))) {
       setForaArea(true);
       setErros({ endereco: MSG_FORA_AREA });
       toast.error(MSG_FORA_AREA);
@@ -457,30 +530,30 @@ function CheckoutPage() {
       }));
       const [primeiro, ...demais] = linhas;
 
-      // 1. cria/atualiza pedido como rascunho (subtotal sem desconto;
-      // o /charge revalida cupom server-side e atualiza pedido.total = valorFinal)
+      // 1. rascunho com produtos + frete (sem desconto; /charge revalida o cupom)
       const { id: pedidoId, error: erRasc } = await upsertRascunho(
         {
-        cliente: { nome: cliente.data.nome, whatsapp: cliente.data.whatsapp },
-        cesta: primeiro
-          ? {
-              nome: primeiro.nome,
-              quantidade: primeiro.quantidade,
-              preco: primeiro.preco,
-              ...(primeiro.tamanho ? { tamanho: primeiro.tamanho } : {}),
-            }
-          : undefined,
-        sobremesas: demais.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
-        tipo: tipoEntrega,
-        enderecoOuUnidade:
-          tipoEntrega === "delivery"
-            ? enderecoStr
-            : (unidades.find((u) => u.id === unidadeId)?.nome ?? "Retirada na loja"),
-        unidadeId: tipoEntrega === "retirada" ? unidadeId : undefined,
-        data,
-        horario,
-        pagamento: { metodo: metodo.toLowerCase(), status: "pendente" },
-        total,
+          cliente: { nome: cliente.data.nome, whatsapp: cliente.data.whatsapp },
+          destinatario,
+          cesta: primeiro
+            ? {
+                nome: primeiro.nome,
+                quantidade: primeiro.quantidade,
+                preco: primeiro.preco,
+                ...(primeiro.tamanho ? { tamanho: primeiro.tamanho } : {}),
+              }
+            : undefined,
+          sobremesas: demais.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
+          tipo: tipoEntrega,
+          enderecoOuUnidade:
+            tipoEntrega === "delivery"
+              ? enderecoEntrega
+              : (unidades.find((u) => u.id === unidadeId)?.nome ?? "Retirada na loja"),
+          unidadeId: tipoEntrega === "retirada" ? unidadeId : undefined,
+          data,
+          horario,
+          pagamento: { metodo: metodo.toLowerCase(), status: "pendente" },
+          total,
         },
         undefined,
         campanhaAtiva?.id,
@@ -503,7 +576,7 @@ function CheckoutPage() {
             whatsapp: cliente.data.whatsapp,
           },
           itens: linhas.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
-          total, // subtotal (sem desconto) — backend revalida cupom e calcula desconto
+          total, // produtos + frete (sem desconto) — backend revalida cupom
           metodo,
           cupomCodigo: cupomAplicado?.codigo,
           cartao: cardData ?? undefined,
@@ -552,7 +625,8 @@ function CheckoutPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Contato */}
           <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
-            <h2 className="mb-4 font-serif text-xl font-bold text-charcoal">Contato</h2>
+            <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">Quem está pedindo</h2>
+            <p className="mb-4 text-sm text-charcoal/60">Dados de quem faz e paga o pedido.</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="nome">Nome completo</Label>
@@ -602,6 +676,80 @@ function CheckoutPage() {
             </div>
           </section>
 
+          <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
+            <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">
+              Para quem é a encomenda?
+            </h2>
+            <p className="mb-4 text-sm text-charcoal/60">
+              {temCestaCafe
+                ? "Nas cestas de café, informe se o presente é para você ou para outra pessoa."
+                : "Se for presente, preencha os dados de quem vai receber."}
+            </p>
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setOutraPessoa(false)}
+                className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                  !outraPessoa
+                    ? "border-charcoal bg-charcoal text-white"
+                    : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                }`}
+              >
+                Para mim
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutraPessoa(true)}
+                className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                  outraPessoa
+                    ? "border-charcoal bg-charcoal text-white"
+                    : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                }`}
+              >
+                Para outra pessoa
+              </button>
+            </div>
+            {outraPessoa && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="dest-nome">Nome de quem vai receber</Label>
+                  <Input
+                    id="dest-nome"
+                    value={destNome}
+                    onChange={(e) => setDestNome(e.target.value)}
+                    placeholder="Nome completo"
+                    maxLength={120}
+                  />
+                  {erroLine("destNome")}
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="dest-wpp">Telefone / WhatsApp</Label>
+                  <Input
+                    id="dest-wpp"
+                    value={destWhatsapp}
+                    onChange={(e) => setDestWhatsapp(maskPhone(e.target.value))}
+                    placeholder="(61) 99999-9999"
+                  />
+                  {erroLine("destWhatsapp")}
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="dest-end">Endereço de quem vai receber</Label>
+                  <Input
+                    id="dest-end"
+                    value={destEndereco}
+                    onChange={(e) => {
+                      setDestEndereco(e.target.value);
+                      if (tipoEntrega === "delivery") setEnderecoStr(e.target.value);
+                    }}
+                    placeholder="Rua, número, bairro, complemento"
+                    maxLength={250}
+                  />
+                  {erroLine("destEndereco")}
+                </div>
+              </div>
+            )}
+          </section>
+
           {/* Entrega */}
           <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
             <h2 className="mb-4 font-serif text-xl font-bold text-charcoal">Entrega ou retirada</h2>
@@ -609,24 +757,25 @@ function CheckoutPage() {
               {(["retirada", "delivery"] as const)
                 .filter((t) => (t === "retirada" ? podeRetirada : podeDelivery))
                 .map((t) => (
-                <button
-                  type="button"
-                  key={t}
-                  onClick={() => {
-                    setTipoEntrega(t);
-                    setData("");
-                    setHorario("");
-                    if (t !== "retirada") setUnidadeId("");
-                  }}
-                  className={`flex-1 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
-                    tipoEntrega === t
-                      ? "border-terracotta bg-terracotta/10 text-terracotta"
-                      : "border-border text-charcoal hover:border-charcoal/40"
-                  }`}
-                >
-                  {t === "retirada" ? "Retirada" : "Entrega"}
-                </button>
-              ))}
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => {
+                      setTipoEntrega(t);
+                      setData("");
+                      setHorario("");
+                      setZonaEntregaAtual(null);
+                      if (t !== "retirada") setUnidadeId("");
+                    }}
+                    className={`flex-1 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                      tipoEntrega === t
+                        ? "border-terracotta bg-terracotta/10 text-terracotta"
+                        : "border-border text-charcoal hover:border-charcoal/40"
+                    }`}
+                  >
+                    {t === "retirada" ? "Retirada" : "Entrega"}
+                  </button>
+                ))}
             </div>
             {tipoEntrega === "retirada" && (
               <div className="mb-4 space-y-2">
@@ -708,6 +857,7 @@ function CheckoutPage() {
                         .filter(Boolean)
                         .join(", ");
                       setEnderecoStr(linha);
+                      setDestEndereco((atual) => atual.trim() || linha);
                       const ok = atendeAreaEntrega({
                         city: d.city,
                         neighborhood: d.neighborhood,
@@ -721,26 +871,78 @@ function CheckoutPage() {
                         atende: ok,
                       });
                       setForaArea(!ok);
-                      if (!ok) toast.error(MSG_FORA_AREA);
-                      else toast.success("Endereço encontrado — área atendida.");
+                      if (!ok) {
+                        setZonaEntregaAtual(null);
+                        toast.error(MSG_FORA_AREA);
+                        return;
+                      }
+
+                      const zonasConfig = campanhaAtiva?.delivery?.zonas;
+                      const zonasAtivas = Boolean(
+                        zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0,
+                      );
+                      if (zonasAtivas && zonasConfig) {
+                        const consulta = [
+                          d.street,
+                          d.neighborhood,
+                          `${d.city}/${d.state}`,
+                          limpo,
+                          "Brasil",
+                        ]
+                          .filter(Boolean)
+                          .join(", ");
+                        let coords = await geocodificarViaBrasilAPI(limpo);
+                        if (!coords) coords = await geocodificarCep(limpo);
+                        if (!coords) coords = await geocodificarEndereco(consulta);
+                        if (!coords) {
+                          const zonaFallback = zonasConfig.zonas[0];
+                          setZonaEntregaAtual(zonaFallback);
+                          toast.success(
+                            `Endereço aceito — ${zonaFallback.nome}. Confirmaremos a disponibilidade pelo WhatsApp.`,
+                          );
+                          return;
+                        }
+                        const zona = encontrarZonaComTolerancia(coords, zonasConfig.zonas);
+                        if (!zona) {
+                          setForaArea(true);
+                          setZonaEntregaAtual(null);
+                          toast.error(
+                            "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha retirada.",
+                          );
+                          return;
+                        }
+                        setZonaEntregaAtual(zona);
+                        toast.success(`Endereço confirmado — ${zona.nome}.`);
+                        return;
+                      }
+
+                      setZonaEntregaAtual(null);
+                      toast.success("Endereço encontrado — área atendida.");
                     }}
                     className="bg-charcoal text-white hover:bg-charcoal/90"
                   >
                     {buscandoCep ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
                   </Button>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="end">Endereço completo</Label>
-                  <Input
-                    id="end"
-                    value={enderecoStr}
-                    onChange={(e) => setEnderecoStr(e.target.value)}
-                    placeholder="Rua, número, bairro, complemento"
-                    maxLength={250}
-                    required
-                  />
-                  {erroLine("endereco")}
-                </div>
+                {outraPessoa ? (
+                  <p className="rounded-lg bg-linen px-3 py-2 text-xs text-charcoal/70">
+                    A entrega será no endereço de quem vai receber, informado acima. Use o CEP para
+                    confirmar a área e o frete.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="end">Endereço completo</Label>
+                    <Input
+                      id="end"
+                      value={enderecoStr}
+                      onChange={(e) => setEnderecoStr(e.target.value)}
+                      placeholder="Rua, número, bairro, complemento"
+                      maxLength={250}
+                      required
+                    />
+                    {erroLine("endereco")}
+                  </div>
+                )}
                 {foraArea && (
                   <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
                     {MSG_FORA_AREA}
@@ -760,7 +962,12 @@ function CheckoutPage() {
                       disabled={(day) => {
                         const iso = toISODateString(day);
                         if (iso < hojeISO) return true;
-                        return dataRetiradaBloqueada(iso, hojeISO, REGRA_RETIRADA_PADRAO, ctxAntecedencia);
+                        return dataRetiradaBloqueada(
+                          iso,
+                          hojeISO,
+                          REGRA_RETIRADA_PADRAO,
+                          ctxAntecedencia,
+                        );
                       }}
                       fromMonth={new Date()}
                       onSelect={(day) => {
@@ -772,11 +979,15 @@ function CheckoutPage() {
                     />
                   </div>
                 ) : datasDisponiveis.length === 0 ? (
-                  <p className="mt-2 text-xs text-terracotta">Nenhuma data disponível no momento.</p>
+                  <p className="mt-2 text-xs text-terracotta">
+                    Nenhuma data disponível no momento.
+                  </p>
                 ) : datasDisponiveis.length > 4 ? (
                   (() => {
                     const datasIds = new Set(
-                      datasDisponiveis.map((d) => d.id).filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
+                      datasDisponiveis
+                        .map((d) => d.id)
+                        .filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
                     );
                     const selectedDatum = datasDisponiveis.find((d) => d.label === data);
                     const selectedDate =
@@ -831,14 +1042,20 @@ function CheckoutPage() {
                               : "border-border bg-white text-charcoal hover:border-charcoal/40"
                           }`}
                         >
-                          <div className={`font-serif text-2xl font-bold leading-none ${sel ? "text-white" : "text-charcoal"}`}>
+                          <div
+                            className={`font-serif text-2xl font-bold leading-none ${sel ? "text-white" : "text-charcoal"}`}
+                          >
                             {numero}
                           </div>
-                          <div className={`mt-1 text-xs font-medium ${sel ? "text-white" : "text-charcoal"}`}>
+                          <div
+                            className={`mt-1 text-xs font-medium ${sel ? "text-white" : "text-charcoal"}`}
+                          >
                             {semana}
                           </div>
                           {mesAno ? (
-                            <div className={`mt-0.5 text-[10px] ${sel ? "text-white/80" : "text-charcoal/50"}`}>
+                            <div
+                              className={`mt-0.5 text-[10px] ${sel ? "text-white/80" : "text-charcoal/50"}`}
+                            >
                               {mesAno}
                             </div>
                           ) : null}
@@ -854,7 +1071,9 @@ function CheckoutPage() {
                 <div>
                   <Label>Horário</Label>
                   {horariosDisponiveis.length === 0 ? (
-                    <p className="mt-2 text-xs text-terracotta">Nenhum horário disponível nesta data.</p>
+                    <p className="mt-2 text-xs text-terracotta">
+                      Nenhum horário disponível nesta data.
+                    </p>
                   ) : (
                     <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {horariosDisponiveis.map((h) => {
@@ -1029,8 +1248,14 @@ function CheckoutPage() {
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between text-charcoal/80">
                 <span>Subtotal</span>
-                <span>{formatBRL(total)}</span>
+                <span>{formatBRL(subtotal)}</span>
               </div>
+              {tipoEntrega === "delivery" && (
+                <div className="flex justify-between text-charcoal/80">
+                  <span>Frete{zonaEntregaAtual ? ` · ${zonaEntregaAtual.nome}` : ""}</span>
+                  <span>{taxaEntrega > 0 ? formatBRL(taxaEntrega) : "Grátis"}</span>
+                </div>
+              )}
               {cupomAplicado && (
                 <div className="flex justify-between text-emerald-700">
                   <span className="inline-flex items-center gap-1">

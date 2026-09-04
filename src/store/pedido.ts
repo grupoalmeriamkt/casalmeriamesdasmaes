@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Cesta, Sobremesa, EnderecoEntrega, Unidade } from "@/lib/types";
+import type { Cesta, DestinatarioPedido, EnderecoEntrega, Sobremesa, Unidade } from "@/lib/types";
 
 export type CartaoExtra = {
   itemId: string;
@@ -28,7 +28,7 @@ type State = {
   sobremesas: Record<string, { sobremesa: Sobremesa; quantidade: number }>;
   cliente: { nome: string; whatsapp: string };
   email: string;
-  destinatario: { nome: string; whatsapp: string } | null;
+  destinatario: DestinatarioPedido | null;
   entregaTipo: "delivery" | "retirada" | null;
   endereco?: EnderecoEntrega;
   unidade?: Unidade;
@@ -46,7 +46,7 @@ type Actions = {
   setSobremesaQtd: (id: string, q: number) => void;
   setCliente: (c: { nome: string; whatsapp: string }) => void;
   setEmail: (e: string) => void;
-  setDestinatario: (d: { nome: string; whatsapp: string } | null) => void;
+  setDestinatario: (d: DestinatarioPedido | null) => void;
   setEntregaTipo: (t: "delivery" | "retirada") => void;
   setEndereco: (e: EnderecoEntrega) => void;
   setUnidade: (u: Unidade) => void;
@@ -141,9 +141,7 @@ export const usePedido = create<State & Actions>()(
         if (!state.extras || typeof state.extras !== "object") {
           state.extras = { cartoes: [], polaroids: [] };
         } else {
-          state.extras.cartoes = Array.isArray(state.extras.cartoes)
-            ? state.extras.cartoes
-            : [];
+          state.extras.cartoes = Array.isArray(state.extras.cartoes) ? state.extras.cartoes : [];
           state.extras.polaroids = Array.isArray(state.extras.polaroids)
             ? state.extras.polaroids
             : [];

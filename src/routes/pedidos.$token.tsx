@@ -196,6 +196,7 @@ function CozinhaPage() {
     temDestinatario: false,
     destinatarioNome: "",
     destinatarioWhatsapp: "",
+    destinatarioEndereco: "",
   });
   const [editConfirm, setEditConfirm] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
@@ -458,7 +459,7 @@ function CozinhaPage() {
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       if (filtroTexto) {
         const q = filtroTexto.toLowerCase();
-        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
+        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.destinatario?.whatsapp ?? ""} ${p.destinatario?.endereco ?? ""} ${p.id}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       const refData = concluidos
@@ -514,7 +515,7 @@ function CozinhaPage() {
       if (filtroPolaroid && !((p.pagamento?.extras?.polaroids?.length ?? 0) > 0)) return false;
       if (filtroTexto) {
         const q = filtroTexto.toLowerCase();
-        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.id}`.toLowerCase();
+        const hay = `${p.cliente.nome} ${p.cliente.whatsapp} ${p.destinatario?.nome ?? ""} ${p.destinatario?.whatsapp ?? ""} ${p.destinatario?.endereco ?? ""} ${p.id}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -730,6 +731,7 @@ function CozinhaPage() {
       temDestinatario: !!p.destinatario,
       destinatarioNome: p.destinatario?.nome ?? "",
       destinatarioWhatsapp: p.destinatario?.whatsapp ?? "",
+      destinatarioEndereco: p.destinatario?.endereco ?? "",
     });
     setEditConfirm(false);
     setDetalhe(null);
@@ -740,7 +742,11 @@ function CozinhaPage() {
     if (!editando || !editConfirm) return;
     setEditLoading(true);
     const destinatario = editForm.temDestinatario
-      ? { nome: editForm.destinatarioNome, whatsapp: editForm.destinatarioWhatsapp }
+      ? {
+          nome: editForm.destinatarioNome,
+          whatsapp: editForm.destinatarioWhatsapp,
+          endereco: editForm.destinatarioEndereco || undefined,
+        }
       : null;
     const res = await editarPedidoPorToken(
       token,
@@ -1866,6 +1872,14 @@ function CozinhaPage() {
                     onChange={(e) => setEditForm((f) => ({ ...f, destinatarioWhatsapp: e.target.value }))}
                   />
                 </div>
+                <div className="col-span-2">
+                  <label className="mb-1 block text-xs text-muted-foreground">Endereço de quem recebe</label>
+                  <Input
+                    value={editForm.destinatarioEndereco}
+                    onChange={(e) => setEditForm((f) => ({ ...f, destinatarioEndereco: e.target.value }))}
+                    placeholder="Rua, número, bairro"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -2341,8 +2355,13 @@ function PedidoCard({
 
           {/* Cliente */}
           <p className="mt-2 font-serif text-lg font-bold text-charcoal leading-tight">
-            {p.cliente.nome || "(sem nome)"}
+            {p.destinatario?.nome && p.destinatario.nome !== p.cliente.nome
+              ? p.destinatario.nome
+              : p.cliente.nome || "(sem nome)"}
           </p>
+          {p.destinatario?.nome && p.destinatario.nome !== p.cliente.nome ? (
+            <p className="text-xs text-charcoal/60">Pediu: {p.cliente.nome}</p>
+          ) : null}
           {tel && (
             <a href={`https://wa.me/55${tel}`} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1 text-sm text-olive hover:underline">
@@ -2352,16 +2371,21 @@ function PedidoCard({
           )}
 
           {/* Destinatário */}
-          {p.destinatario && (
-            <div className="mt-1.5 flex items-center gap-1.5 rounded-lg bg-terracotta/8 px-2.5 py-1.5">
-              <span className="text-xs font-semibold text-terracotta">🎁 Para:</span>
-              <span className="text-xs font-semibold text-charcoal">{p.destinatario.nome}</span>
-              {destTel && (
-                <a href={`https://wa.me/55${destTel}`} target="_blank" rel="noreferrer"
-                  className="ml-1 text-xs text-olive hover:underline">
-                  {p.destinatario.whatsapp}
-                </a>
-              )}
+          {p.destinatario && p.destinatario.nome !== p.cliente.nome && (
+            <div className="mt-1.5 rounded-lg bg-terracotta/8 px-2.5 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-terracotta">🎁 Para:</span>
+                <span className="text-xs font-semibold text-charcoal">{p.destinatario.nome}</span>
+                {destTel && (
+                  <a href={`https://wa.me/55${destTel}`} target="_blank" rel="noreferrer"
+                    className="ml-1 text-xs text-olive hover:underline">
+                    {p.destinatario.whatsapp}
+                  </a>
+                )}
+              </div>
+              {p.destinatario.endereco ? (
+                <p className="mt-1 text-xs leading-snug text-charcoal/70">{p.destinatario.endereco}</p>
+              ) : null}
             </div>
           )}
 

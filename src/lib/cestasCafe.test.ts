@@ -3,6 +3,7 @@ import {
   aplicarCestasCafePorTamanho,
   CESTA_CAFE_IDS,
   ehCestaCafeAgrupada,
+  ehItemCestaCafe,
 } from "./cestasCafe";
 
 const agrupada = {
@@ -22,6 +23,16 @@ const agrupada = {
 };
 
 describe("cestasCafe", () => {
+  it("reconhece item do carrinho como cesta de café", () => {
+    expect(ehItemCestaCafe({ produtoId: CESTA_CAFE_IDS.p, nome: "Cesta de Café da Manhã P" })).toBe(
+      true,
+    );
+    expect(ehItemCestaCafe({ nome: "Cesta de Café da Manhã M" })).toBe(true);
+    expect(ehItemCestaCafe({ produtoId: "bolo-choco", nome: "Bolo de Chocolate com Café" })).toBe(
+      false,
+    );
+  });
+
   it("reconhece a cesta única com P/M/G", () => {
     expect(ehCestaCafeAgrupada(agrupada)).toBe(true);
     expect(ehCestaCafeAgrupada({ ...agrupada, id: CESTA_CAFE_IDS.p, tamanhos: [] })).toBe(false);

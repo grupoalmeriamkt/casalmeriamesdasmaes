@@ -140,7 +140,7 @@ export function EncomendasTable({
                 <span className="hidden lg:inline">Dia da Entrega</span>
                 <span className="lg:hidden">Dia</span>
               </th>
-              <th className="px-2 py-2 sm:px-3 sm:py-2.5">Cliente</th>
+              <th className="px-2 py-2 sm:px-3 sm:py-2.5">Cliente / Para</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Setor</th>
               <th className="px-2 py-2 sm:px-3 sm:py-2.5">Produto</th>
               <th className="px-2 py-2 text-center sm:px-3 sm:py-2.5">Tam.</th>
@@ -196,8 +196,29 @@ export function EncomendasTable({
                   <td className="hidden px-2 py-1.5 whitespace-nowrap text-xs capitalize text-charcoal sm:table-cell sm:px-3 sm:py-2 sm:text-sm">
                     {l.diaSemana}
                   </td>
-                  <td className="max-w-[10rem] truncate px-2 py-1.5 text-xs font-semibold text-charcoal sm:max-w-none sm:px-3 sm:py-2 sm:text-sm" title={l.nomeCliente}>
-                    {l.nomeCliente}
+                  <td
+                    className="max-w-[12rem] px-2 py-1.5 text-xs text-charcoal sm:max-w-[16rem] sm:px-3 sm:py-2 sm:text-sm"
+                    title={
+                      l.isPresente
+                        ? `Para ${l.paraQuem}${l.destTelefone ? ` · ${l.destTelefone}` : ""}${
+                            l.destEndereco ? ` · ${l.destEndereco}` : ""
+                          } · Pediu: ${l.quemPediu}`
+                        : l.nomeCliente
+                    }
+                  >
+                    <span className="block truncate font-semibold">{l.nomeCliente}</span>
+                    {l.isPresente ? (
+                      <>
+                        <span className="mt-0.5 block truncate text-[10px] font-normal text-terracotta">
+                          Pediu: {l.quemPediu}
+                        </span>
+                        {l.destTelefone ? (
+                          <span className="mt-0.5 block truncate text-[10px] font-normal text-charcoal/70">
+                            {l.destTelefone}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : null}
                   </td>
                   <td className="px-2 py-1.5 sm:px-3 sm:py-2" onClick={(e) => e.stopPropagation()}>
                     <select

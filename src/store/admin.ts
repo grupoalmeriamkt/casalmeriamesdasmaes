@@ -3,9 +3,13 @@ import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 import { CESTAS, SOBREMESAS, UNIDADES, DATAS_ENTREGA, HORARIOS } from "@/lib/data";
 import { aplicarCestasCafePorTamanho, ehCestaCafeAgrupada } from "@/lib/cestasCafe";
-import { aplicarNomeCategoriaBolos, aplicarSubtituloComBolos, aplicarTamanhosBoloPadrao } from "@/lib/tamanhoBolo";
+import {
+  aplicarNomeCategoriaBolos,
+  aplicarSubtituloComBolos,
+  aplicarTamanhosBoloPadrao,
+} from "@/lib/tamanhoBolo";
 import { REGRA_RETIRADA_PADRAO } from "@/lib/availability/retirada";
-import type { Cesta, Sobremesa, Unidade } from "@/lib/types";
+import type { Cesta, DestinatarioPedido, Sobremesa, Unidade } from "@/lib/types";
 
 export type Tema = {
   primary: string;
@@ -266,7 +270,7 @@ export type PedidoSalvo = {
   id: string;
   criadoEm: string;
   cliente: { nome: string; whatsapp: string };
-  destinatario?: { nome: string; whatsapp: string } | null;
+  destinatario?: DestinatarioPedido | null;
   cesta?: { nome: string; quantidade: number; preco: number; tamanho?: string };
   sobremesas: { nome: string; quantidade: number; preco: number }[];
   tipo: string;
@@ -278,7 +282,7 @@ export type PedidoSalvo = {
     metodo: string;
     status: string;
     statusDetalhado?: string;
-    destinatario?: { nome: string; whatsapp: string } | null;
+    destinatario?: DestinatarioPedido | null;
     extras?: {
       cartoes?: { nome: string; preco: number; mensagem: string }[];
       polaroids?: {
@@ -451,10 +455,7 @@ const initialCategorias: Categoria[] = [
   { id: "cat-sobremesas", nome: "Sobremesas" },
 ];
 
-function entregaFromCampanha(
-  campanha: Campanha,
-  unidades: UnidadeCadastrada[],
-): EntregaConfig {
+function entregaFromCampanha(campanha: Campanha, unidades: UnidadeCadastrada[]): EntregaConfig {
   const ids = new Set(campanha.quiz.unidadeIds);
   return {
     delivery: campanha.delivery.ativo,
@@ -565,8 +566,7 @@ const initial = {
 
 function syncEntregaLegado(state: AdminState): EntregaConfig {
   const campanha =
-    state.campanhas.find((c) => c.id === state.campanhaAtivaId) ??
-    state.campanhas[0];
+    state.campanhas.find((c) => c.id === state.campanhaAtivaId) ?? state.campanhas[0];
   if (!campanha) return state.entrega;
   return entregaFromCampanha(campanha, state.unidades);
 }
@@ -618,8 +618,7 @@ export const useAdmin = create<AdminState>()(
           next.splice(idx + 1, 0, copia);
           return { cestas: next };
         }),
-      removeCesta: (id) =>
-        set((s) => ({ cestas: s.cestas.filter((c) => c.id !== id) })),
+      removeCesta: (id) => set((s) => ({ cestas: s.cestas.filter((c) => c.id !== id) })),
       arquivarCesta: (id, arquivado) =>
         set((s) => ({
           cestas: s.cestas.map((c) => (c.id === id ? { ...c, arquivado } : c)),
@@ -627,9 +626,7 @@ export const useAdmin = create<AdminState>()(
 
       setCategoria: (id, patch) =>
         set((s) => ({
-          categorias: s.categorias.map((c) =>
-            c.id === id ? { ...c, ...patch } : c,
-          ),
+          categorias: s.categorias.map((c) => (c.id === id ? { ...c, ...patch } : c)),
         })),
       addCategoria: (nome) =>
         set((s) => ({
@@ -648,9 +645,7 @@ export const useAdmin = create<AdminState>()(
 
       setSobremesa: (id, patch) =>
         set((s) => ({
-          sobremesas: s.sobremesas.map((sb) =>
-            sb.id === id ? { ...sb, ...patch } : sb,
-          ),
+          sobremesas: s.sobremesas.map((sb) => (sb.id === id ? { ...sb, ...patch } : sb)),
         })),
       addSobremesa: () =>
         set((s) => ({
@@ -672,9 +667,7 @@ export const useAdmin = create<AdminState>()(
 
       setUnidadeCadastrada: (id, patch) =>
         set((s) => {
-          const unidades = s.unidades.map((u) =>
-            u.id === id ? { ...u, ...patch } : u,
-          );
+          const unidades = s.unidades.map((u) => (u.id === id ? { ...u, ...patch } : u));
           const next = { ...s, unidades };
           return { unidades, entrega: syncEntregaLegado(next) };
         }),
@@ -705,11 +698,7 @@ export const useAdmin = create<AdminState>()(
             status: "inativa",
           };
           const idx = s.unidades.findIndex((x) => x.id === id);
-          const unidades = [
-            ...s.unidades.slice(0, idx + 1),
-            copia,
-            ...s.unidades.slice(idx + 1),
-          ];
+          const unidades = [...s.unidades.slice(0, idx + 1), copia, ...s.unidades.slice(idx + 1)];
           return { unidades };
         }),
 
@@ -729,9 +718,7 @@ export const useAdmin = create<AdminState>()(
 
       setCampanha: (id, patch) =>
         set((s) => {
-          const campanhas = s.campanhas.map((c) =>
-            c.id === id ? { ...c, ...patch } : c,
-          );
+          const campanhas = s.campanhas.map((c) => (c.id === id ? { ...c, ...patch } : c));
           const next = { ...s, campanhas };
           return { campanhas, entrega: syncEntregaLegado(next) };
         }),
@@ -769,9 +756,7 @@ export const useAdmin = create<AdminState>()(
               ...c.quiz,
               retirada: retirada.ativo,
               // Sincroniza quiz.datas e quiz.horarios com retirada quando não há delivery ativo
-              ...(c.delivery?.ativo
-                ? {}
-                : { datas: retirada.datas, horarios: retirada.horarios }),
+              ...(c.delivery?.ativo ? {} : { datas: retirada.datas, horarios: retirada.horarios }),
             };
             return { ...c, retirada, quiz };
           });
@@ -784,7 +769,7 @@ export const useAdmin = create<AdminState>()(
           const baseQuiz = s.campanhas[0]?.quiz ?? initialCampanha.quiz;
           // slug único
           const usados = s.campanhas.map((c) => c.slug);
-          let slugBase = `campanha-${Date.now().toString(36)}`;
+          const slugBase = `campanha-${Date.now().toString(36)}`;
           let slug = slugBase;
           let i = 2;
           while (usados.includes(slug)) {
@@ -811,9 +796,7 @@ export const useAdmin = create<AdminState>()(
         set((s) => {
           const campanhas = s.campanhas.filter((c) => c.id !== id);
           const campanhaAtivaId =
-            s.campanhaAtivaId === id
-              ? (campanhas[0]?.id ?? "")
-              : s.campanhaAtivaId;
+            s.campanhaAtivaId === id ? (campanhas[0]?.id ?? "") : s.campanhaAtivaId;
           const next = { ...s, campanhas, campanhaAtivaId };
           return {
             campanhas,
@@ -827,12 +810,9 @@ export const useAdmin = create<AdminState>()(
           return { campanhaAtivaId: id, entrega: syncEntregaLegado(next) };
         }),
 
-      setEntrega: (patch) =>
-        set((s) => ({ entrega: { ...s.entrega, ...patch } })),
-      setPagamento: (patch) =>
-        set((s) => ({ pagamento: { ...s.pagamento, ...patch } })),
-      setIntegracoes: (patch) =>
-        set((s) => ({ integracoes: { ...s.integracoes, ...patch } })),
+      setEntrega: (patch) => set((s) => ({ entrega: { ...s.entrega, ...patch } })),
+      setPagamento: (patch) => set((s) => ({ pagamento: { ...s.pagamento, ...patch } })),
+      setIntegracoes: (patch) => set((s) => ({ integracoes: { ...s.integracoes, ...patch } })),
       setGeral: (patch) => set((s) => ({ geral: { ...s.geral, ...patch } })),
 
       setHome: (patch) => set((s) => ({ home: { ...s.home, ...patch } })),
@@ -866,8 +846,7 @@ export const useAdmin = create<AdminState>()(
           };
         }),
 
-      registrarPedido: (p) =>
-        set((s) => ({ pedidos: [p, ...s.pedidos].slice(0, 500) })),
+      registrarPedido: (p) => set((s) => ({ pedidos: [p, ...s.pedidos].slice(0, 500) })),
       limparPedidos: () => set({ pedidos: [] }),
 
       resetTudo: () => set({ ...initial, pedidos: [] }),
@@ -926,9 +905,7 @@ export const useAdmin = create<AdminState>()(
         // se foram excluídos manualmente, recria; se estavam arquivados/inativos
         // (apenas itens vindos da seed), restaura.
         const seedSobremesaIds = new Set(SOBREMESAS.map((s) => s.id));
-        const cestasIndex = new Map<string, any>(
-          state.cestas.map((c: any) => [c.id, c]),
-        );
+        const cestasIndex = new Map<string, any>(state.cestas.map((c: any) => [c.id, c]));
         for (const sb of SOBREMESAS) {
           const existente = cestasIndex.get(sb.id);
           if (!existente) {
@@ -1003,8 +980,7 @@ export const useAdmin = create<AdminState>()(
                 ? entregaLegada.datas
                 : datasDefault(),
             horarios:
-              Array.isArray(entregaLegada.horarios) &&
-              entregaLegada.horarios.length > 0
+              Array.isArray(entregaLegada.horarios) && entregaLegada.horarios.length > 0
                 ? entregaLegada.horarios
                 : horariosDefault(),
             restricaoRaio: entregaLegada.restricaoRaio ?? {
@@ -1020,7 +996,13 @@ export const useAdmin = create<AdminState>()(
               nome: "Campanha principal",
               status: "ativa",
               unidadeId: state.unidades[0]?.id,
-              delivery: { ...deliveryDefault(), ativo: baseQuiz.delivery, datas: baseQuiz.datas, horarios: baseQuiz.horarios, raioKm: baseQuiz.restricaoRaio.raioKm },
+              delivery: {
+                ...deliveryDefault(),
+                ativo: baseQuiz.delivery,
+                datas: baseQuiz.datas,
+                horarios: baseQuiz.horarios,
+                raioKm: baseQuiz.restricaoRaio.raioKm,
+              },
               retirada: retiradaDefault(state.unidades[0]?.endereco ?? ""),
               upsellAtivo: true,
               upsellProdutoIds: [],
@@ -1050,10 +1032,7 @@ export const useAdmin = create<AdminState>()(
               : c.upsellProdutoId
                 ? [c.upsellProdutoId]
                 : [];
-            const unidadeId =
-              c.unidadeId ??
-              quiz.unidadeIds[0] ??
-              state.unidades[0]?.id;
+            const unidadeId = c.unidadeId ?? quiz.unidadeIds[0] ?? state.unidades[0]?.id;
             const enderecoUnidade =
               state.unidades.find((u: any) => u.id === unidadeId)?.endereco ?? "";
             const delivery: CampanhaDelivery = c.delivery ?? {
@@ -1093,9 +1072,7 @@ export const useAdmin = create<AdminState>()(
                 if (id && !ids.includes(id)) ids.push(id);
               }
               const ativo =
-                !!c?.delivery?.upsellAtivo ||
-                !!c?.retirada?.upsellAtivo ||
-                !!c?.upsellAtivo;
+                !!c?.delivery?.upsellAtivo || !!c?.retirada?.upsellAtivo || !!c?.upsellAtivo;
               return {
                 ativo,
                 itens: ids.map((produtoId) => ({
@@ -1105,9 +1082,7 @@ export const useAdmin = create<AdminState>()(
                 })),
               };
             })();
-            const upsell = c?.upsell && Array.isArray(c.upsell.itens)
-              ? c.upsell
-              : upsellLegado;
+            const upsell = c?.upsell && Array.isArray(c.upsell.itens) ? c.upsell : upsellLegado;
             return {
               id: c.id,
               slug: c.slug,
@@ -1146,11 +1121,20 @@ export const useAdmin = create<AdminState>()(
         // v13: normaliza horários legados de 1h para o novo formato de 2h
         {
           const legados = new Set([
-            "Entre 06h e 07h", "Entre 07h e 08h", "Entre 08h e 09h", "Entre 09h e 10h",
+            "Entre 06h e 07h",
+            "Entre 07h e 08h",
+            "Entre 08h e 09h",
+            "Entre 09h e 10h",
           ]);
           const novos2h = [
-            "Entre 06h e 08h", "Entre 08h e 10h", "Entre 10h e 12h", "Entre 12h e 14h",
-            "Entre 14h e 16h", "Entre 16h e 18h", "Entre 18h e 20h", "Entre 20h e 22h",
+            "Entre 06h e 08h",
+            "Entre 08h e 10h",
+            "Entre 10h e 12h",
+            "Entre 12h e 14h",
+            "Entre 14h e 16h",
+            "Entre 16h e 18h",
+            "Entre 18h e 20h",
+            "Entre 20h e 22h",
           ].map((label) => ({ label, ativo: true }));
           const normalizar = (hs: any[]) => {
             if (!Array.isArray(hs) || hs.length === 0) return novos2h;
@@ -1164,9 +1148,7 @@ export const useAdmin = create<AdminState>()(
             retirada: c.retirada
               ? { ...c.retirada, horarios: normalizar(c.retirada.horarios ?? []) }
               : c.retirada,
-            quiz: c.quiz
-              ? { ...c.quiz, horarios: normalizar(c.quiz.horarios ?? []) }
-              : c.quiz,
+            quiz: c.quiz ? { ...c.quiz, horarios: normalizar(c.quiz.horarios ?? []) } : c.quiz,
           }));
         }
 
@@ -1178,8 +1160,7 @@ export const useAdmin = create<AdminState>()(
 
         // Re-sincroniza entrega legada com a campanha ativa
         const campanhaAtiva =
-          state.campanhas.find((c: any) => c.id === state.campanhaAtivaId) ??
-          state.campanhas[0];
+          state.campanhas.find((c: any) => c.id === state.campanhaAtivaId) ?? state.campanhas[0];
         state.entrega = entregaFromCampanha(campanhaAtiva, state.unidades);
 
         // Home (slice novo na v9)
@@ -1256,9 +1237,7 @@ export const useCestasAtivas = () =>
   useAdmin(
     useShallow((s) => {
       if (!Array.isArray(s.cestas) || s.cestas.length === 0) return FALLBACK_CESTAS;
-      const ativas = s.cestas.filter(
-        (c) => c.ativo !== false && c.arquivado !== true,
-      );
+      const ativas = s.cestas.filter((c) => c.ativo !== false && c.arquivado !== true);
       return ativas.length === 0 ? FALLBACK_CESTAS : ativas;
     }),
   );
@@ -1271,14 +1250,12 @@ export const useSobremesasAtivas = () =>
     }),
   );
 
-export const useUnidadesCadastradas = () =>
-  useAdmin(useShallow((s) => s.unidades));
+export const useUnidadesCadastradas = () => useAdmin(useShallow((s) => s.unidades));
 
 export const useUnidadesAtivas = () =>
   useAdmin(
     useShallow((s) => {
-      const camp =
-        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      const camp = s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return [];
       const ids = new Set(camp.quiz.unidadeIds);
       // Retorna referências originais do store para preservar identidade
@@ -1297,8 +1274,7 @@ export const useUnidadesAtivas = () =>
 export const useDatasAtivas = (tipo?: "delivery" | "retirada" | null) =>
   useAdmin(
     useShallow((s) => {
-      const camp =
-        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      const camp = s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return [];
       const fallback = camp.quiz.datas;
       const deliv = camp.delivery?.datas?.length ? camp.delivery.datas : fallback;
@@ -1317,16 +1293,11 @@ export const useDatasAtivas = (tipo?: "delivery" | "retirada" | null) =>
 export const useHorariosAtivos = (tipo?: "delivery" | "retirada" | null) =>
   useAdmin(
     useShallow((s) => {
-      const camp =
-        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      const camp = s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return [];
       const fallback = camp.quiz.horarios;
-      const deliv = camp.delivery?.horarios?.length
-        ? camp.delivery.horarios
-        : fallback;
-      const retir = camp.retirada?.horarios?.length
-        ? camp.retirada.horarios
-        : fallback;
+      const deliv = camp.delivery?.horarios?.length ? camp.delivery.horarios : fallback;
+      const retir = camp.retirada?.horarios?.length ? camp.retirada.horarios : fallback;
       if (tipo === "delivery") return deliv.filter((h) => h.ativo);
       if (tipo === "retirada") return retir.filter((h) => h.ativo);
       const ativos = new Map<string, { label: string; ativo: boolean }>();
@@ -1340,8 +1311,7 @@ export const useHorariosAtivos = (tipo?: "delivery" | "retirada" | null) =>
 export const useTodosDias = (tipo?: "delivery" | "retirada" | null) =>
   useAdmin(
     useShallow((s) => {
-      const camp =
-        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      const camp = s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return false;
       if (tipo === "delivery") return camp.delivery?.todosDias ?? false;
       if (tipo === "retirada") return camp.retirada?.todosDias ?? false;
@@ -1352,10 +1322,7 @@ export const useTodosDias = (tipo?: "delivery" | "retirada" | null) =>
 export const useCampanhas = () => useAdmin(useShallow((s) => s.campanhas));
 export const useCampanhaAtiva = () =>
   useAdmin(
-    useShallow(
-      (s) =>
-        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0],
-    ),
+    useShallow((s) => s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0]),
   );
 export const useCategorias = () => useAdmin(useShallow((s) => s.categorias));
 
@@ -1366,8 +1333,7 @@ export const useCategorias = () => useAdmin(useShallow((s) => s.categorias));
 export const useProdutosDaCampanhaAtiva = () =>
   useAdmin(
     useShallow((s) => {
-      const camp =
-        s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
+      const camp = s.campanhas.find((c) => c.id === s.campanhaAtivaId) ?? s.campanhas[0];
       if (!camp) return [] as CestaAdmin[];
       const ids = camp.produtosPrincipaisIds ?? [];
       const { cestas: expandida, campanhas: camps } = aplicarCestasCafePorTamanho(
@@ -1385,10 +1351,7 @@ export const useProdutosDaCampanhaAtiva = () =>
         .map((id) => index.get(id))
         .filter(
           (c): c is CestaAdmin =>
-            !!c &&
-            c.ativo !== false &&
-            c.arquivado !== true &&
-            !ehCestaCafeAgrupada(c),
+            !!c && c.ativo !== false && c.arquivado !== true && !ehCestaCafeAgrupada(c),
         );
     }),
   );
@@ -1396,9 +1359,7 @@ export const useProdutosDaCampanhaAtiva = () =>
 // Backwards-compat
 export const selectCestasAtivas = (s: AdminState) => {
   if (!Array.isArray(s.cestas) || s.cestas.length === 0) return FALLBACK_CESTAS;
-  const ativas = s.cestas.filter(
-    (c) => c.ativo !== false && c.arquivado !== true,
-  );
+  const ativas = s.cestas.filter((c) => c.ativo !== false && c.arquivado !== true);
   return ativas.length === 0 ? FALLBACK_CESTAS : ativas;
 };
 export const selectSobremesasAtivas = (s: AdminState) => {
@@ -1406,12 +1367,9 @@ export const selectSobremesasAtivas = (s: AdminState) => {
   const ativas = s.sobremesas.filter((sb) => sb.ativo !== false);
   return ativas.length === 0 ? FALLBACK_SOBREMESAS : ativas;
 };
-export const selectUnidadesAtivas = (s: AdminState) =>
-  s.entrega.unidades.filter((u) => u.ativa);
-export const selectDatasAtivas = (s: AdminState) =>
-  s.entrega.datas.filter((d) => d.ativa);
-export const selectHorariosAtivos = (s: AdminState) =>
-  s.entrega.horarios.filter((h) => h.ativo);
+export const selectUnidadesAtivas = (s: AdminState) => s.entrega.unidades.filter((u) => u.ativa);
+export const selectDatasAtivas = (s: AdminState) => s.entrega.datas.filter((d) => d.ativa);
+export const selectHorariosAtivos = (s: AdminState) => s.entrega.horarios.filter((h) => h.ativo);
 
 export const isEncerrado = (_encerramentoIso: string) => {
   return false;

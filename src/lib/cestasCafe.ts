@@ -6,8 +6,7 @@ export const CESTA_CAFE_IDS = {
   g: "cesta-cafe-g",
 } as const;
 
-const RE_CESTA_CAFE =
-  /cesta\s+(de\s+)?caf[eé](\s+da\s+manh[ãa])?/i;
+const RE_CESTA_CAFE = /cesta\s+(de\s+)?caf[eé](\s+da\s+manh[ãa])?/i;
 const RE_TAMANHOS_PMG = /tamanhos?\s*p\s*,?\s*m\s*(e|,)?\s*g/i;
 const IDS_SEPARADOS = new Set<string>(Object.values(CESTA_CAFE_IDS));
 
@@ -133,19 +132,28 @@ export function garantirCategoriaCestas<Cat extends CategoriaLike>(
 
 function precoDoTamanho(origem: CestaLike | undefined, label: string, fallback: number) {
   const t = origem?.tamanhos?.find((x) => {
-    const l = String(x.label ?? "").trim().toUpperCase();
-    return l === label || l === `TAM. ${label}` || l.startsWith(`${label} `) || l.endsWith(` ${label}`);
+    const l = String(x.label ?? "")
+      .trim()
+      .toUpperCase();
+    return (
+      l === label || l === `TAM. ${label}` || l.startsWith(`${label} `) || l.endsWith(` ${label}`)
+    );
   });
   return typeof t?.preco === "number" && t.preco > 0 ? t.preco : fallback;
 }
 
 function labelsTamanho(c: CestaLike): string[] {
-  return (c.tamanhos ?? []).map((t) => String(t.label ?? "").trim().toUpperCase());
+  return (c.tamanhos ?? []).map((t) =>
+    String(t.label ?? "")
+      .trim()
+      .toUpperCase(),
+  );
 }
 
 function temTamanho(labels: string[], letra: string): boolean {
   return labels.some(
-    (l) => l === letra || l === `TAM. ${letra}` || l.startsWith(`${letra} `) || l.endsWith(` ${letra}`),
+    (l) =>
+      l === letra || l === `TAM. ${letra}` || l.startsWith(`${letra} `) || l.endsWith(` ${letra}`),
   );
 }
 
@@ -155,6 +163,13 @@ export function ehCestaCafeSeparada(id: string): boolean {
 
 function ehNomeCestaCafe(nome: string | undefined): boolean {
   return RE_CESTA_CAFE.test(nome ?? "");
+}
+
+/** Item do carrinho/checkout: cesta P/M/G separada ou nome de café da manhã. */
+export function ehItemCestaCafe(item: { produtoId?: string; id?: string; nome?: string }): boolean {
+  const id = item.produtoId || item.id || "";
+  if (id && ehCestaCafeSeparada(id)) return true;
+  return ehNomeCestaCafe(item.nome);
 }
 
 /** Cesta de café ainda cadastrada como um único produto com P/M/G. */
@@ -191,7 +206,7 @@ export function aplicarCestasCafePorTamanho<
   const index = new Map(nextCestas.map((c, i) => [c.id, i] as const));
   const catCestas = garantirCategoriaCestas(categorias);
   const categoriaCestasId = catCestas.id;
-  let nextCategorias = catCestas.categorias;
+  const nextCategorias = catCestas.categorias;
   let mudou = catCestas.mudou;
 
   for (const seed of CESTAS_CAFE_POR_TAMANHO) {
@@ -214,12 +229,21 @@ export function aplicarCestasCafePorTamanho<
     const imagemVazia = !atual.imagem || /unsplash|placeholder/i.test(atual.imagem);
     const itensVazios = !atual.itens?.length;
     const descricaoGenerica =
-      !atual.descricao ||
-      /tamanhos p, m e g|slice cake disponível/i.test(atual.descricao);
-    const nomeGenerico = !atual.nome || /tamanhos p, m e g|· Tam\./i.test(atual.nome) || atual.nome === "Cesta de Café da Manhã";
+      !atual.descricao || /tamanhos p, m e g|slice cake disponível/i.test(atual.descricao);
+    const nomeGenerico =
+      !atual.nome ||
+      /tamanhos p, m e g|· Tam\./i.test(atual.nome) ||
+      atual.nome === "Cesta de Café da Manhã";
     const aindaAgrupada = (atual.tamanhos?.length ?? 0) > 0;
     const categoriaErrada = atual.categoriaId !== categoriaCestasId;
-    if (imagemVazia || itensVazios || descricaoGenerica || nomeGenerico || aindaAgrupada || categoriaErrada) {
+    if (
+      imagemVazia ||
+      itensVazios ||
+      descricaoGenerica ||
+      nomeGenerico ||
+      aindaAgrupada ||
+      categoriaErrada
+    ) {
       nextCestas[i] = {
         ...atual,
         nome: nomeGenerico ? seed.nome : atual.nome,

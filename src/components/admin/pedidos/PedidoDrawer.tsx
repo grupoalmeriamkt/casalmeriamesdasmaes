@@ -98,6 +98,17 @@ export function PedidoDrawer({
           <div className="mt-1 text-[13px]" style={{ color: "#8A8170" }}>
             {p.recipientPhone}
           </div>
+          {!p.recipientIsBuyer && p.cliente.nome ? (
+            <div className="mt-2 text-[13px]" style={{ color: "#8A8170" }}>
+              Pediu: {p.cliente.nome}
+              {p.cliente.whatsapp ? ` · ${p.cliente.whatsapp}` : ""}
+            </div>
+          ) : null}
+          {p.destinatario?.endereco ? (
+            <div className="mt-2 text-[13px] leading-snug" style={{ color: "#1C2A39" }}>
+              {p.destinatario.endereco}
+            </div>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <Chip chip={pay} />
             <Chip chip={stg} />

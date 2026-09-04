@@ -4,10 +4,7 @@ import type { ManualOrderInput } from "@/lib/orderForm/types";
 import { labelPagamentoDetalhado, pagamentoRelevante } from "@/lib/asaasStatus";
 import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 import { computeExecutionAt } from "@/lib/executionAt";
-import {
-  parseUpsertPedidoResult,
-  saveCheckoutAccess,
-} from "@/lib/checkoutAccess";
+import { parseUpsertPedidoResult, saveCheckoutAccess } from "@/lib/checkoutAccess";
 import {
   buildRegrasForItens,
   resolveProductionSector,
@@ -48,7 +45,7 @@ export type PedidoRow = {
   pagamento: {
     metodo: string;
     status: string;
-    destinatario?: { nome: string; whatsapp: string } | null;
+    destinatario?: { nome: string; whatsapp: string; endereco?: string } | null;
     extras?: {
       cartoes?: { nome: string; preco: number; mensagem: string }[];
       polaroids?: { nome: string; preco: number; arquivoUrl: string; arquivoNome: string }[];
@@ -86,6 +83,31 @@ export type PedidoRow = {
 type PedidoParcial = Partial<Omit<PedidoSalvo, "id" | "criadoEm">> & {
   cliente: { nome: string; whatsapp: string };
 };
+
+/** Destinatário só quando a encomenda é para outra pessoa. */
+export function destinatarioFromRow(
+  r: Pick<
+    PedidoRow,
+    "cliente_nome" | "recipient_name" | "recipient_phone" | "recipient_is_buyer" | "pagamento"
+  >,
+): { nome: string; whatsapp: string; endereco?: string } | null {
+  const json = r.pagamento?.destinatario ?? null;
+  const nomeJson = (json?.nome ?? "").trim();
+  const buyer = (r.cliente_nome ?? "").trim();
+  const nomeCol = (r.recipient_name ?? "").trim();
+  const isGift =
+    r.recipient_is_buyer === false ||
+    (!!nomeJson && nomeJson.toLowerCase() !== buyer.toLowerCase());
+  if (!isGift) return null;
+  const nome = nomeJson || nomeCol;
+  if (!nome) return null;
+  const endereco = json?.endereco?.trim();
+  return {
+    nome,
+    whatsapp: (json?.whatsapp || r.recipient_phone || "").trim(),
+    ...(endereco ? { endereco } : {}),
+  };
+}
 
 function toPayload(p: PedidoParcial, statusOverride?: string, campanhaId?: string) {
   const recipientIsBuyer = !p.destinatario;
@@ -179,7 +201,9 @@ export async function conciliarPagamentosAsaas(): Promise<{
   pedidosAtualizados?: number;
 }> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.access_token) return { ok: false };
 
     const res = await fetch("/api/admin/conciliar-asaas", {
@@ -240,17 +264,12 @@ async function fetchCozinhaPedidosApi(
   accessToken: string,
 ): Promise<PedidoRow[] | null> {
   try {
-    const res = await fetch(
-      `/api/cozinha/pedidos?token=${encodeURIComponent(token)}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
+    const res = await fetch(`/api/cozinha/pedidos?token=${encodeURIComponent(token)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (res.status === 404) return null;
     if (!res.ok) {
-      console.error(
-        "[pedidos] API cozinha/pedidos:",
-        res.status,
-        await res.text().catch(() => ""),
-      );
+      console.error("[pedidos] API cozinha/pedidos:", res.status, await res.text().catch(() => ""));
       return null;
     }
     const json = (await res.json()) as { pedidos?: unknown };
@@ -261,10 +280,7 @@ async function fetchCozinhaPedidosApi(
   }
 }
 
-async function fetchRpcPedidosPorToken(
-  token: string,
-  senha?: string,
-): Promise<PedidoRow[]> {
+async function fetchRpcPedidosPorToken(token: string, senha?: string): Promise<PedidoRow[]> {
   const { data, error } = await supabase.rpc("pedidos_por_token", {
     _token: token,
     _senha: senha ?? null,
@@ -296,10 +312,7 @@ async function carregarPedidosComToken(
 }
 
 /** Lista pedidos via token público (para a tela da cozinha). */
-export async function listarPedidosPorToken(
-  token: string,
-  senha?: string,
-): Promise<PedidoRow[]> {
+export async function listarPedidosPorToken(token: string, senha?: string): Promise<PedidoRow[]> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -313,9 +326,7 @@ export async function listarPedidosPorToken(
       const { obterTokenGeralCozinha } = await import("@/lib/cozinha");
       const geral = await obterTokenGeralCozinha();
       if (geral && geral !== token) {
-        console.warn(
-          "[pedidos] token de campanha sem pedidos; tentando token geral",
-        );
+        console.warn("[pedidos] token de campanha sem pedidos; tentando token geral");
         rows = await carregarPedidosComToken(geral, senha, accessToken);
       }
     }
@@ -326,13 +337,9 @@ export async function listarPedidosPorToken(
     if (admin.length > 0) {
       const info = await buscarInfoToken(token);
       const campanhaId = info?.campanha_id ?? null;
-      const filtered = campanhaId
-        ? admin.filter((r) => r.campanha_id === campanhaId)
-        : admin;
+      const filtered = campanhaId ? admin.filter((r) => r.campanha_id === campanhaId) : admin;
       if (filtered.length > 0) {
-        console.warn(
-          `[pedidos] fallback admin: ${filtered.length} pedido(s)`,
-        );
+        console.warn(`[pedidos] fallback admin: ${filtered.length} pedido(s)`);
         rows = filtered;
       } else if (!campanhaId && admin.length > 0) {
         rows = admin;
@@ -568,7 +575,7 @@ export async function editarPedidoPorToken(
     data_entrega: string | null;
     horario: string | null;
   }>,
-  destinatario?: { nome: string; whatsapp: string } | null,
+  destinatario?: { nome: string; whatsapp: string; endereco?: string } | null,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch("/api/pedidos/editar-por-token", {
@@ -587,13 +594,7 @@ export async function editarPedidoPorToken(
 export function rowToPedidoSalvo(r: PedidoRow): PedidoSalvo {
   const rel = pagamentoRelevante(r.pagamentos ?? []);
   const falhaPagamento = parseFalhaPagamento(r.pagamento as Record<string, unknown>);
-  const destinatario =
-    r.recipient_is_buyer === false && r.pagamento?.destinatario
-      ? r.pagamento.destinatario
-      : r.pagamento?.destinatario ??
-        (r.recipient_name
-          ? { nome: r.recipient_name, whatsapp: r.recipient_phone ?? "" }
-          : null);
+  const destinatario = destinatarioFromRow(r);
   return {
     id: r.id,
     criadoEm: r.criado_em,
@@ -666,7 +667,10 @@ export async function gerarLinkPagamento(
       body: JSON.stringify({ action: "gerar_link", id, cpf }),
     });
     const json = (await res.json()) as {
-      ok?: boolean; invoiceUrl?: string; pagamentoId?: string; error?: string;
+      ok?: boolean;
+      invoiceUrl?: string;
+      pagamentoId?: string;
+      error?: string;
     };
     return res.ok
       ? { ok: true, invoiceUrl: json.invoiceUrl, pagamentoId: json.pagamentoId }
@@ -767,7 +771,12 @@ export async function enviarLinkPorEmail(
     const res = await fetch("/api/admin/email", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: "send", to, subject: "Link de pagamento — Casa Almeria", html }),
+      body: JSON.stringify({
+        action: "send",
+        to,
+        subject: "Link de pagamento — Casa Almeria",
+        html,
+      }),
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
     return res.ok ? { ok: true } : { ok: false, error: json.error ?? "Erro" };

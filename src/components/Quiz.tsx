@@ -20,7 +20,13 @@ import {
 } from "@/store/admin";
 import type { Cesta } from "@/lib/types";
 import { completarTamanhoBolo } from "@/lib/tamanhoBolo";
-import { distanciaKm, geocodificarEndereco, geocodificarCep, geocodificarViaBrasilAPI, encontrarZonaComTolerancia } from "@/lib/geo";
+import {
+  distanciaKm,
+  geocodificarEndereco,
+  geocodificarCep,
+  geocodificarViaBrasilAPI,
+  encontrarZonaComTolerancia,
+} from "@/lib/geo";
 import { buscarCep as consultarCep } from "@/lib/cep";
 import {
   atendeAreaEntrega,
@@ -163,15 +169,18 @@ export function Quiz({
 
   // ISO da data selecionada (resolve cards, calendário e modo livre via label PT-BR).
   const dataSelecionadaDate = data ? parseDatePtBRToDate(data) : null;
-  const dataSelecionadaISO = dataSelecionadaDate
-    ? toISODateString(dataSelecionadaDate)
-    : undefined;
+  const dataSelecionadaISO = dataSelecionadaDate ? toISODateString(dataSelecionadaDate) : undefined;
 
   const horariosDisponiveis = horarios.filter((h) => {
     // Regra de retirada: bloqueia a manhã do dia seguinte quando o pedido foi após o corte.
     if (
       dataSelecionadaISO &&
-      horarioRetiradaBloqueado(h.label, dataSelecionadaISO, { minutosAgoraSP, amanhaISO }, regraAntecedencia)
+      horarioRetiradaBloqueado(
+        h.label,
+        dataSelecionadaISO,
+        { minutosAgoraSP, amanhaISO },
+        regraAntecedencia,
+      )
     ) {
       return false;
     }
@@ -185,15 +194,16 @@ export function Quiz({
 
   const [zonaEntregaAtual, setZonaEntregaAtual] = useState<ZonaEntrega | null>(null);
 
-  const taxaEntrega = entregaTipo === "delivery"
-    ? (() => {
-        const zonasConfig = campanhaAtiva?.delivery?.zonas;
-        if (zonasConfig?.ativo && zonaEntregaAtual) {
-          return calcTaxaEntrega(zonaEntregaAtual.taxa);
-        }
-        return calcTaxaEntrega(campanhaAtiva?.delivery?.taxa);
-      })()
-    : 0;
+  const taxaEntrega =
+    entregaTipo === "delivery"
+      ? (() => {
+          const zonasConfig = campanhaAtiva?.delivery?.zonas;
+          if (zonasConfig?.ativo && zonaEntregaAtual) {
+            return calcTaxaEntrega(zonaEntregaAtual.taxa);
+          }
+          return calcTaxaEntrega(campanhaAtiva?.delivery?.taxa);
+        })()
+      : 0;
   const total = subtotal + taxaEntrega;
   const textosCampanha = campanhaAtiva?.textos;
   const titulosPasso = [
@@ -213,6 +223,7 @@ export function Quiz({
   const [outraPessoa, setOutraPessoa] = useState(!!destinatario);
   const [destNome, setDestNome] = useState(destinatario?.nome ?? "");
   const [destWhats, setDestWhats] = useState(destinatario?.whatsapp ?? "");
+  const [destEndereco, setDestEndereco] = useState(destinatario?.endereco ?? "");
   const [cep, setCep] = useState(endereco?.cep ?? "");
   const [end, setEnd] = useState({
     rua: endereco?.rua ?? "",
@@ -451,10 +462,17 @@ export function Quiz({
       if (whats.replace(/\D/g, "").length < 10) return toast.error("Informe um WhatsApp válido.");
       if (outraPessoa) {
         if (destNome.trim().length < 3) return toast.error("Informe o nome de quem vai receber.");
-        if (destWhats.replace(/\D/g, "").length < 10) return toast.error("Informe o WhatsApp de quem vai receber.");
-        setDestinatario({ nome: destNome.trim(), whatsapp: destWhats });
+        if (destWhats.replace(/\D/g, "").length < 10)
+          return toast.error("Informe o telefone de quem vai receber.");
+        if (destEndereco.trim().length < 6)
+          return toast.error("Informe o endereço de quem vai receber.");
+        setDestinatario({
+          nome: destNome.trim(),
+          whatsapp: destWhats,
+          endereco: destEndereco.trim(),
+        });
       } else {
-        setDestinatario({ nome: nome.trim(), whatsapp: whats });
+        setDestinatario(null);
       }
       setCliente({ nome, whatsapp: whats });
       setEmail(emailInput.trim());
@@ -490,16 +508,13 @@ export function Quiz({
       if (entregaTipo === "delivery") {
         if (!end.rua || !end.numero || !end.bairro)
           return toast.error("Preencha o endereço completo.");
-        if (foraDeRaio)
-          return toast.error(MSG_FORA_AREA);
+        if (foraDeRaio) return toast.error(MSG_FORA_AREA);
         const zonasAtivas = !!(
           campanhaAtiva?.delivery?.zonas?.ativo &&
           (campanhaAtiva?.delivery?.zonas?.zonas?.length ?? 0) > 0
         );
         if (zonasAtivas && !zonaEntregaAtual)
-          return toast.error(
-            "Clique em 'Buscar' para validar seu CEP antes de continuar.",
-          );
+          return toast.error("Clique em 'Buscar' para validar seu CEP antes de continuar.");
         setEndereco({ cep, ...end });
       } else if (!unidade) return toast.error("Escolha uma unidade de retirada.");
       salvarRascunho();
@@ -557,9 +572,7 @@ export function Quiz({
       <header className="sticky top-0 z-30 bg-charcoal">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 md:px-8">
           <Logo variant="light" />
-          {textosCampanha?.eyebrow && (
-            <span className="badge-mae">{textosCampanha.eyebrow}</span>
-          )}
+          {textosCampanha?.eyebrow && <span className="badge-mae">{textosCampanha.eyebrow}</span>}
         </div>
         <div className="mx-auto w-full max-w-2xl px-4 pb-4 sm:px-6 md:px-8">
           <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-[0.18em] text-linen/55">
@@ -584,7 +597,9 @@ export function Quiz({
               </p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 {textosCampanha?.passo1Titulo || (
-                  <>Qual <em className="italic text-terracotta">cesta</em> você escolhe?</>
+                  <>
+                    Qual <em className="italic text-terracotta">cesta</em> você escolhe?
+                  </>
                 )}
               </h1>
               {textosCampanha?.subtitulo && (
@@ -600,7 +615,9 @@ export function Quiz({
                 ? textosCampanha.passo1Badge
                 : campanhaAtiva?.dataLimitePedidos
                   ? (() => {
-                      const d = new Date(campanhaAtiva.dataLimitePedidos.slice(0, 10) + "T12:00:00");
+                      const d = new Date(
+                        campanhaAtiva.dataLimitePedidos.slice(0, 10) + "T12:00:00",
+                      );
                       return `Encomendas encerram ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}`;
                     })()
                   : null;
@@ -624,9 +641,8 @@ export function Quiz({
               {cestasAtivas.map((c) => {
                 const sel = cesta?.cesta.id === c.id;
                 const temTamanhos = c.tamanhos && c.tamanhos.length > 0;
-                const tamSelecionado = sel && tamanhoId
-                  ? c.tamanhos?.find((t) => t.id === tamanhoId)
-                  : undefined;
+                const tamSelecionado =
+                  sel && tamanhoId ? c.tamanhos?.find((t) => t.id === tamanhoId) : undefined;
                 return (
                   <article
                     key={c.id}
@@ -713,13 +729,19 @@ export function Quiz({
         {step === 2 && (
           <section className="animate-fade-up space-y-5">
             <div>
-              <p className="eyebrow-gold mb-2">{textosCampanha?.passo2Eyebrow || "Identificação"}</p>
+              <p className="eyebrow-gold mb-2">
+                {textosCampanha?.passo2Eyebrow || "Identificação"}
+              </p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 {textosCampanha?.passo2Titulo || (
-                  <>Quem está <em className="italic text-terracotta">pedindo?</em></>
+                  <>
+                    Quem está <em className="italic text-terracotta">pedindo?</em>
+                  </>
                 )}
               </h1>
-              <p className="mt-2 text-sm text-ink/65">{textosCampanha?.passo2Subtitulo || "Para confirmarmos seu pedido pelo WhatsApp"}</p>
+              <p className="mt-2 text-sm text-ink/65">
+                {textosCampanha?.passo2Subtitulo || "Para confirmarmos seu pedido pelo WhatsApp"}
+              </p>
             </div>
 
             {cesta && (
@@ -757,7 +779,9 @@ export function Quiz({
             {/* Destinatário */}
             <div className="space-y-3">
               <div>
-                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-terracotta">{textosCampanha?.passo2DestinatarioLabel || "Destinatário"}</p>
+                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-terracotta">
+                  {textosCampanha?.passo2DestinatarioLabel || "Destinatário"}
+                </p>
                 <p className="font-serif text-lg font-semibold leading-tight text-charcoal">
                   {textosCampanha?.passo2DestinatarioTitulo || "Quem irá receber o pedido? 🎁"}
                 </p>
@@ -801,6 +825,12 @@ export function Quiz({
                     placeholder="(61) 99999-9999"
                     inputMode="numeric"
                   />
+                  <CampoInput
+                    label="Endereço de quem vai receber"
+                    value={destEndereco}
+                    onChange={setDestEndereco}
+                    placeholder="Rua, número, bairro, complemento"
+                  />
                 </div>
               )}
             </div>
@@ -816,7 +846,9 @@ export function Quiz({
               <p className="eyebrow-gold mb-2">{textosCampanha?.passo3Eyebrow || "Logística"}</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 {textosCampanha?.passo3Titulo || (
-                  <>Como prefere <em className="italic text-terracotta">receber?</em></>
+                  <>
+                    Como prefere <em className="italic text-terracotta">receber?</em>
+                  </>
                 )}
               </h1>
               <p className="mt-2 text-sm text-ink/65">
@@ -1044,12 +1076,22 @@ export function Quiz({
                           const iso = toISODateString(date);
                           if (iso < hojeISO) return true; // passado
                           // Sem mesmo dia + sexta após 12h bloqueia sábado
-                          return dataRetiradaBloqueada(iso, hojeISO, regraAntecedencia, ctxAntecedencia);
+                          return dataRetiradaBloqueada(
+                            iso,
+                            hojeISO,
+                            regraAntecedencia,
+                            ctxAntecedencia,
+                          );
                         }}
                         fromMonth={new Date()}
                         onSelect={(date) => {
                           if (!date) return;
-                          const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+                          const d = new Date(
+                            date.getFullYear(),
+                            date.getMonth(),
+                            date.getDate(),
+                            12,
+                          );
                           setData(formatDatePtBR(d));
                           setHorario("");
                         }}
@@ -1061,19 +1103,24 @@ export function Quiz({
                 /* ── Calendário para muitas datas ── */
                 (() => {
                   const datasIds = new Set(
-                    datasDisponiveis.map((d) => d.id).filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
+                    datasDisponiveis
+                      .map((d) => d.id)
+                      .filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
                   );
                   const selectedDatum = datasDisponiveis.find((d) => d.label === data);
-                  const selectedDate = selectedDatum?.id && /^\d{4}-\d{2}-\d{2}$/.test(selectedDatum.id)
-                    ? (() => {
-                        const [y, m, day] = selectedDatum.id.split("-").map(Number);
-                        return new Date(y, m - 1, day, 12);
-                      })()
-                    : undefined;
+                  const selectedDate =
+                    selectedDatum?.id && /^\d{4}-\d{2}-\d{2}$/.test(selectedDatum.id)
+                      ? (() => {
+                          const [y, m, day] = selectedDatum.id.split("-").map(Number);
+                          return new Date(y, m - 1, day, 12);
+                        })()
+                      : undefined;
                   const sortedIds = [...datasIds].sort();
                   const fromParts = sortedIds[0]?.split("-").map(Number);
                   const toParts = sortedIds[sortedIds.length - 1]?.split("-").map(Number);
-                  const fromMonth = fromParts ? new Date(fromParts[0], fromParts[1] - 1, 1) : undefined;
+                  const fromMonth = fromParts
+                    ? new Date(fromParts[0], fromParts[1] - 1, 1)
+                    : undefined;
                   const toMonth = toParts ? new Date(toParts[0], toParts[1] - 1, 1) : undefined;
                   return (
                     <div className="flex justify-center">
@@ -1107,7 +1154,8 @@ export function Quiz({
                     const sel = data === d.label;
                     const parsed = parseDateId(d.id);
                     const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
-                    const numero = parsed?.dia ?? (d.label.split(",")[1]?.trim().split(" ")?.[0] || "•");
+                    const numero =
+                      parsed?.dia ?? (d.label.split(",")[1]?.trim().split(" ")?.[0] || "•");
                     const mesAno = parsed?.mesAno ?? "";
                     return (
                       <button
@@ -1129,11 +1177,15 @@ export function Quiz({
                         >
                           {numero}
                         </div>
-                        <div className={`mt-1 text-sm font-medium ${sel ? "text-white" : "text-ink"}`}>
+                        <div
+                          className={`mt-1 text-sm font-medium ${sel ? "text-white" : "text-ink"}`}
+                        >
                           {semana}
                         </div>
                         {mesAno && (
-                          <div className={`mt-0.5 text-xs ${sel ? "text-linen/70" : "text-charcoal/50"}`}>
+                          <div
+                            className={`mt-0.5 text-xs ${sel ? "text-linen/70" : "text-charcoal/50"}`}
+                          >
                             {mesAno}
                           </div>
                         )}
@@ -1341,10 +1393,14 @@ export function Quiz({
               <p className="eyebrow-gold mb-2">{textosCampanha?.passo5Eyebrow || "Quase lá!"}</p>
               <h1 className="font-serif text-3xl font-semibold leading-tight text-charcoal sm:text-[2rem]">
                 {textosCampanha?.passo5Titulo || (
-                  <>Seu <em className="italic text-terracotta">pedido</em></>
+                  <>
+                    Seu <em className="italic text-terracotta">pedido</em>
+                  </>
                 )}
               </h1>
-              <p className="mt-2 text-sm text-ink/65">{textosCampanha?.passo5Subtitulo || "Revise e escolha como pagar"}</p>
+              <p className="mt-2 text-sm text-ink/65">
+                {textosCampanha?.passo5Subtitulo || "Revise e escolha como pagar"}
+              </p>
             </div>
 
             {/* Itens e valores */}
@@ -1360,8 +1416,8 @@ export function Quiz({
                             const t = cesta.cesta.tamanhos?.find((t) => t.id === tamanhoId);
                             return t ? ` · Tam. ${t.label}` : "";
                           })()
-                        : ""}
-                      {" "}× {cesta.quantidade}
+                        : ""}{" "}
+                      × {cesta.quantidade}
                     </span>
                     <span className="font-semibold text-charcoal">
                       {formatBRL(precoEfetivo * cesta.quantidade)}
@@ -1433,7 +1489,9 @@ export function Quiz({
               {destinatario && (
                 <ResumoLinha
                   label="Quem recebe"
-                  valor={`${destinatario.nome} · ${destinatario.whatsapp}`}
+                  valor={`${destinatario.nome} · ${destinatario.whatsapp}${
+                    destinatario.endereco ? ` · ${destinatario.endereco}` : ""
+                  }`}
                 />
               )}
               {entregaTipo === "retirada" && campanhaAtiva?.retirada?.enderecoRetirada && (
@@ -1667,8 +1725,7 @@ export function Quiz({
               <div className="absolute left-1/2 top-2.5 z-10 h-1.5 w-10 -translate-x-1/2 rounded-full bg-white/80 shadow-sm sm:hidden" />
               <img
                 src={
-                  detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.imagem ||
-                  detalhe.imagem
+                  detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.imagem || detalhe.imagem
                 }
                 alt={detalhe.nome}
                 className="h-full w-full object-cover"
@@ -1690,11 +1747,16 @@ export function Quiz({
               <span className="inline-block rounded-full bg-olive px-2.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wide text-white">
                 {detalhe.badge}
               </span>
-              <h3 className="mt-2 font-serif text-xl font-bold text-charcoal sm:text-2xl">{detalhe.nome}</h3>
+              <h3 className="mt-2 font-serif text-xl font-bold text-charcoal sm:text-2xl">
+                {detalhe.nome}
+              </h3>
               <p className="mt-1 font-serif text-xl font-semibold text-terracotta sm:text-2xl">
                 {detalhe.tamanhos && detalhe.tamanhos.length > 0
                   ? modalTamanhoId
-                    ? formatBRL(detalhe.tamanhos.find((t) => t.id === modalTamanhoId)?.preco ?? detalhe.preco)
+                    ? formatBRL(
+                        detalhe.tamanhos.find((t) => t.id === modalTamanhoId)?.preco ??
+                          detalhe.preco,
+                      )
                     : `A partir de ${formatBRL(Math.min(...detalhe.tamanhos.map((t) => t.preco)))}`
                   : formatBRL(detalhe.preco)}
               </p>
@@ -1709,7 +1771,9 @@ export function Quiz({
                   <p className="text-[0.7rem] font-medium uppercase tracking-[0.16em] text-charcoal/60">
                     Escolha o tamanho
                   </p>
-                  <div className={`grid gap-2 ${detalhe.tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                  <div
+                    className={`grid gap-2 ${detalhe.tamanhos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}
+                  >
                     {detalhe.tamanhos.map((raw) => {
                       const t = completarTamanhoBolo(raw);
                       const tamSel = modalTamanhoId === t.id;
@@ -1725,19 +1789,27 @@ export function Quiz({
                               : "border-charcoal/15 bg-white"
                           }`}
                         >
-                          <span className={`font-serif text-xl font-bold sm:text-2xl ${tamSel ? "text-terracotta" : "text-charcoal"}`}>
+                          <span
+                            className={`font-serif text-xl font-bold sm:text-2xl ${tamSel ? "text-terracotta" : "text-charcoal"}`}
+                          >
                             {t.label}
                           </span>
                           {t.peso ? (
-                            <span className="text-[12px] font-semibold text-charcoal">{t.peso}</span>
+                            <span className="text-[12px] font-semibold text-charcoal">
+                              {t.peso}
+                            </span>
                           ) : null}
                           {serve ? (
-                            <span className="text-[11px] leading-snug text-charcoal/60">Serve {serve}</span>
+                            <span className="text-[11px] leading-snug text-charcoal/60">
+                              Serve {serve}
+                            </span>
                           ) : null}
                           {t.diametro ? (
                             <span className="text-[10px] text-charcoal/45">{t.diametro}</span>
                           ) : null}
-                          <span className={`mt-auto font-serif text-xs font-bold sm:text-sm ${tamSel ? "text-terracotta" : "text-charcoal/70"}`}>
+                          <span
+                            className={`mt-auto font-serif text-xs font-bold sm:text-sm ${tamSel ? "text-terracotta" : "text-charcoal/70"}`}
+                          >
                             {formatBRL(t.preco)}
                           </span>
                         </button>
@@ -1758,7 +1830,10 @@ export function Quiz({
                   itensExibidos.length > 0 && (
                     <ul className="mt-3 grid gap-x-3 gap-y-1.5 sm:grid-cols-2">
                       {itensExibidos.map((i) => (
-                        <li key={i} className="flex items-start gap-2 border-b border-charcoal/5 pb-1.5 text-xs text-ink sm:text-sm">
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 border-b border-charcoal/5 pb-1.5 text-xs text-ink sm:text-sm"
+                        >
                           <span className="mt-1 block h-1.5 w-1.5 flex-none rounded-full bg-terracotta" />
                           <span>{i}</span>
                         </li>
@@ -1773,7 +1848,8 @@ export function Quiz({
 
               {/* Quantidade + Total */}
               {(() => {
-                const precoUnit = detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.preco ?? detalhe.preco;
+                const precoUnit =
+                  detalhe.tamanhos?.find((t) => t.id === modalTamanhoId)?.preco ?? detalhe.preco;
                 const totalModal = precoUnit * modalQuantidade;
                 return (
                   <div className="mt-4 overflow-hidden rounded-xl bg-charcoal/5">
@@ -1789,7 +1865,9 @@ export function Quiz({
                         >
                           −
                         </button>
-                        <span className="w-8 text-center font-serif text-lg">{modalQuantidade}</span>
+                        <span className="w-8 text-center font-serif text-lg">
+                          {modalQuantidade}
+                        </span>
                         <button
                           type="button"
                           onClick={() => setModalQuantidade(modalQuantidade + 1)}
@@ -1905,34 +1983,38 @@ function BotoesNav({
         >
           {avancarLabel}
         </button>
-        <button onClick={onVoltar} className="mx-auto block text-xs text-ink/60 hover:text-charcoal">
+        <button
+          onClick={onVoltar}
+          className="mx-auto block text-xs text-ink/60 hover:text-charcoal"
+        >
           ← Voltar
         </button>
       </div>
 
       {/* Mobile: portal em document.body — evita stacking context de ancestors animados */}
-      {mounted && createPortal(
-        <div
-          className="fixed bottom-0 left-0 right-0 z-[9999] flex gap-2 border-t border-sand/40 bg-white/95 px-4 py-3 backdrop-blur-sm sm:hidden"
-          style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
-        >
-          <button
-            onClick={onVoltar}
-            aria-label="Voltar"
-            className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-sand bg-white text-lg text-charcoal transition-colors hover:bg-sand/30"
+      {mounted &&
+        createPortal(
+          <div
+            className="fixed bottom-0 left-0 right-0 z-[9999] flex gap-2 border-t border-sand/40 bg-white/95 px-4 py-3 backdrop-blur-sm sm:hidden"
+            style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
           >
-            ←
-          </button>
-          <button
-            onClick={onAvancar}
-            disabled={disabled}
-            className="h-12 flex-1 rounded-xl bg-charcoal text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
-          >
-            {avancarLabel}
-          </button>
-        </div>,
-        document.body
-      )}
+            <button
+              onClick={onVoltar}
+              aria-label="Voltar"
+              className="flex h-12 w-12 flex-none items-center justify-center rounded-xl border border-sand bg-white text-lg text-charcoal transition-colors hover:bg-sand/30"
+            >
+              ←
+            </button>
+            <button
+              onClick={onAvancar}
+              disabled={disabled}
+              className="h-12 flex-1 rounded-xl bg-charcoal text-sm font-medium tracking-wide text-white transition-colors hover:bg-charcoal/90 disabled:cursor-not-allowed disabled:bg-charcoal/40"
+            >
+              {avancarLabel}
+            </button>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

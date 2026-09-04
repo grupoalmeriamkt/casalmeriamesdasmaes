@@ -104,6 +104,33 @@ describe("flattenPedidosParaLinhas", () => {
     const row = baseRow();
     expect(rowToPedidoSalvo(row).unidadeId).toBe("asa-sul");
   });
+
+  it("separa quem pediu e para quem quando é presente", () => {
+    const row = {
+      ...baseRow(),
+      recipient_is_buyer: false,
+      recipient_name: "Maria Destino",
+      recipient_phone: "61988887777",
+      pagamento: {
+        metodo: "pix",
+        status: "CONFIRMED",
+        destinatario: {
+          nome: "Maria Destino",
+          whatsapp: "61988887777",
+          endereco: "SQS 316 Bloco C, 102",
+        },
+      },
+    };
+    const pedido = rowToPedidoSalvo(row);
+    const linhas = flattenPedidosParaLinhas([pedido], [row], []);
+
+    expect(linhas[0].isPresente).toBe(true);
+    expect(linhas[0].quemPediu).toBe("Maria Freitas");
+    expect(linhas[0].paraQuem).toBe("Maria Destino");
+    expect(linhas[0].nomeCliente).toBe("Maria Destino");
+    expect(linhas[0].destTelefone).toBe("61988887777");
+    expect(linhas[0].destEndereco).toBe("SQS 316 Bloco C, 102");
+  });
 });
 
 describe("resolveLocalOptionId", () => {

@@ -3,7 +3,7 @@ import { formatBRL } from "@/store/pedido";
 
 type Args = {
   cliente: { nome: string; whatsapp: string };
-  destinatario?: { nome: string; whatsapp: string } | null;
+  destinatario?: { nome: string; whatsapp: string; endereco?: string } | null;
   cesta?: { cesta: { nome: string; preco: number }; quantidade: number };
   sobremesas: Record<string, { sobremesa: { nome: string; preco: number }; quantidade: number }>;
   entregaTipo: "delivery" | "retirada" | null;
@@ -30,6 +30,9 @@ export function montarMensagemWhats(p: Args): string {
   if (p.destinatario) {
     linhas.push(`*Quem recebe:* ${p.destinatario.nome}`);
     linhas.push(`*WhatsApp (recebedor):* ${p.destinatario.whatsapp}`);
+    if (p.destinatario.endereco) {
+      linhas.push(`*Endereço (recebedor):* ${p.destinatario.endereco}`);
+    }
   }
   linhas.push("");
 
@@ -62,7 +65,9 @@ export function montarMensagemWhats(p: Args): string {
     );
   } else if (p.entregaTipo === "retirada" && p.unidade) {
     linhas.push("*Entrega:* Retirada");
-    linhas.push(`*Unidade:* ${p.unidade.nome}${p.unidade.endereco ? ` — ${p.unidade.endereco}` : ""}`);
+    linhas.push(
+      `*Unidade:* ${p.unidade.nome}${p.unidade.endereco ? ` — ${p.unidade.endereco}` : ""}`,
+    );
   }
 
   if (p.data || p.horario) {

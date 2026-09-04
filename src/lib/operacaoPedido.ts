@@ -1,4 +1,4 @@
-import type { PedidoRow } from "@/lib/pedidos";
+import { destinatarioFromRow, type PedidoRow } from "@/lib/pedidos";
 import type { PedidoSalvo } from "@/store/admin";
 import { pagamentoRelevante, labelPagamentoDetalhado } from "@/lib/asaasStatus";
 import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
@@ -37,7 +37,7 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
     id: r.id,
     criadoEm: r.criado_em,
     cliente: { nome: r.cliente_nome, whatsapp: r.cliente_whatsapp },
-    destinatario: r.pagamento?.destinatario ?? null,
+    destinatario: destinatarioFromRow(r),
     cesta: r.cesta ?? undefined,
     sobremesas: r.sobremesas ?? [],
     tipo: r.tipo,
@@ -65,20 +65,18 @@ export function rowToPedidoOperacional(r: PedidoRow): PedidoOperacional {
   // balde "Aguardando".
   const normalized = normalizePaymentStatus(raw, r.status);
 
+  const dest = destinatarioFromRow(r);
   const recipientName =
-    r.recipient_name ?? r.pagamento?.destinatario?.nome ?? r.cliente_nome;
+    dest?.nome || r.recipient_name || r.cliente_nome;
   const recipientPhone =
-    r.recipient_phone ?? r.pagamento?.destinatario?.whatsapp ?? r.cliente_whatsapp;
+    dest?.whatsapp || r.recipient_phone || r.cliente_whatsapp;
 
   return {
     ...base,
-    destinatario:
-      r.recipient_is_buyer === false && r.pagamento?.destinatario
-        ? r.pagamento.destinatario
-        : { nome: recipientName, whatsapp: recipientPhone },
+    destinatario: dest,
     recipientName,
     recipientPhone,
-    recipientIsBuyer: r.recipient_is_buyer ?? !r.pagamento?.destinatario,
+    recipientIsBuyer: !dest,
     unidadeId: r.unidade_id ?? null,
     productionSector: (r.production_sector as SetorOperacional | null) ?? null,
     executionAt: r.execution_at ?? null,
@@ -194,6 +192,8 @@ export function filtrarPedidosOperacionais(
         p.cliente.whatsapp,
         p.recipientName,
         p.recipientPhone,
+        p.destinatario?.nome,
+        p.destinatario?.endereco,
       ]
         .join(" ")
         .toLowerCase();

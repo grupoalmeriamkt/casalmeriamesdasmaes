@@ -18,7 +18,11 @@ const BodySchema = z.object({
   pedido_id: z.string().uuid(),
   campos: z.record(z.string(), z.string().nullable()),
   destinatario: z
-    .object({ nome: z.string(), whatsapp: z.string() })
+    .object({
+      nome: z.string(),
+      whatsapp: z.string(),
+      endereco: z.string().optional(),
+    })
     .nullable()
     .optional(),
 });
@@ -45,10 +49,10 @@ export const Route = createFileRoute("/api/pedidos/editar-por-token")({
         const { token, senha, pedido_id, campos, destinatario } = parsed.data;
 
         // Valida token (e senha, se exigida)
-        const { data: tokenValido, error: tokenError } = await admin.rpc(
-          "validar_token_pedidos",
-          { _token: token, _senha: senha ?? null },
-        );
+        const { data: tokenValido, error: tokenError } = await admin.rpc("validar_token_pedidos", {
+          _token: token,
+          _senha: senha ?? null,
+        });
         if (tokenError || !tokenValido) {
           return Response.json({ error: "token_invalido" }, { status: 403 });
         }
@@ -66,16 +70,13 @@ export const Route = createFileRoute("/api/pedidos/editar-por-token")({
 
         const { data: pedidoScope, error: pedidoScopeErr } = await admin
           .from("pedidos")
-          .select("campanha_id, pagamento")
+          .select("campanha_id, pagamento, cliente_nome, cliente_whatsapp")
           .eq("id", pedido_id)
           .maybeSingle();
         if (pedidoScopeErr || !pedidoScope) {
           return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
         }
-        if (
-          tokenRow.campanha_id &&
-          pedidoScope.campanha_id !== tokenRow.campanha_id
-        ) {
+        if (tokenRow.campanha_id && pedidoScope.campanha_id !== tokenRow.campanha_id) {
           return Response.json({ error: "pedido_fora_do_escopo" }, { status: 403 });
         }
 
@@ -91,16 +92,30 @@ export const Route = createFileRoute("/api/pedidos/editar-por-token")({
           return Response.json({ error: "nenhum_campo_valido" }, { status: 400 });
         }
 
-        // Se destinatario veio, atualiza dentro do JSON pagamento
+        // Se destinatario veio, atualiza o JSON e as colunas operacionais
         if (destinatario !== undefined) {
           const pagamentoAtualizado = {
             ...(pedidoScope.pagamento as object),
             destinatario,
           };
+          const recipientPatch = destinatario
+            ? {
+                recipient_name: destinatario.nome,
+                recipient_phone: destinatario.whatsapp,
+                recipient_is_buyer: false,
+              }
+            : {
+                recipient_name: update.cliente_nome ?? pedidoScope.cliente_nome,
+                recipient_phone: update.cliente_whatsapp ?? pedidoScope.cliente_whatsapp,
+                recipient_is_buyer: true,
+              };
 
           const { error: updatePagErr } = await admin
             .from("pedidos")
-            .update({ pagamento: pagamentoAtualizado })
+            .update({
+              pagamento: pagamentoAtualizado,
+              ...recipientPatch,
+            })
             .eq("id", pedido_id);
 
           if (updatePagErr) {
