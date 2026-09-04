@@ -14,6 +14,16 @@ describe("atendeAreaEntrega", () => {
     expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Esplanada dos Ministérios", state: "DF" })).toBe(true);
   });
 
+  it("aceita Lago Sul, Lago Norte, Sudoeste e Cruzeiro", () => {
+    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Lago Sul", state: "DF" })).toBe(true);
+    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Lago Norte", state: "DF" })).toBe(true);
+    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Sudoeste", state: "DF" })).toBe(true);
+    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Cruzeiro", state: "DF" })).toBe(true);
+    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Cruzeiro Novo", state: "DF" })).toBe(true);
+    expect(atendeAreaEntrega({ city: "Brasília", street: "SHIS QI 17", state: "DF" })).toBe(true);
+    expect(atendeAreaEntrega({ city: "Brasília", street: "SQSW 304", state: "DF" })).toBe(true);
+  });
+
   it("aceita logradouro SQS/SCLS mesmo sem bairro", () => {
     expect(atendeAreaEntrega({ city: "Brasília", street: "SCLS 104 Bloco D", state: "DF" })).toBe(true);
     expect(atendeAreaEntrega({ city: "Brasília", street: "SQN 212", state: "DF" })).toBe(true);
@@ -22,8 +32,6 @@ describe("atendeAreaEntrega", () => {
   it("rejeita outras RAs e entorno", () => {
     expect(atendeAreaEntrega({ city: "Taguatinga", neighborhood: "Centro", state: "DF" })).toBe(false);
     expect(atendeAreaEntrega({ city: "Águas Claras", neighborhood: "Águas Claras", state: "DF" })).toBe(false);
-    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Lago Sul", state: "DF" })).toBe(false);
-    expect(atendeAreaEntrega({ city: "Brasília", neighborhood: "Sudoeste", state: "DF" })).toBe(false);
     expect(atendeAreaEntrega({ city: "Valparaíso de Goiás", neighborhood: "Parque Esplanada", state: "GO" })).toBe(false);
   });
 });

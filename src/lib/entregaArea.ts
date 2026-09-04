@@ -1,10 +1,10 @@
-/** Área de entrega: somente Plano Piloto (Brasília central). */
+/** Área de entrega: Plano Piloto e adjacências (Lago Sul/Norte, Sudoeste, Cruzeiro). */
 
 export const MSG_AREA_ENTREGA =
-  "Entrega somente no Plano Piloto: Asa Norte, Asa Sul, Noroeste, Vila Planalto, Vila Telebrasília, Granja do Torto, Setor Militar Urbano, Setor de Clubes, Eixo Monumental, Esplanada dos Ministérios e Setor de Embaixadas. Não entregamos em outras regiões do DF nem nas cidades do entorno.";
+  "Entrega no Plano Piloto e adjacências: Asa Norte, Asa Sul, Noroeste, Lago Sul, Lago Norte, Sudoeste, Cruzeiro, Vila Planalto, Vila Telebrasília, Granja do Torto, Setor Militar Urbano, Setor de Clubes, Eixo Monumental, Esplanada dos Ministérios e Setor de Embaixadas. Não entregamos em outras regiões do DF nem nas cidades do entorno.";
 
 export const MSG_FORA_AREA =
-  "Este endereço está fora da nossa área de entrega. Atendemos somente o Plano Piloto (Asa Norte, Asa Sul, Noroeste e adjacências). Cidades do entorno e outras regiões do DF não são atendidas — você pode retirar na loja.";
+  "Este endereço está fora da nossa área de entrega. Atendemos o Plano Piloto, Lago Sul, Lago Norte, Sudoeste e Cruzeiro. Cidades do entorno e outras regiões do DF não são atendidas — você pode retirar na loja.";
 
 const STORAGE_KEY = "casa-almeria-cep-entrega";
 
@@ -22,6 +22,13 @@ const BAIRROS_OK = [
   "asa norte",
   "asa sul",
   "noroeste",
+  "lago sul",
+  "lago norte",
+  "sudoeste",
+  "octogonal",
+  "cruzeiro",
+  "cruzeiro novo",
+  "cruzeiro velho",
   "vila planalto",
   "vila telebrasilia",
   "granja do torto",
@@ -86,6 +93,10 @@ const PREFIXOS_LOGRADOURO = [
   "ses",
   "sain",
   "sais",
+  "shis",
+  "shin",
+  "sqsw",
+  "clsw",
 ];
 
 const CIDADES_FORA = [
@@ -93,11 +104,6 @@ const CIDADES_FORA = [
   "aguas claras",
   "ceilandia",
   "guara",
-  "lago sul",
-  "lago norte",
-  "sudoeste",
-  "octogonal",
-  "cruzeiro",
   "vicente pires",
   "samambaia",
   "gama",

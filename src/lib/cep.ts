@@ -6,6 +6,9 @@ export type EnderecoCep = {
   neighborhood: string;
   city: string;
   state: string;
+  /** Coordenadas quando a BrasilAPI V2 devolve location. */
+  lat?: number;
+  lng?: number;
 };
 
 /** Busca o endereço de um CEP (8 dígitos). Retorna null se inválido/não encontrado. */
@@ -21,13 +24,19 @@ export async function buscarCep(cep: string): Promise<EnderecoCep | null> {
       neighborhood?: string;
       city?: string;
       state?: string;
+      location?: {
+        coordinates?: { latitude?: string | number; longitude?: string | number };
+      };
     };
+    const lat = parseFloat(String(d?.location?.coordinates?.latitude ?? ""));
+    const lng = parseFloat(String(d?.location?.coordinates?.longitude ?? ""));
     return {
       cep: d.cep ?? limpo,
       street: d.street ?? "",
       neighborhood: d.neighborhood ?? "",
       city: d.city ?? "",
       state: d.state ?? "",
+      ...(!Number.isNaN(lat) && !Number.isNaN(lng) ? { lat, lng } : {}),
     };
   } catch {
     return null;

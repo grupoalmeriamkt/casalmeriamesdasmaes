@@ -109,7 +109,7 @@ export function CartDrawer() {
                 </span>
               </div>
               <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
-                Entrega somente no Plano Piloto (Asa Norte, Asa Sul, Noroeste…). Outras cidades do DF e entorno não são atendidas.
+                Entrega no Plano Piloto, Lago Sul, Lago Norte, Sudoeste e Cruzeiro. Outras cidades do DF e entorno não são atendidas.
               </p>
               <Button
                 onClick={() => {

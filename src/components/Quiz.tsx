@@ -22,10 +22,13 @@ import type { Cesta } from "@/lib/types";
 import { completarTamanhoBolo } from "@/lib/tamanhoBolo";
 import {
   distanciaKm,
+  enderecoDaLocalizacaoAtual,
   geocodificarEndereco,
   geocodificarCep,
   geocodificarViaBrasilAPI,
   encontrarZonaComTolerancia,
+  LocalizacaoError,
+  mensagemErroLocalizacao,
 } from "@/lib/geo";
 import { buscarCep as consultarCep } from "@/lib/cep";
 import {
@@ -63,6 +66,7 @@ import {
   Mail,
   Camera,
   Upload,
+  LocateFixed,
 } from "lucide-react";
 
 type Props = {
@@ -234,6 +238,7 @@ export function Quiz({
     estado: endereco?.estado ?? "",
   });
   const [buscando, setBuscando] = useState(false);
+  const [buscandoLocalizacao, setBuscandoLocalizacao] = useState(false);
   const [foraDeRaio, setForaDeRaio] = useState(false);
 
   useEffect(() => {
@@ -393,6 +398,75 @@ export function Quiz({
       toast.error("CEP não encontrado");
     } finally {
       setBuscando(false);
+    }
+  };
+
+  const usarLocalizacao = async () => {
+    if (isPreview) {
+      toast.success("Localização de exemplo (prévia).");
+      return;
+    }
+    setBuscandoLocalizacao(true);
+    setForaDeRaio(false);
+    try {
+      const loc = await enderecoDaLocalizacaoAtual();
+      if (loc.cep.length === 8) setCep(maskCep(loc.cep));
+      setEnd((s) => ({
+        ...s,
+        rua: loc.street || s.rua,
+        bairro: loc.neighborhood || s.bairro,
+        cidade: loc.city || s.cidade,
+        estado: loc.state || s.estado,
+      }));
+
+      const naArea = atendeAreaEntrega({
+        city: loc.city,
+        neighborhood: loc.neighborhood,
+        street: loc.street,
+        state: loc.state,
+      });
+      if (loc.cep.length === 8) {
+        salvarCepEntrega({
+          cep: loc.cep,
+          neighborhood: loc.neighborhood,
+          city: loc.city,
+          atende: naArea,
+        });
+      }
+      if (!naArea) {
+        setForaDeRaio(true);
+        toast.error(MSG_FORA_AREA);
+        return;
+      }
+
+      const zonasConfig = campanhaAtiva?.delivery?.zonas;
+      const usandoZonas = zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0;
+      if (usandoZonas && zonasConfig) {
+        const zona = encontrarZonaComTolerancia(
+          { lat: loc.lat, lng: loc.lng },
+          zonasConfig.zonas,
+        );
+        if (!zona) {
+          setForaDeRaio(true);
+          toast.error(
+            "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha a opção de retirada.",
+          );
+          return;
+        }
+        setZonaEntregaAtual(zona);
+        toast.success(`Localização confirmada — ${zona.nome}.`);
+        return;
+      }
+
+      toast.success("Localização encontrada!");
+    } catch (e) {
+      const msg =
+        e instanceof LocalizacaoError
+          ? mensagemErroLocalizacao(e.code)
+          : "Não foi possível usar a localização. Digite o CEP.";
+      toast.error(msg);
+    } finally {
+      setBuscandoLocalizacao(false);
     }
   };
 
@@ -876,7 +950,7 @@ export function Quiz({
                 <div className="min-w-0">
                   <p className="font-medium text-charcoal">Delivery</p>
                   <p className="truncate text-xs text-ink/60">
-                    Somente Plano Piloto (Asa Norte, Asa Sul, Noroeste…)
+                    Plano Piloto, Lagos, Sudoeste e Cruzeiro
                   </p>
                 </div>
               </button>
@@ -901,13 +975,27 @@ export function Quiz({
                     />
                   </div>
                   <button
+                    type="button"
                     onClick={buscarCep}
-                    disabled={buscando}
+                    disabled={buscando || buscandoLocalizacao}
                     className="flex h-[46px] items-center justify-center rounded-xl bg-charcoal px-4 text-sm font-medium text-white hover:bg-charcoal/90 disabled:opacity-60"
                   >
                     {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={usarLocalizacao}
+                  disabled={buscando || buscandoLocalizacao}
+                  className="flex h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-sand bg-white text-sm font-medium text-charcoal hover:bg-linen disabled:opacity-60"
+                >
+                  {buscandoLocalizacao ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LocateFixed className="h-4 w-4" />
+                  )}
+                  Usar minha localização
+                </button>
                 {foraDeRaio && (
                   <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
                     {MSG_FORA_AREA}

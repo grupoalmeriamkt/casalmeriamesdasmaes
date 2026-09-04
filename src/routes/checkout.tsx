@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { upsertRascunho } from "@/lib/pedidos";
 import { appendTamanhoAoNome } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
-import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock, Clock, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock, Clock, MapPin, LocateFixed } from "lucide-react";
 import {
   useAdmin,
   useCampanhaAtiva,
@@ -27,10 +27,13 @@ import {
 import { taxaEntregaDoPedido } from "@/lib/checkout/taxaEntrega";
 import { ehItemCestaCafe } from "@/lib/cestasCafe";
 import {
+  enderecoDaLocalizacaoAtual,
   encontrarZonaComTolerancia,
   geocodificarCep,
   geocodificarEndereco,
   geocodificarViaBrasilAPI,
+  LocalizacaoError,
+  mensagemErroLocalizacao,
 } from "@/lib/geo";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackBeginCheckout, trackAddPaymentInfo } from "@/lib/gtm";
@@ -143,6 +146,7 @@ function CheckoutPage() {
   const [cepEntrega, setCepEntrega] = useState("");
   const [foraArea, setForaArea] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [buscandoLocalizacao, setBuscandoLocalizacao] = useState(false);
   const [zonaEntregaAtual, setZonaEntregaAtual] = useState<ZonaEntrega | null>(null);
   const [destNome, setDestNome] = useState("");
   const [destWhatsapp, setDestWhatsapp] = useState("");
@@ -839,7 +843,7 @@ function CheckoutPage() {
                   </div>
                   <Button
                     type="button"
-                    disabled={buscandoCep}
+                    disabled={buscandoCep || buscandoLocalizacao}
                     onClick={async () => {
                       const limpo = onlyDigits(cepEntrega);
                       if (limpo.length !== 8) {
@@ -891,7 +895,10 @@ function CheckoutPage() {
                         ]
                           .filter(Boolean)
                           .join(", ");
-                        let coords = await geocodificarViaBrasilAPI(limpo);
+                        let coords =
+                          d.lat != null && d.lng != null
+                            ? { lat: d.lat, lng: d.lng }
+                            : await geocodificarViaBrasilAPI(limpo);
                         if (!coords) coords = await geocodificarCep(limpo);
                         if (!coords) coords = await geocodificarEndereco(consulta);
                         if (!coords) {
@@ -924,6 +931,87 @@ function CheckoutPage() {
                     {buscandoCep ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
                   </Button>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={buscandoCep || buscandoLocalizacao}
+                  className="w-full border-charcoal/20 text-charcoal"
+                  onClick={async () => {
+                    setBuscandoLocalizacao(true);
+                    setForaArea(false);
+                    try {
+                      const loc = await enderecoDaLocalizacaoAtual();
+                      if (loc.cep.length === 8) setCepEntrega(maskCep(loc.cep));
+                      const linha = [loc.street, loc.neighborhood, `${loc.city}/${loc.state}`]
+                        .filter(Boolean)
+                        .join(", ");
+                      if (linha) {
+                        setEnderecoStr(linha);
+                        setDestEndereco((atual) => atual.trim() || linha);
+                      }
+                      const ok = atendeAreaEntrega({
+                        city: loc.city,
+                        neighborhood: loc.neighborhood,
+                        street: loc.street,
+                        state: loc.state,
+                      });
+                      if (loc.cep.length === 8) {
+                        salvarCepEntrega({
+                          cep: loc.cep,
+                          neighborhood: loc.neighborhood,
+                          city: loc.city,
+                          atende: ok,
+                        });
+                      }
+                      setForaArea(!ok);
+                      if (!ok) {
+                        setZonaEntregaAtual(null);
+                        toast.error(MSG_FORA_AREA);
+                        return;
+                      }
+
+                      const zonasConfig = campanhaAtiva?.delivery?.zonas;
+                      const zonasAtivas = Boolean(
+                        zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0,
+                      );
+                      if (zonasAtivas && zonasConfig) {
+                        const zona = encontrarZonaComTolerancia(
+                          { lat: loc.lat, lng: loc.lng },
+                          zonasConfig.zonas,
+                        );
+                        if (!zona) {
+                          setForaArea(true);
+                          setZonaEntregaAtual(null);
+                          toast.error(
+                            "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha retirada.",
+                          );
+                          return;
+                        }
+                        setZonaEntregaAtual(zona);
+                        toast.success(`Localização confirmada — ${zona.nome}.`);
+                        return;
+                      }
+
+                      setZonaEntregaAtual(null);
+                      toast.success("Localização encontrada — área atendida.");
+                    } catch (e) {
+                      const msg =
+                        e instanceof LocalizacaoError
+                          ? mensagemErroLocalizacao(e.code)
+                          : "Não foi possível usar a localização. Digite o CEP.";
+                      toast.error(msg);
+                    } finally {
+                      setBuscandoLocalizacao(false);
+                    }
+                  }}
+                >
+                  {buscandoLocalizacao ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <LocateFixed className="mr-2 h-4 w-4" />
+                  )}
+                  Usar minha localização
+                </Button>
                 {outraPessoa ? (
                   <p className="rounded-lg bg-linen px-3 py-2 text-xs text-charcoal/70">
                     A entrega será no endereço de quem vai receber, informado acima. Use o CEP para
