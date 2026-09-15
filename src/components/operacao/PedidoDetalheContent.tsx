@@ -6,6 +6,7 @@ import { parseFalhaPagamento } from "@/lib/pagamentoFalha";
 import { formatItemPedidoLabel } from "@/lib/cestaTamanho";
 import { PedidoExtrasView } from "@/components/PedidoExtrasView";
 import { ComprovanteAsaas } from "./ComprovanteAsaas";
+import { ComprovantePdv } from "./ComprovantePdv";
 import { cn } from "@/lib/utils";
 
 type StatusKey = "aprovado" | "pendente" | "rascunho" | "abandonado";
@@ -81,6 +82,8 @@ function usePedidoDetalhe(p: PedidoSalvo) {
   const desconto = Number(p.pagamento?.desconto ?? 0);
   const cupom = p.pagamento?.cupom;
   const metodo = p.pagamento?.metodo;
+  // Pago no balcão pelo "Novo Pedido" (dinheiro/POS): não passa pelo Asaas, usa o comprovante do PDV.
+  const pagoOffline = metodo === "dinheiro" || metodo === "pos";
   const metodoLabel =
     metodo === "credit_card" || metodo === "CREDIT_CARD"
       ? "Cartão de crédito"
@@ -114,6 +117,7 @@ function usePedidoDetalhe(p: PedidoSalvo) {
     desconto,
     cupom,
     metodoLabel,
+    pagoOffline,
     statusPagamentoLabel,
     itensSoma,
     frete,
@@ -159,6 +163,7 @@ export function DetalhesPedido({
     desconto,
     cupom,
     metodoLabel,
+    pagoOffline,
     statusPagamentoLabel,
     itensSoma,
     frete,
@@ -210,7 +215,8 @@ export function DetalhesPedido({
           ) : null}
         </DetalheSection>
 
-        {status === "aprovado" && <ComprovanteAsaas pedidoId={p.id} />}
+        {status === "aprovado" &&
+          (pagoOffline ? <ComprovantePdv p={p} /> : <ComprovanteAsaas pedidoId={p.id} />)}
 
         <DetalheSection>
           <div className="space-y-2.5">
@@ -384,11 +390,15 @@ export function DetalhesPedido({
         </p>
         <p className="mt-0.5 text-base font-semibold text-charcoal">{p.cliente.nome || "—"}</p>
         <p className="text-xs text-muted-foreground">
-          {p.cliente.whatsapp ? `${p.cliente.whatsapp} · ` : ""}nome que consta no Asaas
+          {p.cliente.whatsapp ? `${p.cliente.whatsapp} · ` : ""}
+          {pagoOffline
+            ? "pago no balcão (pedido lançado pela operação)"
+            : "nome que consta no Asaas"}
         </p>
       </div>
 
-      {status === "aprovado" && <ComprovanteAsaas pedidoId={p.id} />}
+      {status === "aprovado" &&
+        (pagoOffline ? <ComprovantePdv p={p} /> : <ComprovanteAsaas pedidoId={p.id} />)}
 
       <div className="space-y-2 rounded-lg border border-border bg-linen/60 px-4 py-3">
         <div>
