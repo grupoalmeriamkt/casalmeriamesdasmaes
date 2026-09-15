@@ -2,12 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { SignInPage } from "@/components/admin/SignInPage";
 import { AccessDenied } from "@/components/admin/AccessDenied";
+import { CodigoAcessoLogin } from "@/components/operacao/CodigoAcessoLogin";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { obterTokenPortalOperacao } from "@/lib/operacao";
+import { entrarComCodigoOperacao, obterTokenPortalOperacao } from "@/lib/operacao";
 
 export const Route = createFileRoute("/operacao")({
   head: () => ({
@@ -25,6 +26,7 @@ function OperacaoPortalPage() {
   const { user, loading, canAccessPedidos, isModoOperacaoRestrita, isCozinha, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginPorEmail, setLoginPorEmail] = useState(false);
   const [portalState, setPortalState] = useState<PortalState>("idle");
   const [portalErro, setPortalErro] = useState<string | null>(null);
 
@@ -113,6 +115,27 @@ function OperacaoPortalPage() {
     );
   }
 
+  if (!user && !loginPorEmail) {
+    const handleCodigo = async (codigo: string) => {
+      setLoginLoading(true);
+      const res = await entrarComCodigoOperacao(codigo);
+      setLoginLoading(false);
+      if (!res.ok) toast.error("Falha no login", { description: res.error });
+    };
+
+    return (
+      <>
+        <CodigoAcessoLogin
+          heroImageSrc="/img_casa_fachada.jpeg"
+          loading={loginLoading}
+          onEntrar={handleCodigo}
+          onUsarEmail={() => setLoginPorEmail(true)}
+        />
+        <Toaster position="bottom-right" />
+      </>
+    );
+  }
+
   if (!user) {
     const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
@@ -143,6 +166,15 @@ function OperacaoPortalPage() {
           description="Operação — Pedidos Aprovados"
           loading={loginLoading}
           onSignIn={handleSignIn}
+          footer={
+            <button
+              type="button"
+              onClick={() => setLoginPorEmail(false)}
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-charcoal hover:underline"
+            >
+              Entrar com código de acesso
+            </button>
+          }
         />
         <Toaster position="bottom-right" />
       </>

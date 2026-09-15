@@ -211,7 +211,10 @@ export const Route = createFileRoute("/api/admin/pedidos")({
 
         if (action === "arquivar") {
           const { ids } = parsed.data;
-          const archivedBy = auth.user.email ?? auth.user.id;
+          const archivedBy =
+            (auth.user.user_metadata?.name as string | undefined) ??
+            auth.user.email ??
+            auth.user.id;
           const agora = new Date().toISOString();
           const { data, error } = await auth.admin
             .from("pedidos")

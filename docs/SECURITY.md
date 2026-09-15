@@ -109,6 +109,7 @@ Registro das medidas de segurança implementadas no projeto, pendências operaci
 | `/api/public/asaas/status/$id` | 120/min |
 | `/api/public/meta-capi` | 60/min |
 | `/api/public/mp-preference` | 20/min |
+| `/api/public/operacao/entrar-codigo` | 10/min + 10 códigos errados por IP a cada 15 min (tabela `operacao_login_falhas`) |
 
 ### 2.4 Headers HTTP
 
@@ -117,6 +118,17 @@ Configurados em `vercel.json`: `X-Frame-Options`, `X-Content-Type-Options`, `Ref
 ### 2.5 Sign-up público (ação manual)
 
 No painel Supabase: **Authentication → Providers → Email → desabilitar Enable sign ups**.
+
+### 2.6 Login por código no portal de operação (2026-09-15)
+
+O admin cadastra usuários de operação (nome, CPF, setor e código de 6 a 8 números) no módulo Operação Restrita. Cada um ganha um login técnico no Supabase (`operador.<id>@grupoalmeria.com.br`, senha aleatória descartada) com a role `operacao`.
+
+- `POST /api/public/operacao/entrar-codigo` confere o código e devolve o `hashed_token` de um link mágico gerado pelo admin (nenhum e-mail é enviado); o navegador troca o hash por sessão com `verifyOtp`.
+- Códigos errados ficam em `operacao_login_falhas` (sem policies, só service_role): 10 erros por IP em 15 min bloqueiam o IP; um acerto libera.
+- O código fica legível para o admin (RLS de `operators`: admin e a própria linha), para poder reenviar. Remover o usuário apaga a role e o login técnico.
+
+**Arquivos:** `src/lib/operacaoCodigo.ts`, `src/lib/operacaoCodigo.server.ts`, `src/routes/api/public/operacao/entrar-codigo.ts`
+**Migration:** `supabase/migrations/20260915_operacao_acesso_codigo.sql`
 
 ---
 

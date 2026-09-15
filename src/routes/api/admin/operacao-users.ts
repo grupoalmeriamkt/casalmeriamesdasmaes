@@ -1,9 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { authenticateRequest, requireAdmin } from "@/lib/authServer";
 import { obterTokenPortalOperacao, grantOperacaoAccess } from "@/lib/operacao.server";
 import { dispatchEmail } from "@/lib/emailDispatch.server";
 import { operacaoWelcomeEmail } from "@/lib/emailTemplates/operacaoWelcome";
+import { CODIGO_ACESSO_REGEX, cpfValido, somenteDigitos } from "@/lib/operacaoCodigo";
+import {
+  criarOperadorCodigo,
+  editarOperadorCodigo,
+  listarOperadoresCodigo,
+  removerOperadorCodigo,
+} from "@/lib/operacaoCodigo.server";
+
+const dadosOperadorCodigo = {
+  nome: z.string().trim().min(2).max(80),
+  cpf: z.string().transform(somenteDigitos).refine(cpfValido),
+  setor: z.string().trim().min(2).max(60),
+  codigo: z.string().trim().regex(CODIGO_ACESSO_REGEX),
+};
 
 const BodySchema = z.discriminatedUnion("action", [
   z.object({
@@ -24,7 +39,51 @@ const BodySchema = z.discriminatedUnion("action", [
     action: z.literal("atualizar_token"),
     shareToken: z.string().trim().min(16).max(128),
   }),
+  z.object({
+    action: z.literal("criar_codigo"),
+    ...dadosOperadorCodigo,
+  }),
+  z.object({
+    action: z.literal("editar_codigo"),
+    id: z.string().uuid(),
+    ...dadosOperadorCodigo,
+  }),
+  z.object({
+    action: z.literal("remover_codigo"),
+    id: z.string().uuid(),
+  }),
 ]);
+
+type UsuarioEmail = { user_id: string; email: string; created_at: string };
+
+async function listarUsuariosEmail(
+  admin: SupabaseClient,
+): Promise<{ ok: true; users: UsuarioEmail[] } | { ok: false; error: string }> {
+  const { data, error } = await admin.rpc("listar_usuarios_operacao");
+  if (!error) return { ok: true, users: (data ?? []) as UsuarioEmail[] };
+
+  console.warn("[operacao-users] list RPC fallback", error.message);
+  const { data: rows, error: readErr } = await admin
+    .from("user_roles")
+    .select("user_id, created_at, role")
+    .eq("role", "operacao")
+    .order("created_at", { ascending: false });
+  if (readErr) {
+    console.error("[operacao-users] list error", readErr);
+    return { ok: false, error: readErr.message };
+  }
+  const users = await Promise.all(
+    (rows ?? []).map(async (row) => {
+      const { data: userData } = await admin.auth.admin.getUserById(row.user_id);
+      return {
+        user_id: row.user_id,
+        email: userData.user?.email ?? "",
+        created_at: row.created_at,
+      };
+    }),
+  );
+  return { ok: true, users };
+}
 
 export const Route = createFileRoute("/api/admin/operacao-users")({
   server: {
@@ -36,31 +95,19 @@ export const Route = createFileRoute("/api/admin/operacao-users")({
           return Response.json({ error: "forbidden" }, { status: 403 });
         }
 
-        const { data, error } = await auth.admin.rpc("listar_usuarios_operacao");
-        if (error) {
-          console.warn("[operacao-users] list RPC fallback", error.message);
-          const { data: rows, error: readErr } = await auth.admin
-            .from("user_roles")
-            .select("user_id, created_at, role")
-            .eq("role", "operacao")
-            .order("created_at", { ascending: false });
-          if (readErr) {
-            console.error("[operacao-users] list error", readErr);
-            return Response.json({ error: readErr.message }, { status: 500 });
-          }
-          const users = await Promise.all(
-            (rows ?? []).map(async (row) => {
-              const { data: userData } = await auth.admin.auth.admin.getUserById(row.user_id);
-              return {
-                user_id: row.user_id,
-                email: userData.user?.email ?? "",
-                created_at: row.created_at,
-              };
-            }),
-          );
-          return Response.json({ users });
-        }
-        return Response.json({ users: data ?? [] });
+        const [emailUsers, codigo] = await Promise.all([
+          listarUsuariosEmail(auth.admin),
+          listarOperadoresCodigo(auth.admin),
+        ]);
+        if (!emailUsers.ok) return Response.json({ error: emailUsers.error }, { status: 500 });
+
+        // Operadores por código também têm a role operacao; não repetem na lista de e-mail.
+        const idsCodigo = new Set(codigo.ok ? codigo.operadores.map((o) => o.user_id) : []);
+        return Response.json({
+          users: emailUsers.users.filter((u) => !idsCodigo.has(u.user_id)),
+          operadores: codigo.ok ? codigo.operadores : [],
+          operadoresErro: codigo.ok ? null : codigo.error,
+        });
       },
 
       POST: async ({ request }) => {
@@ -80,6 +127,32 @@ export const Route = createFileRoute("/api/admin/operacao-users")({
         const parsed = BodySchema.safeParse(body);
         if (!parsed.success) {
           return Response.json({ error: "invalid_body" }, { status: 400 });
+        }
+
+        if (parsed.data.action === "criar_codigo") {
+          const { nome, cpf, setor, codigo } = parsed.data;
+          const res = await criarOperadorCodigo(auth.admin, { nome, cpf, setor, codigo });
+          if (!res.ok) return Response.json({ error: res.error }, { status: 400 });
+          return Response.json({ ok: true, operador: res.operador });
+        }
+
+        if (parsed.data.action === "editar_codigo") {
+          const { id, nome, cpf, setor, codigo } = parsed.data;
+          const res = await editarOperadorCodigo(auth.admin, id, { nome, cpf, setor, codigo });
+          if (!res.ok) {
+            const status = res.error === "nao_encontrado" ? 404 : 400;
+            return Response.json({ error: res.error }, { status });
+          }
+          return Response.json({ ok: true, operador: res.operador });
+        }
+
+        if (parsed.data.action === "remover_codigo") {
+          const res = await removerOperadorCodigo(auth.admin, parsed.data.id);
+          if (!res.ok) {
+            const status = res.error === "nao_encontrado" ? 404 : 400;
+            return Response.json({ error: res.error }, { status });
+          }
+          return Response.json({ ok: true });
         }
 
         if (parsed.data.action === "atualizar_token") {

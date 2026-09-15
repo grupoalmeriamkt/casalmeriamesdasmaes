@@ -8,6 +8,8 @@ interface SignInPageProps {
   heroImageSrc?: string;
   loading?: boolean;
   onSignIn?: (event: React.FormEvent<HTMLFormElement>) => void;
+  /** Conteúdo abaixo do formulário (ex.: link para outro modo de login). */
+  footer?: React.ReactNode;
 }
 
 const GlassInputWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -22,6 +24,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({
   heroImageSrc,
   loading = false,
   onSignIn,
+  footer,
 }) => {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -87,6 +90,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({
                 {loading ? "Entrando..." : "Entrar"}
               </button>
             </form>
+
+            {footer}
           </div>
         </div>
       </section>

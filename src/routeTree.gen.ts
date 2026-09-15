@@ -44,6 +44,7 @@ import { Route as ApiAdminArquivarPedidosRouteImport } from './routes/api/admin/
 import { Route as ApiPublicPrazoPagamentoIdRouteImport } from './routes/api/public/prazo-pagamento.$id'
 import { Route as ApiPublicPedidoIdRouteImport } from './routes/api/public/pedido.$id'
 import { Route as ApiPublicPagamentoIdRouteImport } from './routes/api/public/pagamento.$id'
+import { Route as ApiPublicOperacaoEntrarCodigoRouteImport } from './routes/api/public/operacao/entrar-codigo'
 import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
 import { Route as ApiPublicComprovanteIdRouteImport } from './routes/api/public/comprovante.$id'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas/webhook'
@@ -229,6 +230,12 @@ const ApiPublicPagamentoIdRoute = ApiPublicPagamentoIdRouteImport.update({
   path: '/api/public/pagamento/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOperacaoEntrarCodigoRoute =
+  ApiPublicOperacaoEntrarCodigoRouteImport.update({
+    id: '/api/public/operacao/entrar-codigo',
+    path: '/api/public/operacao/entrar-codigo',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCupomValidarRoute = ApiPublicCupomValidarRouteImport.update({
   id: '/api/public/cupom/validar',
   path: '/api/public/cupom/validar',
@@ -298,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/comprovante/$id': typeof ApiPublicComprovanteIdRoute
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/operacao/entrar-codigo': typeof ApiPublicOperacaoEntrarCodigoRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/pedido/$id': typeof ApiPublicPedidoIdRoute
   '/api/public/prazo-pagamento/$id': typeof ApiPublicPrazoPagamentoIdRoute
@@ -341,6 +349,7 @@ export interface FileRoutesByTo {
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/comprovante/$id': typeof ApiPublicComprovanteIdRoute
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/operacao/entrar-codigo': typeof ApiPublicOperacaoEntrarCodigoRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/pedido/$id': typeof ApiPublicPedidoIdRoute
   '/api/public/prazo-pagamento/$id': typeof ApiPublicPrazoPagamentoIdRoute
@@ -385,6 +394,7 @@ export interface FileRoutesById {
   '/api/public/asaas/webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/comprovante/$id': typeof ApiPublicComprovanteIdRoute
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
+  '/api/public/operacao/entrar-codigo': typeof ApiPublicOperacaoEntrarCodigoRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/pedido/$id': typeof ApiPublicPedidoIdRoute
   '/api/public/prazo-pagamento/$id': typeof ApiPublicPrazoPagamentoIdRoute
@@ -430,6 +440,7 @@ export interface FileRouteTypes {
     | '/api/public/asaas/webhook'
     | '/api/public/comprovante/$id'
     | '/api/public/cupom/validar'
+    | '/api/public/operacao/entrar-codigo'
     | '/api/public/pagamento/$id'
     | '/api/public/pedido/$id'
     | '/api/public/prazo-pagamento/$id'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/api/public/asaas/webhook'
     | '/api/public/comprovante/$id'
     | '/api/public/cupom/validar'
+    | '/api/public/operacao/entrar-codigo'
     | '/api/public/pagamento/$id'
     | '/api/public/pedido/$id'
     | '/api/public/prazo-pagamento/$id'
@@ -516,6 +528,7 @@ export interface FileRouteTypes {
     | '/api/public/asaas/webhook'
     | '/api/public/comprovante/$id'
     | '/api/public/cupom/validar'
+    | '/api/public/operacao/entrar-codigo'
     | '/api/public/pagamento/$id'
     | '/api/public/pedido/$id'
     | '/api/public/prazo-pagamento/$id'
@@ -559,6 +572,7 @@ export interface RootRouteChildren {
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
   ApiPublicComprovanteIdRoute: typeof ApiPublicComprovanteIdRoute
   ApiPublicCupomValidarRoute: typeof ApiPublicCupomValidarRoute
+  ApiPublicOperacaoEntrarCodigoRoute: typeof ApiPublicOperacaoEntrarCodigoRoute
   ApiPublicPagamentoIdRoute: typeof ApiPublicPagamentoIdRoute
   ApiPublicPedidoIdRoute: typeof ApiPublicPedidoIdRoute
   ApiPublicPrazoPagamentoIdRoute: typeof ApiPublicPrazoPagamentoIdRoute
@@ -812,6 +826,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPagamentoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/operacao/entrar-codigo': {
+      id: '/api/public/operacao/entrar-codigo'
+      path: '/api/public/operacao/entrar-codigo'
+      fullPath: '/api/public/operacao/entrar-codigo'
+      preLoaderRoute: typeof ApiPublicOperacaoEntrarCodigoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cupom/validar': {
       id: '/api/public/cupom/validar'
       path: '/api/public/cupom/validar'
@@ -904,6 +925,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
   ApiPublicComprovanteIdRoute: ApiPublicComprovanteIdRoute,
   ApiPublicCupomValidarRoute: ApiPublicCupomValidarRoute,
+  ApiPublicOperacaoEntrarCodigoRoute: ApiPublicOperacaoEntrarCodigoRoute,
   ApiPublicPagamentoIdRoute: ApiPublicPagamentoIdRoute,
   ApiPublicPedidoIdRoute: ApiPublicPedidoIdRoute,
   ApiPublicPrazoPagamentoIdRoute: ApiPublicPrazoPagamentoIdRoute,
