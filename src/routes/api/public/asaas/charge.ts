@@ -14,6 +14,7 @@ import {
 } from "@/lib/availability/retirada";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 import { atendeAreaEntregaFromTexto, MSG_FORA_AREA } from "@/lib/entregaArea";
+import { ehItemBolo, MSG_BOLO_PEDIDO_SEPARADO, MSG_BOLO_SO_RETIRADA } from "@/lib/boloRetirada";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
 import {
@@ -278,6 +279,36 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           );
         }
 
+        // Bolo não é entregue (decisão da loja): explica o motivo em vez de "Falha no pagamento".
+        if (isDelivery) {
+          const { data: cfgCatalogo } = await admin
+            .from("app_config")
+            .select("payload")
+            .eq("id", "default")
+            .maybeSingle();
+          const catalogo = cfgCatalogo?.payload as {
+            cestas?: { id?: string; nome?: string; categoriaId?: string | null }[];
+            categorias?: { id: string; nome?: string }[];
+          } | null;
+          const nomesItens = [
+            cesta?.nome,
+            ...((pedido.sobremesas ?? []) as { nome?: string }[]).map((s) => s.nome),
+          ].filter((n): n is string => !!n);
+          const bolos = nomesItens.filter((nome) =>
+            ehItemBolo({ nome }, { produtos: catalogo?.cestas, categorias: catalogo?.categorias }),
+          );
+          if (bolos.length > 0) {
+            return Response.json(
+              {
+                error: "bolo_sem_entrega",
+                motivo:
+                  bolos.length === nomesItens.length ? MSG_BOLO_SO_RETIRADA : MSG_BOLO_PEDIDO_SEPARADO,
+              },
+              { status: 400 },
+            );
+          }
+        }
+
         // Carrega a campanha do pedido uma vez: horários configurados + regra de antecedência
         // (delivery ou retirada, conforme o tipo do pedido).
         if (isDelivery && !atendeAreaEntregaFromTexto(String(pedido.endereco_ou_unidade ?? ""))) {
@@ -334,7 +365,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           );
           if (!disp.valid) {
             return Response.json(
-              { error: "disponibilidade_invalida", details: disp.errors },
+              { error: "disponibilidade_invalida", motivo: disp.errors[0], details: disp.errors },
               { status: 400 },
             );
           }
@@ -376,7 +407,7 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           }
           if (erros.length > 0) {
             return Response.json(
-              { error: "disponibilidade_invalida", details: erros },
+              { error: "disponibilidade_invalida", motivo: erros[0], details: erros },
               { status: 400 },
             );
           }

@@ -1,4 +1,10 @@
 import type { CarrinhoItem, ProdutoRegras } from "./types";
+import { ehNomeBolo } from "../boloRetirada";
+
+/** Decisão da loja: só bolo fica restrito à retirada; os demais itens podem ser entregues. */
+function modosPermitidos(item: CarrinhoItem): ProdutoRegras["allowed_fulfillment_modes"] {
+  return ehNomeBolo(item.nome) ? ["retirada"] : ["delivery", "retirada"];
+}
 
 /** Defaults quando não há registro em produto_regras. */
 export function defaultRegras(item: CarrinhoItem): ProdutoRegras {
@@ -14,7 +20,7 @@ export function defaultRegras(item: CarrinhoItem): ProdutoRegras {
       production_sector: /pão|pao|padaria/.test(nome) ? "PADARIA" : "CONFEITARIA",
       minimum_lead_time_hours: 24,
       same_day_allowed: false,
-      allowed_fulfillment_modes: ["retirada"],
+      allowed_fulfillment_modes: modosPermitidos(item),
       monday_first_slot: "12:00",
       weekend_extra_hours: 0,
     };
@@ -26,7 +32,7 @@ export function defaultRegras(item: CarrinhoItem): ProdutoRegras {
     production_sector: "COZINHA",
     minimum_lead_time_hours: 4,
     same_day_allowed: true,
-    allowed_fulfillment_modes: ["delivery", "retirada"],
+    allowed_fulfillment_modes: modosPermitidos(item),
     monday_first_slot: "06:00",
     weekend_extra_hours: 0,
   };

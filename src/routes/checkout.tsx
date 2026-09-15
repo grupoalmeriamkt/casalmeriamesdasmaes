@@ -27,6 +27,12 @@ import {
 import { taxaEntregaDoPedido } from "@/lib/checkout/taxaEntrega";
 import { ehItemCestaCafe } from "@/lib/cestasCafe";
 import {
+  ehItemBolo,
+  MSG_BOLO_ENTREGA_INDISPONIVEL,
+  MSG_BOLO_PEDIDO_SEPARADO,
+  MSG_BOLO_SO_RETIRADA,
+} from "@/lib/boloRetirada";
+import {
   enderecoDaLocalizacaoAtual,
   encontrarZonaComTolerancia,
   geocodificarCep,
@@ -154,6 +160,18 @@ function CheckoutPage() {
   const [outraPessoa, setOutraPessoa] = useState(false);
 
   const temCestaCafe = useMemo(() => itens.some((it) => ehItemCestaCafe(it)), [itens]);
+  const catalogoProdutos = useAdmin((s) => s.cestas);
+  const categoriasCatalogo = useAdmin((s) => s.categorias);
+  // Bolo não é entregue: só bolo → entrega desabilitada; bolo + outros itens → pedidos separados.
+  const bolosNoCarrinho = useMemo(
+    () =>
+      itens.filter((it) =>
+        ehItemBolo(it, { produtos: catalogoProdutos, categorias: categoriasCatalogo }),
+      ),
+    [itens, catalogoProdutos, categoriasCatalogo],
+  );
+  const soBolos = itens.length > 0 && bolosNoCarrinho.length === itens.length;
+  const entregaBloqueadaPorBolo = tipoEntrega === "delivery" && bolosNoCarrinho.length > 0;
   const usandoZonas = Boolean(
     campanhaAtiva?.delivery?.zonas?.ativo && (campanhaAtiva.delivery.zonas.zonas?.length ?? 0) > 0,
   );
@@ -162,6 +180,7 @@ function CheckoutPage() {
 
   const podeRetirada = entregaConfig.retirada !== false;
   const podeDelivery = entregaConfig.delivery !== false;
+  const podeDeliveryPedido = podeDelivery && !soBolos;
   const unidadesCampanha = useUnidadesAtivas();
   const unidadesCadastradas = useUnidadesCadastradas();
   const unidades = useMemo(
@@ -244,9 +263,9 @@ function CheckoutPage() {
   }, [horariosCampanha, dataSelecionadaISO, minutosAgoraSP, amanhaISO, hojeISO]);
 
   useEffect(() => {
-    if (tipoEntrega === "delivery" && !podeDelivery && podeRetirada) setTipoEntrega("retirada");
-    if (tipoEntrega === "retirada" && !podeRetirada && podeDelivery) setTipoEntrega("delivery");
-  }, [podeDelivery, podeRetirada, tipoEntrega]);
+    if (tipoEntrega === "delivery" && !podeDeliveryPedido && podeRetirada) setTipoEntrega("retirada");
+    if (tipoEntrega === "retirada" && !podeRetirada && podeDeliveryPedido) setTipoEntrega("delivery");
+  }, [podeDeliveryPedido, podeRetirada, tipoEntrega]);
 
   useEffect(() => {
     if (tipoEntrega !== "retirada") return;
@@ -390,6 +409,11 @@ function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErros({});
+
+    if (entregaBloqueadaPorBolo) {
+      toast.error(soBolos ? MSG_BOLO_SO_RETIRADA : MSG_BOLO_PEDIDO_SEPARADO);
+      return;
+    }
 
     const cliente = ClienteSchema.safeParse({
       nome,
@@ -760,27 +784,53 @@ function CheckoutPage() {
             <div className="mb-4 flex gap-2">
               {(["retirada", "delivery"] as const)
                 .filter((t) => (t === "retirada" ? podeRetirada : podeDelivery))
-                .map((t) => (
-                  <button
-                    type="button"
-                    key={t}
-                    onClick={() => {
-                      setTipoEntrega(t);
-                      setData("");
-                      setHorario("");
-                      setZonaEntregaAtual(null);
-                      if (t !== "retirada") setUnidadeId("");
-                    }}
-                    className={`flex-1 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
-                      tipoEntrega === t
-                        ? "border-terracotta bg-terracotta/10 text-terracotta"
-                        : "border-border text-charcoal hover:border-charcoal/40"
-                    }`}
-                  >
-                    {t === "retirada" ? "Retirada" : "Entrega"}
-                  </button>
-                ))}
+                .map((t) => {
+                  const bloqueado = t === "delivery" && soBolos;
+                  return (
+                    <button
+                      type="button"
+                      key={t}
+                      disabled={bloqueado}
+                      title={bloqueado ? MSG_BOLO_ENTREGA_INDISPONIVEL : undefined}
+                      onClick={() => {
+                        if (bloqueado) return;
+                        setTipoEntrega(t);
+                        setData("");
+                        setHorario("");
+                        setZonaEntregaAtual(null);
+                        if (t !== "retirada") setUnidadeId("");
+                      }}
+                      className={`flex-1 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                        bloqueado
+                          ? "cursor-not-allowed border-border bg-linen text-charcoal/40"
+                          : tipoEntrega === t
+                            ? "border-terracotta bg-terracotta/10 text-terracotta"
+                            : "border-border text-charcoal hover:border-charcoal/40"
+                      }`}
+                    >
+                      {t === "retirada" ? "Retirada" : "Entrega"}
+                    </button>
+                  );
+                })}
             </div>
+            {soBolos && podeDelivery && (
+              <p className="mb-4 rounded-lg bg-linen px-3 py-2 text-sm text-charcoal">
+                {MSG_BOLO_ENTREGA_INDISPONIVEL}
+              </p>
+            )}
+            {entregaBloqueadaPorBolo && (
+              <div
+                role="alert"
+                className="mb-4 rounded-lg border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-charcoal"
+              >
+                <p className="font-semibold">Bolo não é entregue</p>
+                <p className="mt-1">{MSG_BOLO_PEDIDO_SEPARADO}</p>
+                <p className="mt-1 text-xs text-charcoal/70">
+                  Bolos no pedido:{" "}
+                  {bolosNoCarrinho.map((b) => appendTamanhoAoNome(b.nome, b.tamanho)).join(", ")}
+                </p>
+              </div>
+            )}
             {tipoEntrega === "retirada" && (
               <div className="mb-4 space-y-2">
                 <Label>Loja de retirada</Label>
@@ -1298,9 +1348,14 @@ function CheckoutPage() {
             )}
           </section>
 
+          {entregaBloqueadaPorBolo && (
+            <p className="text-center text-sm font-medium text-terracotta">
+              Para finalizar, escolha Retirada ou faça um pedido separado para os bolos.
+            </p>
+          )}
           <Button
             type="submit"
-            disabled={enviando}
+            disabled={enviando || entregaBloqueadaPorBolo}
             className="w-full bg-terracotta py-6 text-base font-semibold text-white hover:bg-terracotta/90"
           >
             {enviando ? (
