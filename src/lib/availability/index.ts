@@ -109,7 +109,9 @@ export function validateDisponibilidade(
       dataRetiradaBloqueada(input.candidateDate, today, undefined, ctxAntecedencia) &&
       input.candidateDate === amanha
     ) {
-      errors.push("Retirada no sábado só é possível até sexta às 12h.");
+      errors.push(
+        `${input.fulfillmentMode === "delivery" ? "Entrega" : "Retirada"} no sábado só é possível até sexta às 12h.`,
+      );
     }
 
     if (targetStart.getTime() + 23 * 3600000 < earliest.getTime()) {

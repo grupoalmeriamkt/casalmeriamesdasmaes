@@ -1720,7 +1720,7 @@ export function Quiz({
                     }
                     if (!res.ok || !body.init_point) {
                       console.error("[mp] erro", body);
-                      toast.error("Não foi possível iniciar o pagamento.");
+                      toast.error(body?.motivo ?? "Não foi possível iniciar o pagamento.");
                       setEnviando(false);
                       return;
                     }

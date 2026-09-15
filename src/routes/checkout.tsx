@@ -30,8 +30,10 @@ import {
   ehItemBolo,
   MSG_BOLO_ENTREGA_INDISPONIVEL,
   MSG_BOLO_PEDIDO_SEPARADO,
+  MSG_BOLO_SEM_RETIRADA,
   MSG_BOLO_SO_RETIRADA,
 } from "@/lib/boloRetirada";
+import { horariosAceitos, regraDoCarrinho } from "@/lib/checkout/janelasCarrinho";
 import {
   enderecoDaLocalizacaoAtual,
   encontrarZonaComTolerancia,
@@ -59,12 +61,7 @@ import {
   horarioRetiradaBloqueado,
   REGRA_RETIRADA_PADRAO,
 } from "@/lib/availability/retirada";
-import {
-  buildRegrasForItens,
-  listAvailableDates,
-  regraMaisRestritiva,
-  type CarrinhoItem as AvailItem,
-} from "@/lib/availability";
+import { listAvailableDates } from "@/lib/availability";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -100,6 +97,15 @@ const CartaoSchema = z.object({
   expiry: z.string().regex(/^(0[1-9]|1[0-2])\/\d{2,4}$/, "MM/AA"),
   ccv: z.string().regex(/^\d{3,4}$/, "CCV"),
 });
+
+const HORARIOS_PADRAO: { label: string; ativo: boolean }[] = [
+  { label: "Entre 08h e 09h", ativo: true },
+  { label: "Entre 09h e 10h", ativo: true },
+  { label: "Entre 10h e 12h", ativo: true },
+  { label: "Entre 12h e 14h", ativo: true },
+  { label: "Entre 14h e 16h", ativo: true },
+  { label: "Entre 16h e 18h", ativo: true },
+];
 
 type Metodo = "PIX" | "CREDIT_CARD";
 
@@ -181,6 +187,7 @@ function CheckoutPage() {
   const podeRetirada = entregaConfig.retirada !== false;
   const podeDelivery = entregaConfig.delivery !== false;
   const podeDeliveryPedido = podeDelivery && !soBolos;
+  const boloSemRetirada = bolosNoCarrinho.length > 0 && !podeRetirada;
   const unidadesCampanha = useUnidadesAtivas();
   const unidadesCadastradas = useUnidadesCadastradas();
   const unidades = useMemo(
@@ -199,6 +206,14 @@ function CheckoutPage() {
   const amanhaISO = amanhaISOSP(agoraSP);
   const minutosAgoraSP = minutosDoDiaSP();
   const ctxAntecedencia = { minutosAgoraSP, amanhaISO };
+  const regraCarrinho = useMemo(() => regraDoCarrinho(itens), [itens]);
+  const labelsHorarios = useMemo(
+    () =>
+      (horariosCampanha.length > 0 ? horariosCampanha : HORARIOS_PADRAO)
+        .filter((h) => h.ativo)
+        .map((h) => h.label),
+    [horariosCampanha],
+  );
 
   const datasDisponiveis = useMemo(() => {
     const filtradas = datasCampanha.filter((d) => {
@@ -208,19 +223,20 @@ function CheckoutPage() {
         return false;
       return true;
     });
-    if (filtradas.length > 0 || todosDias) return filtradas;
-    const carrinho: AvailItem[] = itens.map((it) => ({
-      produto_id: it.produtoId,
-      produto_tipo: "cesta",
-      nome: it.nome,
-    }));
-    const regra = regraMaisRestritiva(buildRegrasForItens(carrinho));
-    return listAvailableDates(regra, agoraSP, 14).map((iso) => {
-      const [y, m, day] = iso.split("-").map(Number);
-      return { id: iso, label: formatDatePtBR(new Date(y, m - 1, day, 12)), ativa: true };
-    });
+    // Mesma antecedência que a cobrança aplica ao carrinho (ex.: bolo pede 24h).
+    const comHorario = (iso: string) =>
+      !/^\d{4}-\d{2}-\d{2}$/.test(iso) ||
+      horariosAceitos(regraCarrinho, iso, agoraSP, labelsHorarios).size > 0;
+    if (filtradas.length > 0 || todosDias) return filtradas.filter((d) => comHorario(d.id));
+    if (!regraCarrinho) return [];
+    return listAvailableDates(regraCarrinho, agoraSP, 14)
+      .filter(comHorario)
+      .map((iso) => {
+        const [y, m, day] = iso.split("-").map(Number);
+        return { id: iso, label: formatDatePtBR(new Date(y, m - 1, day, 12)), ativa: true };
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasCampanha, todosDias, hojeISO, itens, tipoEntrega]);
+  }, [datasCampanha, todosDias, hojeISO, itens, tipoEntrega, regraCarrinho, labelsHorarios]);
 
   const dataSelecionadaISO = useMemo(() => {
     const byId = datasDisponiveis.find((d) => d.label === data)?.id;
@@ -230,19 +246,13 @@ function CheckoutPage() {
   }, [data, datasDisponiveis]);
 
   const horariosDisponiveis = useMemo(() => {
-    const fonte =
-      horariosCampanha.length > 0
-        ? horariosCampanha
-        : [
-            { label: "Entre 08h e 09h", ativo: true },
-            { label: "Entre 09h e 10h", ativo: true },
-            { label: "Entre 10h e 12h", ativo: true },
-            { label: "Entre 12h e 14h", ativo: true },
-            { label: "Entre 14h e 16h", ativo: true },
-            { label: "Entre 16h e 18h", ativo: true },
-          ];
+    const fonte = horariosCampanha.length > 0 ? horariosCampanha : HORARIOS_PADRAO;
+    const aceitos = dataSelecionadaISO
+      ? horariosAceitos(regraCarrinho, dataSelecionadaISO, agoraSP, labelsHorarios)
+      : null;
     return fonte.filter((h) => {
       if (!h.ativo) return false;
+      if (aceitos && !aceitos.has(h.label)) return false;
       if (
         dataSelecionadaISO &&
         horarioRetiradaBloqueado(
@@ -260,7 +270,16 @@ function CheckoutPage() {
       }
       return true;
     });
-  }, [horariosCampanha, dataSelecionadaISO, minutosAgoraSP, amanhaISO, hojeISO]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    horariosCampanha,
+    dataSelecionadaISO,
+    minutosAgoraSP,
+    amanhaISO,
+    hojeISO,
+    regraCarrinho,
+    labelsHorarios,
+  ]);
 
   useEffect(() => {
     if (tipoEntrega === "delivery" && !podeDeliveryPedido && podeRetirada) setTipoEntrega("retirada");
@@ -410,6 +429,10 @@ function CheckoutPage() {
     e.preventDefault();
     setErros({});
 
+    if (boloSemRetirada) {
+      toast.error(MSG_BOLO_SEM_RETIRADA);
+      return;
+    }
     if (entregaBloqueadaPorBolo) {
       toast.error(soBolos ? MSG_BOLO_SO_RETIRADA : MSG_BOLO_PEDIDO_SEPARADO);
       return;
@@ -813,10 +836,20 @@ function CheckoutPage() {
                   );
                 })}
             </div>
-            {soBolos && podeDelivery && (
-              <p className="mb-4 rounded-lg bg-linen px-3 py-2 text-sm text-charcoal">
-                {MSG_BOLO_ENTREGA_INDISPONIVEL}
+            {boloSemRetirada ? (
+              <p
+                role="alert"
+                className="mb-4 rounded-lg border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-charcoal"
+              >
+                {MSG_BOLO_SEM_RETIRADA}
               </p>
+            ) : (
+              soBolos &&
+              podeDelivery && (
+                <p className="mb-4 rounded-lg bg-linen px-3 py-2 text-sm text-charcoal">
+                  {MSG_BOLO_ENTREGA_INDISPONIVEL}
+                </p>
+              )
             )}
             {entregaBloqueadaPorBolo && (
               <div
@@ -831,7 +864,7 @@ function CheckoutPage() {
                 </p>
               </div>
             )}
-            {tipoEntrega === "retirada" && (
+            {tipoEntrega === "retirada" && podeRetirada && (
               <div className="mb-4 space-y-2">
                 <Label>Loja de retirada</Label>
                 {unidades.length === 0 ? (
@@ -1355,7 +1388,7 @@ function CheckoutPage() {
           )}
           <Button
             type="submit"
-            disabled={enviando || entregaBloqueadaPorBolo}
+            disabled={enviando}
             className="w-full bg-terracotta py-6 text-base font-semibold text-white hover:bg-terracotta/90"
           >
             {enviando ? (

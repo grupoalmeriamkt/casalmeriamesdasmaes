@@ -14,7 +14,7 @@ import {
 } from "@/lib/availability/retirada";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 import { atendeAreaEntregaFromTexto, MSG_FORA_AREA } from "@/lib/entregaArea";
-import { ehItemBolo, MSG_BOLO_PEDIDO_SEPARADO, MSG_BOLO_SO_RETIRADA } from "@/lib/boloRetirada";
+import { catalogoDoPayload, motivoBoloSemEntrega } from "@/lib/boloRetirada";
 import { nowSP, todayISOSP, amanhaISOSP, minutosDoDiaSP } from "@/lib/timezone";
 import { parseDatePtBRToDate, toISODateString } from "@/lib/dateUtils";
 import {
@@ -250,7 +250,8 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         for (const s of (pedido.sobremesas ?? []) as { nome: string; id?: string }[]) {
           carrinhoItens.push({
             produto_id: s.id ?? s.nome,
-            produto_tipo: "sobremesa",
+            // Igual ao checkout: a regra (antecedência, entrega) vem do nome, não da posição do item.
+            produto_tipo: "cesta",
             nome: s.nome,
           });
         }
@@ -286,26 +287,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
             .select("payload")
             .eq("id", "default")
             .maybeSingle();
-          const catalogo = cfgCatalogo?.payload as {
-            cestas?: { id?: string; nome?: string; categoriaId?: string | null }[];
-            categorias?: { id: string; nome?: string }[];
-          } | null;
-          const nomesItens = [
-            cesta?.nome,
-            ...((pedido.sobremesas ?? []) as { nome?: string }[]).map((s) => s.nome),
-          ].filter((n): n is string => !!n);
-          const bolos = nomesItens.filter((nome) =>
-            ehItemBolo({ nome }, { produtos: catalogo?.cestas, categorias: catalogo?.categorias }),
-          );
-          if (bolos.length > 0) {
-            return Response.json(
-              {
-                error: "bolo_sem_entrega",
-                motivo:
-                  bolos.length === nomesItens.length ? MSG_BOLO_SO_RETIRADA : MSG_BOLO_PEDIDO_SEPARADO,
-              },
-              { status: 400 },
-            );
+          const motivoBolo = motivoBoloSemEntrega(pedido, catalogoDoPayload(cfgCatalogo?.payload));
+          if (motivoBolo) {
+            return Response.json({ error: "bolo_sem_entrega", motivo: motivoBolo }, { status: 400 });
           }
         }
 

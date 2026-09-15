@@ -10,6 +10,9 @@ export const MSG_BOLO_SO_RETIRADA =
 export const MSG_BOLO_PEDIDO_SEPARADO =
   "Seu pedido tem bolo, e bolos não são entregues — só retirada na loja. Para finalizar, escolha Retirada e retire tudo na loja, ou faça pedidos separados: um só com os bolos, para retirada, e outro com os demais itens, para entrega.";
 
+export const MSG_BOLO_SEM_RETIRADA =
+  "Bolos são apenas para retirada na loja, e a retirada está indisponível no momento. Remova os bolos do carrinho para finalizar.";
+
 const RE_NOME_BOLO = /\bbolos?\b|\bnaked\s*cakes?\b|\btortas?\b/i;
 /** A categoria dos bolos está cadastrada como "Tortas" e aparece como "Bolos" no site. */
 const RE_CATEGORIA_BOLO = /^(bolos?|tortas?)$/i;
@@ -55,4 +58,25 @@ export function ehItemBolo(
     (item.produtoId ? produtos.find((p) => p.id === item.produtoId) : undefined) ??
     produtos.find((p) => normalizar(p.nome ?? "") === nomeBase);
   return !!produto?.categoriaId && idsCategoriaBolo.has(produto.categoriaId);
+}
+
+/** Catálogo salvo em app_config.payload (os produtos ficam em `cestas`). */
+export function catalogoDoPayload(payload: unknown): CatalogoBolos {
+  const p = (payload ?? {}) as { cestas?: ProdutoCatalogo[]; categorias?: CategoriaCatalogo[] };
+  return { produtos: p.cestas ?? [], categorias: p.categorias ?? [] };
+}
+
+/** Motivo para recusar a cobrança de um pedido de entrega com bolo; null quando pode seguir. */
+export function motivoBoloSemEntrega(
+  pedido: { tipo?: string | null; cesta?: unknown; sobremesas?: unknown },
+  catalogo?: CatalogoBolos,
+): string | null {
+  if (pedido.tipo !== "delivery") return null;
+  const itens = [pedido.cesta, ...(Array.isArray(pedido.sobremesas) ? pedido.sobremesas : [])];
+  const nomes = itens
+    .map((i) => (i && typeof i === "object" ? (i as { nome?: unknown }).nome : undefined))
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+  const bolos = nomes.filter((nome) => ehItemBolo({ nome }, catalogo));
+  if (bolos.length === 0) return null;
+  return bolos.length === nomes.length ? MSG_BOLO_SO_RETIRADA : MSG_BOLO_PEDIDO_SEPARADO;
 }

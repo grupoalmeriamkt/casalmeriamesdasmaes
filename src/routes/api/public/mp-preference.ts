@@ -8,6 +8,7 @@ import {
   verifyPedidoAccess,
 } from "@/lib/checkoutAccess.server";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
+import { catalogoDoPayload, motivoBoloSemEntrega } from "@/lib/boloRetirada";
 
 const ItemSchema = z.object({
   title: z.string().min(1).max(256),
@@ -96,7 +97,7 @@ export const Route = createFileRoute("/api/public/mp-preference")({
 
         const { data: pedido, error: pedidoErr } = await admin
           .from("pedidos")
-          .select("total, status")
+          .select("total, status, tipo, cesta, sobremesas")
           .eq("id", externalReference)
           .maybeSingle();
         if (pedidoErr || !pedido) {
@@ -104,6 +105,19 @@ export const Route = createFileRoute("/api/public/mp-preference")({
         }
         if (pedido.status === "pago" || pedido.status === "cancelado") {
           return Response.json({ error: "pedido_indisponivel" }, { status: 409 });
+        }
+
+        // Bolo não é entregue (decisão da loja): mesma trava da cobrança Asaas.
+        if (pedido.tipo === "delivery") {
+          const { data: cfgCatalogo } = await admin
+            .from("app_config")
+            .select("payload")
+            .eq("id", "default")
+            .maybeSingle();
+          const motivoBolo = motivoBoloSemEntrega(pedido, catalogoDoPayload(cfgCatalogo?.payload));
+          if (motivoBolo) {
+            return Response.json({ error: "bolo_sem_entrega", motivo: motivoBolo }, { status: 400 });
+          }
         }
 
         const itemsTotal = Number(

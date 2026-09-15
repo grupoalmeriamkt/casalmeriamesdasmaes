@@ -9,9 +9,11 @@ function modosPermitidos(item: CarrinhoItem): ProdutoRegras["allowed_fulfillment
 /** Defaults quando não há registro em produto_regras. */
 export function defaultRegras(item: CarrinhoItem): ProdutoRegras {
   const nome = item.nome.toLowerCase();
+  // Naked cake também é bolo; "petit" sozinho pegava o vinho Le Petit Ronan.
   const isCpd =
     item.produto_tipo === "sobremesa" ||
-    /bolo|torta|pão|pao|brigadeiro|petit|confeitaria|padaria/.test(nome);
+    ehNomeBolo(item.nome) ||
+    /bolo|torta|pão|pao|brigadeiro|petit\s*(g[aâ]teau|four)|confeitaria|padaria/.test(nome);
 
   if (isCpd) {
     return {
