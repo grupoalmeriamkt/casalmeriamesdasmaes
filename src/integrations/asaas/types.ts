@@ -7,6 +7,7 @@ export type AsaasCustomer = {
   email?: string;
   mobilePhone?: string;
   externalReference?: string;
+  notificationDisabled?: boolean;
 };
 
 export type AsaasCreateCustomer = {
@@ -15,6 +16,7 @@ export type AsaasCreateCustomer = {
   email?: string;
   mobilePhone?: string;
   externalReference?: string;
+  notificationDisabled?: boolean;
 };
 
 export type AsaasCreditCard = {

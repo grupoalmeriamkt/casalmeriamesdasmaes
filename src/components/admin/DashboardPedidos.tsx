@@ -53,6 +53,7 @@ import {
   type PedidoRow,
 } from "@/lib/pedidos";
 import { rowToPedidoOperacional, type PedidoOperacional } from "@/lib/operacaoPedido";
+import { LABEL_PAGAMENTO_EXPIRADO } from "@/lib/asaasStatus";
 import { todayISOSP } from "@/lib/timezone";
 import { formatBRL } from "@/store/pedido";
 import { cn } from "@/lib/utils";
@@ -212,6 +213,7 @@ function percent(value: number, total: number) {
 }
 
 function currentStageLabel(op: PedidoOperacional) {
+  if (op.pagamento?.statusDetalhado === LABEL_PAGAMENTO_EXPIRADO) return "Expirado";
   if (isCanceled(op)) return "Cancelado";
   if (isOpenPayment(op)) return "Pagamento pendente";
   if (!isApproved(op)) return "Pedido criado";

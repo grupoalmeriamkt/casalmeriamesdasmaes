@@ -70,7 +70,8 @@ async function atualizarPedido(admin, pedidoId) {
     admin.from("pagamentos").select("id, asaas_payment_id, status, criado_em").eq("pedido_id", pedidoId),
     admin.from("pedidos").select("status, pagamento").eq("id", pedidoId).maybeSingle(),
   ]);
-  if (!pedido || pedido.status === "cancelado") return false;
+  // Expirado = prazo de pagamento esgotado; pagamento tardio é estornado pelo servidor.
+  if (!pedido || pedido.status === "cancelado" || pedido.status === "expirado") return false;
   const rel = pagamentoRelevante(pagamentos ?? []);
   const novoStatus = rel ? pedidoStatusFromAsaas(rel.status) : pedido.status;
   const existingPag = pedido.pagamento ?? {};

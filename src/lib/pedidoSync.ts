@@ -7,6 +7,7 @@ import {
 import { normalizePaymentStatus } from "@/lib/paymentStatus";
 import { computeExecutionAt } from "@/lib/executionAt";
 import { limparFalhaPagamento, type FalhaPagamento, mergeFalhaPagamento } from "@/lib/pagamentoFalha";
+import { PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
 
 export type PaymentPatch = {
   payment_status_raw: string;
@@ -160,7 +161,7 @@ export async function syncPedidoPaymentFields(
       .maybeSingle(),
   ]);
 
-  if (!pedido || pedido.status === "cancelado") return false;
+  if (!pedido || pedido.status === "cancelado" || pedido.status === PEDIDO_EXPIRADO) return false;
 
   const existingPag = (pedido.pagamento as Record<string, unknown>) ?? {};
   const patch = buildPaymentPatch(

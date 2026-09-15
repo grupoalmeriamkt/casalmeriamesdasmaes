@@ -29,6 +29,13 @@ import {
   verifyPedidoAccess,
 } from "@/lib/checkoutAccess.server";
 import { rateLimit } from "@/lib/rateLimit.server";
+import { PEDIDO_EXPIRADO, prazoEsgotado } from "@/lib/prazoPagamento";
+import {
+  cobrancaCriadaForaDoPrazo,
+  expirarPedidoSeVencido,
+  iniciarPrazoPagamento,
+  prazoExpiradoResponse,
+} from "@/lib/prazoPagamento.server";
 
 /** Converte data_entrega (rótulo PT-BR ou ISO) para "YYYY-MM-DD" em SP. */
 function dataEntregaParaISO(d: string | null | undefined): string | undefined {
@@ -160,6 +167,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
         if (pedido.status === "cancelado") {
           return Response.json({ error: "cancelado" }, { status: 410 });
         }
+        if (pedido.status === PEDIDO_EXPIRADO) {
+          return prazoExpiradoResponse();
+        }
         if (
           checkoutBloqueadoPorConclusao({
             status: pedido.status,
@@ -167,6 +177,14 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           })
         ) {
           return Response.json({ error: "pedido_concluido" }, { status: 410 });
+        }
+
+        // Cronômetro de pagamento: normalmente já começou ao abrir a tela de pagamento;
+        // aqui garante o prazo para quem chegou sem ele. Prazo vencido não gera cobrança.
+        const prazo = await iniciarPrazoPagamento(admin, body.pedidoId);
+        if (prazo && prazoEsgotado(prazo.expiraEm)) {
+          await expirarPedidoSeVencido(admin, asaas, body.pedidoId);
+          return prazoExpiradoResponse();
         }
 
         let totalPedido = Number(pedido.total ?? 0);
@@ -442,6 +460,9 @@ export const Route = createFileRoute("/api/public/asaas/charge")({
           }
 
           const payment = await asaas.createPayment(paymentInput);
+          if (await cobrancaCriadaForaDoPrazo(admin, asaas, body.pedidoId, payment)) {
+            return prazoExpiradoResponse();
+          }
 
           let pixPayload: string | null = null;
           let pixImage: string | null = null;

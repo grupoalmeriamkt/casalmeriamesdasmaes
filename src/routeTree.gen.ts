@@ -41,6 +41,7 @@ import { Route as ApiAdminCozinhaUsersRouteImport } from './routes/api/admin/coz
 import { Route as ApiAdminConciliarAsaasRouteImport } from './routes/api/admin/conciliar-asaas'
 import { Route as ApiAdminConciliacaoPendenciasRouteImport } from './routes/api/admin/conciliacao-pendencias'
 import { Route as ApiAdminArquivarPedidosRouteImport } from './routes/api/admin/arquivar-pedidos'
+import { Route as ApiPublicPrazoPagamentoIdRouteImport } from './routes/api/public/prazo-pagamento.$id'
 import { Route as ApiPublicPedidoIdRouteImport } from './routes/api/public/pedido.$id'
 import { Route as ApiPublicPagamentoIdRouteImport } from './routes/api/public/pagamento.$id'
 import { Route as ApiPublicCupomValidarRouteImport } from './routes/api/public/cupom/validar'
@@ -212,6 +213,12 @@ const ApiAdminArquivarPedidosRoute = ApiAdminArquivarPedidosRouteImport.update({
   path: '/api/admin/arquivar-pedidos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPrazoPagamentoIdRoute =
+  ApiPublicPrazoPagamentoIdRouteImport.update({
+    id: '/api/public/prazo-pagamento/$id',
+    path: '/api/public/prazo-pagamento/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPedidoIdRoute = ApiPublicPedidoIdRouteImport.update({
   id: '/api/public/pedido/$id',
   path: '/api/public/pedido/$id',
@@ -293,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/pedido/$id': typeof ApiPublicPedidoIdRoute
+  '/api/public/prazo-pagamento/$id': typeof ApiPublicPrazoPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRoutesByTo {
@@ -335,6 +343,7 @@ export interface FileRoutesByTo {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/pedido/$id': typeof ApiPublicPedidoIdRoute
+  '/api/public/prazo-pagamento/$id': typeof ApiPublicPrazoPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRoutesById {
@@ -378,6 +387,7 @@ export interface FileRoutesById {
   '/api/public/cupom/validar': typeof ApiPublicCupomValidarRoute
   '/api/public/pagamento/$id': typeof ApiPublicPagamentoIdRoute
   '/api/public/pedido/$id': typeof ApiPublicPedidoIdRoute
+  '/api/public/prazo-pagamento/$id': typeof ApiPublicPrazoPagamentoIdRoute
   '/api/public/asaas/status/$id': typeof ApiPublicAsaasStatusIdRoute
 }
 export interface FileRouteTypes {
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/pedido/$id'
+    | '/api/public/prazo-pagamento/$id'
     | '/api/public/asaas/status/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -464,6 +475,7 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/pedido/$id'
+    | '/api/public/prazo-pagamento/$id'
     | '/api/public/asaas/status/$id'
   id:
     | '__root__'
@@ -506,6 +518,7 @@ export interface FileRouteTypes {
     | '/api/public/cupom/validar'
     | '/api/public/pagamento/$id'
     | '/api/public/pedido/$id'
+    | '/api/public/prazo-pagamento/$id'
     | '/api/public/asaas/status/$id'
   fileRoutesById: FileRoutesById
 }
@@ -548,6 +561,7 @@ export interface RootRouteChildren {
   ApiPublicCupomValidarRoute: typeof ApiPublicCupomValidarRoute
   ApiPublicPagamentoIdRoute: typeof ApiPublicPagamentoIdRoute
   ApiPublicPedidoIdRoute: typeof ApiPublicPedidoIdRoute
+  ApiPublicPrazoPagamentoIdRoute: typeof ApiPublicPrazoPagamentoIdRoute
   ApiPublicAsaasStatusIdRoute: typeof ApiPublicAsaasStatusIdRoute
 }
 
@@ -777,6 +791,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminArquivarPedidosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/prazo-pagamento/$id': {
+      id: '/api/public/prazo-pagamento/$id'
+      path: '/api/public/prazo-pagamento/$id'
+      fullPath: '/api/public/prazo-pagamento/$id'
+      preLoaderRoute: typeof ApiPublicPrazoPagamentoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/pedido/$id': {
       id: '/api/public/pedido/$id'
       path: '/api/public/pedido/$id'
@@ -885,6 +906,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCupomValidarRoute: ApiPublicCupomValidarRoute,
   ApiPublicPagamentoIdRoute: ApiPublicPagamentoIdRoute,
   ApiPublicPedidoIdRoute: ApiPublicPedidoIdRoute,
+  ApiPublicPrazoPagamentoIdRoute: ApiPublicPrazoPagamentoIdRoute,
   ApiPublicAsaasStatusIdRoute: ApiPublicAsaasStatusIdRoute,
 }
 export const routeTree = rootRouteImport

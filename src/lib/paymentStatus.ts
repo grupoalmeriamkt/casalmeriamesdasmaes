@@ -1,4 +1,5 @@
 import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID } from "@/lib/asaasStatus";
+import { PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
 
 export type PaymentStatusNormalized =
   | "aprovado"
@@ -12,7 +13,9 @@ export function normalizePaymentStatus(
   rawStatus: string | null | undefined,
   pedidoStatus?: string | null,
 ): PaymentStatusNormalized {
-  if (pedidoStatus === "cancelado") return "cancelado";
+  // Expirado (prazo de pagamento esgotado) fica junto dos cancelados, mesmo com
+  // pagamento confirmado a caminho do estorno.
+  if (pedidoStatus === "cancelado" || pedidoStatus === PEDIDO_EXPIRADO) return "cancelado";
   if (pedidoStatus === "rascunho") return "rascunho";
   if (pedidoStatus === "abandonado") return "abandonado";
 

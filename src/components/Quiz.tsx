@@ -1468,6 +1468,7 @@ export function Quiz({
         {/* ============== STEP 5 — Resumo + Pagamento ============== */}
         {step === 5 && pagamento.checkoutAtivo && (
           <CheckoutAsaas
+            preview={isPreview}
             onVoltar={voltar}
             habilitarPix={pagamento.pix}
             habilitarCartao={pagamento.cartao}

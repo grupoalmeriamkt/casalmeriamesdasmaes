@@ -9,6 +9,7 @@ import {
 } from "@/lib/checkoutAccess.server";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 import { catalogoDoPayload, motivoBoloSemEntrega } from "@/lib/boloRetirada";
+import { PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
 
 const ItemSchema = z.object({
   title: z.string().min(1).max(256),
@@ -103,7 +104,11 @@ export const Route = createFileRoute("/api/public/mp-preference")({
         if (pedidoErr || !pedido) {
           return Response.json({ error: "pedido_nao_encontrado" }, { status: 404 });
         }
-        if (pedido.status === "pago" || pedido.status === "cancelado") {
+        if (
+          pedido.status === "pago" ||
+          pedido.status === "cancelado" ||
+          pedido.status === PEDIDO_EXPIRADO
+        ) {
           return Response.json({ error: "pedido_indisponivel" }, { status: 409 });
         }
 

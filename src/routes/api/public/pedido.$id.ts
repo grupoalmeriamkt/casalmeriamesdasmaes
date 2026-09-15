@@ -1,12 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { getAdminClient } from "@/integrations/supabase/client.server";
+import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
+import { makeAsaasClient } from "@/integrations/asaas/client.server";
 import {
   checkoutAccessDenied,
   verifyPedidoAccessOrStaff,
 } from "@/lib/checkoutAccess.server";
 import { rateLimit } from "@/lib/rateLimit.server";
 import { checkoutBloqueadoPorConclusao } from "@/lib/pedidoSync";
+import { PEDIDO_EXPIRADO, prazoEsgotado } from "@/lib/prazoPagamento";
+import {
+  expirarPedidoSeVencido,
+  lerPrazoPedido,
+  prazoExpiradoResponse,
+} from "@/lib/prazoPagamento.server";
 
 const ParamSchema = z.string().uuid();
 
@@ -56,6 +63,21 @@ export const Route = createFileRoute("/api/public/pedido/$id")({
         }
         if (!data) {
           return Response.json({ error: "not_found" }, { status: 404 });
+        }
+
+        // Prazo de pagamento esgotado: expira aqui (cancela cobranças abertas) e bloqueia.
+        if (data.status === PEDIDO_EXPIRADO) return prazoExpiradoResponse();
+        if (data.status !== "pago" && data.status !== "cancelado") {
+          const prazo = await lerPrazoPedido(admin, data.id);
+          if (prazo && prazoEsgotado(prazo.expiraEm)) {
+            const { asaasApiKey } = await getAppSecrets();
+            const situacao = await expirarPedidoSeVencido(
+              admin,
+              asaasApiKey ? makeAsaasClient(asaasApiKey as string) : null,
+              data.id,
+            );
+            if (situacao?.expirado) return prazoExpiradoResponse();
+          }
         }
 
         // Gating: refresh-safe / evita recobrança

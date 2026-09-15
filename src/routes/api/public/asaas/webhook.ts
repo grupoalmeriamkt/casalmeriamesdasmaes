@@ -7,6 +7,10 @@ import { syncPedidoPaymentFields } from "@/lib/pedidoSync";
 import { enviarConfirmacaoPedido } from "@/lib/emailDispatch.server";
 import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
 import { mapBillingTypeToMetodo } from "@/lib/asaasBillingType";
+import { makeAsaasClient } from "@/integrations/asaas/client.server";
+import { parseDataHoraAsaas } from "@/lib/prazoPagamento";
+import { aplicarPrazoNaConfirmacao } from "@/lib/prazoPagamento.server";
+import { tratarCobrancaBloqueada } from "@/lib/cobrancaBloqueada.server";
 
 async function dispatchPurchaseCapi(
   admin: ReturnType<typeof getAdminClient>,
@@ -134,6 +138,27 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
         try {
           const newStatus = event.payment.status;
 
+          // Pedido excluído, cancelado ou com prazo vencido: qualquer evento da cobrança
+          // (inclusive o cliente abrindo o link do Asaas) cancela a cobrança; se já foi
+          // paga, estorna. Não passa pelo fluxo normal (sem e-mail, cupom ou aviso).
+          const eventoExclusao =
+            event.event === "PAYMENT_DELETED" ||
+            (event.payment as { deleted?: boolean }).deleted === true;
+          if (!eventoExclusao) {
+            const bloqueio = await tratarCobrancaBloqueada(
+              admin,
+              secrets.asaasApiKey ? makeAsaasClient(secrets.asaasApiKey as string) : null,
+              event.payment as { id: string; status: string; externalReference?: string | null },
+            );
+            if (bloqueio) {
+              await admin
+                .from("asaas_webhook_events")
+                .update({ processado: true, processado_em: new Date().toISOString() })
+                .eq("asaas_event_id", eventId);
+              return Response.json({ ok: true, bloqueio });
+            }
+          }
+
           const metodoDerivado = mapBillingTypeToMetodo(
             (event.payment as { billingType?: string }).billingType,
           );
@@ -143,14 +168,45 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
           };
           if (metodoDerivado) updatePatch.metodo = metodoDerivado;
 
+          // Status ANTES do update: o select encadeado ao update devolve o valor novo, e a
+          // checagem de "primeira confirmação" nunca batia (cupom/e-mail/avisos não saíam).
+          const { data: anterior } = await admin
+            .from("pagamentos")
+            .select("status")
+            .eq("asaas_payment_id", event.payment.id)
+            .maybeSingle();
+          const statusAnterior = (anterior?.status as string | undefined) ?? "";
+
           const { data: pagamento, error: payErr } = await admin
             .from("pagamentos")
             .update(updatePatch)
             .eq("asaas_payment_id", event.payment.id)
-            .select("id, pedido_id, cupom_codigo, status")
+            .select("id, pedido_id, cupom_codigo")
             .maybeSingle();
           if (payErr) {
             console.error("[asaas/webhook] update pagamentos", payErr);
+          }
+
+          if (pagamento?.pedido_id && ASAAS_FINAL_PAID.has(newStatus)) {
+            // Prazo de pagamento: confirmação depois do prazo (+ tolerância) é estornada e o
+            // pedido segue expirado — sem cupom, e-mail ou notificação.
+            const asaas = secrets.asaasApiKey
+              ? makeAsaasClient(secrets.asaasApiKey as string)
+              : null;
+            const decisao = await aplicarPrazoNaConfirmacao(
+              admin,
+              asaas,
+              pagamento.pedido_id,
+              event.payment.id,
+              { statusAsaas: newStatus, confirmadoEm: parseDataHoraAsaas(event.dateCreated) },
+            );
+            if (decisao === "estornado") {
+              await admin
+                .from("asaas_webhook_events")
+                .update({ processado: true, processado_em: new Date().toISOString() })
+                .eq("asaas_event_id", eventId);
+              return Response.json({ ok: true, estornado: true });
+            }
           }
 
           if (pagamento?.pedido_id) {
@@ -158,7 +214,7 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
             if (
               pagamento.cupom_codigo &&
               ASAAS_FINAL_PAID.has(newStatus) &&
-              !ASAAS_FINAL_PAID.has(pagamento.status ?? "")
+              !ASAAS_FINAL_PAID.has(statusAnterior)
             ) {
               await admin.rpc("incrementar_uso_cupom", {
                 _codigo: pagamento.cupom_codigo,
@@ -167,8 +223,10 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
 
             await syncPedidoPaymentFields(admin, pagamento.pedido_id);
 
-            // Dispara Purchase via CAPI na primeira confirmação de pagamento
-            if (ASAAS_FINAL_PAID.has(newStatus) && !ASAAS_FINAL_PAID.has(pagamento.status ?? "")) {
+            // Purchase/e-mail/aviso a cada confirmação: todos são idempotentes (event_id do
+            // Meta, jaEnviouConfirmacaoPedido, ops_notificado_em). Assim não se perdem quando
+            // o polling da página de sucesso grava o status pago antes do webhook chegar.
+            if (ASAAS_FINAL_PAID.has(newStatus)) {
               void dispatchPurchaseCapi(admin, pagamento.pedido_id, event.payment.id);
               void enviarConfirmacaoPedido(admin, pagamento.pedido_id).then((res) => {
                 if (!res.ok) {

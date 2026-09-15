@@ -6,10 +6,17 @@ import { Logo } from "@/components/Logo";
 import { ThemeApplier } from "@/components/ThemeApplier";
 import { Button } from "@/components/ui/button";
 import { CardPaymentForm, type PedidoPublico } from "@/components/checkout/CardPaymentForm";
+import { ContagemPrazo, useContagemPrazo } from "@/components/PrazoPagamento";
 import {
   checkoutAccessHeaders,
   saveCheckoutAccess,
 } from "@/lib/checkoutAccess";
+import { MSG_PRAZO_EXPIRADO } from "@/lib/prazoPagamento";
+import {
+  confirmarFimDoPrazo,
+  consultarPrazoPagamento,
+  type SituacaoPrazoPagamento,
+} from "@/lib/prazoPagamentoClient";
 
 const searchSchema = z.object({
   access: z.string().optional(),
@@ -28,6 +35,10 @@ export const Route = createFileRoute("/pagar/$id")({
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+// Link enviado pela loja: o cliente não monta pedido por aqui, então fala com a loja.
+const MSG_LINK_EXPIRADO =
+  "O tempo para pagamento acabou. Fale com a loja para montar um novo pedido.";
+
 type Estado = "loading" | "form" | "aguarde" | "sucesso" | "erro" | "indisponivel";
 
 function PagarPage() {
@@ -38,6 +49,12 @@ function PagarPage() {
   const [motivo, setMotivo] = useState<string>("");
   const [msgIndisponivel, setMsgIndisponivel] = useState<string>("");
   const [desconto, setDesconto] = useState(0);
+  const [prazo, setPrazo] = useState<SituacaoPrazoPagamento | null>(null);
+
+  const encerrarPorPrazo = () => {
+    setMsgIndisponivel(MSG_LINK_EXPIRADO);
+    setEstado("indisponivel");
+  };
 
   useEffect(() => {
     if (accessFromUrl) saveCheckoutAccess(id, accessFromUrl);
@@ -51,7 +68,12 @@ function PagarPage() {
           return;
         }
         if (res.status === 410) {
-          setMsgIndisponivel("Este pedido não está mais disponível para pagamento.");
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          setMsgIndisponivel(
+            body.error === "expirado"
+              ? MSG_LINK_EXPIRADO
+              : "Este pedido não está mais disponível para pagamento.",
+          );
           setEstado("indisponivel");
           return;
         }
@@ -65,6 +87,17 @@ function PagarPage() {
           return;
         }
         const json = (await res.json()) as { pedido: PedidoPublico };
+        // Abrir a tela de pagamento inicia o cronômetro de 2 minutos.
+        const situacao = await consultarPrazoPagamento(id, { iniciar: true });
+        if (situacao?.pago) {
+          setEstado("sucesso");
+          return;
+        }
+        if (situacao?.expirado) {
+          encerrarPorPrazo();
+          return;
+        }
+        setPrazo(situacao);
         setPedido(json.pedido);
         setEstado("form");
       } catch {
@@ -73,6 +106,17 @@ function PagarPage() {
       }
     })();
   }, [id, accessFromUrl]);
+
+  // Durante a cobrança ("aguarde") a contagem pausa: o resultado da cobrança decide.
+  const segundos = useContagemPrazo(
+    estado === "form" || estado === "erro" ? prazo?.expiraEm : null,
+    prazo?.agora,
+    async () => {
+      const situacao = await confirmarFimDoPrazo(id);
+      if (situacao?.pago) setEstado("sucesso");
+      else if (situacao?.expirado) encerrarPorPrazo();
+    },
+  );
 
   return (
     <>
@@ -99,6 +143,8 @@ function PagarPage() {
                   <p className="text-sm text-charcoal/50">Confira seu pedido e pague com cartão.</p>
                 </div>
 
+                <ContagemPrazo segundos={segundos} />
+
                 <div className="overflow-hidden rounded-xl border">
                   {pedido.itens.map((it, idx) => (
                     <div key={idx} className="flex justify-between border-b px-4 py-2.5 text-sm last:border-0">
@@ -123,6 +169,10 @@ function PagarPage() {
                   onEnviando={() => setEstado("aguarde")}
                   onSuccess={() => setEstado("sucesso")}
                   onError={(m) => {
+                    if (m === MSG_PRAZO_EXPIRADO) {
+                      encerrarPorPrazo();
+                      return;
+                    }
                     setMotivo(m);
                     setEstado("erro");
                   }}
@@ -155,6 +205,7 @@ function PagarPage() {
 
             {estado === "erro" && (
               <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <ContagemPrazo segundos={segundos} className="w-full" />
                 <XCircle className="h-14 w-14 text-terracotta" />
                 <div>
                   <p className="font-serif text-xl text-charcoal">Não foi possível concluir</p>

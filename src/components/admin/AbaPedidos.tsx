@@ -46,6 +46,7 @@ function statusBadge(asaasStatus?: string, pedidoStatus?: string) {
   if (pedidoStatus === "pago") return { label: "Pago", cls: "bg-emerald-100 text-emerald-700" };
   if (pedidoStatus === "vencido") return { label: "Vencido", cls: "bg-orange-100 text-orange-700" };
   if (pedidoStatus === "cancelado") return { label: "Cancelado", cls: "bg-zinc-200 text-zinc-700" };
+  if (pedidoStatus === "expirado") return { label: "Expirado", cls: "bg-zinc-200 text-zinc-700" };
   if (asaasStatus && ASAAS_LABEL[asaasStatus]) return ASAAS_LABEL[asaasStatus];
   // Fallback pro status local do pedido
   if (pedidoStatus === "aguardando_pagamento")
@@ -54,8 +55,8 @@ function statusBadge(asaasStatus?: string, pedidoStatus?: string) {
 }
 
 function categoria(asaasStatus?: string, pedidoStatus?: string): string {
-  // Cancelamento manual tem precedência sobre qualquer status do Asaas
-  if (pedidoStatus === "cancelado") return "cancelado";
+  // Cancelamento manual e prazo de pagamento esgotado têm precedência sobre o Asaas
+  if (pedidoStatus === "cancelado" || pedidoStatus === "expirado") return "cancelado";
   if (pedidoStatus === "pago") return "pago";
   if (pedidoStatus === "vencido") return "vencido";
   if (asaasStatus === "CONFIRMED" || asaasStatus === "RECEIVED" || pedidoStatus === "pago")

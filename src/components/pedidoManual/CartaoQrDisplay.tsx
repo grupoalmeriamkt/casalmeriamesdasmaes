@@ -2,29 +2,30 @@ import { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Copy, Smartphone } from "lucide-react";
-import {
-  checkoutAccessHeaders,
-  pagarUrl,
-  saveCheckoutAccess,
-} from "@/lib/checkoutAccess";
+import { checkoutAccessHeaders, pagarUrl, saveCheckoutAccess } from "@/lib/checkoutAccess";
 
 /**
  * Exibe um QR Code apontando para o checkout transparente (/pagar/{pedidoId}?access=...).
  * O cliente escaneia, paga no próprio celular; este componente faz polling do
- * status do pedido e chama onPago() quando confirma.
+ * status do pedido e chama onPago() quando confirma, ou onExpirado() se o prazo de
+ * pagamento acabar.
  */
 export function CartaoQrDisplay({
   pedidoId,
   accessToken,
   onPago,
+  onExpirado,
 }: {
   pedidoId: string;
   accessToken?: string | null;
   onPago: () => void;
+  onExpirado?: () => void;
 }) {
   const [url, setUrl] = useState("");
   const onPagoRef = useRef(onPago);
   onPagoRef.current = onPago;
+  const onExpiradoRef = useRef(onExpirado);
+  onExpiradoRef.current = onExpirado;
 
   useEffect(() => {
     if (accessToken) saveCheckoutAccess(pedidoId, accessToken);
@@ -52,6 +53,14 @@ export function CartaoQrDisplay({
         if (res.status === 409) {
           clearInterval(timer);
           onPagoRef.current();
+          return;
+        }
+        if (res.status === 410) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          if (body.error === "expirado") {
+            clearInterval(timer);
+            onExpiradoRef.current?.();
+          }
           return;
         }
         if (res.ok) {
@@ -83,7 +92,8 @@ export function CartaoQrDisplay({
       </div>
       <QRCodeSVG value={url} size={180} level="M" />
       <p className="max-w-xs text-center text-xs text-muted-foreground">
-        Escaneie o QR Code ou copie o link para o cliente finalizar o pagamento no cartão.
+        Escaneie o QR Code ou copie o link para o cliente finalizar o pagamento no cartão. O cliente
+        tem 2 minutos para pagar a partir do momento em que abre o link.
       </p>
       <button
         type="button"

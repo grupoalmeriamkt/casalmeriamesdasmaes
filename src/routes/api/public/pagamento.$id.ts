@@ -5,6 +5,7 @@ import {
   checkoutAccessDenied,
   verifyPagamentoAccessOrStaff,
 } from "@/lib/checkoutAccess.server";
+import { lerPrazoPedido } from "@/lib/prazoPagamento.server";
 import { rateLimit } from "@/lib/rateLimit.server";
 
 const ParamSchema = z.string().uuid();
@@ -46,7 +47,13 @@ export const Route = createFileRoute("/api/public/pagamento/$id")({
         if (!data) {
           return Response.json({ error: "not_found" }, { status: 404 });
         }
-        return Response.json({ pagamento: data });
+
+        // Cronômetro de pagamento do pedido (contagem na página de sucesso).
+        const prazo = await lerPrazoPedido(admin, data.pedido_id as string);
+        return Response.json({
+          pagamento: data,
+          prazo: prazo ? { ...prazo, agora: new Date().toISOString() } : null,
+        });
       },
     },
   },

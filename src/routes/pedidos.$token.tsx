@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { labelTipoPedido } from "@/lib/asaasStatus";
+import { LABEL_PAGAMENTO_EXPIRADO, labelTipoPedido } from "@/lib/asaasStatus";
 import { isOperacaoPedidosEnabled } from "@/lib/featureFlags";
 import { ordenarPorEntrega } from "@/lib/pedidosSort";
 import {
@@ -2319,9 +2319,15 @@ function PedidoCard({
         <div className="min-w-0 flex-1">
           {/* Cabeçalho: status + ID + data */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CONFIG[s].bg}`}>
-              {STATUS_CONFIG[s].label}
-            </span>
+            {p.pagamento?.statusDetalhado === LABEL_PAGAMENTO_EXPIRADO ? (
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CONFIG.abandonado.bg}`}>
+                Expirado
+              </span>
+            ) : (
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CONFIG[s].bg}`}>
+                {STATUS_CONFIG[s].label}
+              </span>
+            )}
             {p.archivedAt && (
               <span className="rounded-full bg-charcoal/10 px-2 py-0.5 text-xs font-semibold text-charcoal">
                 Arquivado

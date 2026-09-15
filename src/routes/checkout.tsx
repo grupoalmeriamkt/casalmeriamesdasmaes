@@ -13,7 +13,22 @@ import { toast } from "sonner";
 import { upsertRascunho } from "@/lib/pedidos";
 import { appendTamanhoAoNome } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
-import { ArrowLeft, Loader2, CheckCircle2, Tag, Lock, Clock, MapPin, LocateFixed } from "lucide-react";
+import { ContagemPrazo, PrazoEsgotado, useContagemPrazo } from "@/components/PrazoPagamento";
+import {
+  confirmarFimDoPrazo,
+  consultarPrazoPagamento,
+  type SituacaoPrazoPagamento,
+} from "@/lib/prazoPagamentoClient";
+import {
+  ArrowLeft,
+  Loader2,
+  CheckCircle2,
+  Tag,
+  Lock,
+  Clock,
+  MapPin,
+  LocateFixed,
+} from "lucide-react";
 import {
   useAdmin,
   useCampanhaAtiva,
@@ -282,8 +297,10 @@ function CheckoutPage() {
   ]);
 
   useEffect(() => {
-    if (tipoEntrega === "delivery" && !podeDeliveryPedido && podeRetirada) setTipoEntrega("retirada");
-    if (tipoEntrega === "retirada" && !podeRetirada && podeDeliveryPedido) setTipoEntrega("delivery");
+    if (tipoEntrega === "delivery" && !podeDeliveryPedido && podeRetirada)
+      setTipoEntrega("retirada");
+    if (tipoEntrega === "retirada" && !podeRetirada && podeDeliveryPedido)
+      setTipoEntrega("delivery");
   }, [podeDeliveryPedido, podeRetirada, tipoEntrega]);
 
   useEffect(() => {
@@ -316,6 +333,32 @@ function CheckoutPage() {
 
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
+  enviandoRef.current = enviando;
+
+  // Duas etapas: "dados" salva o pedido; "pagamento" é a tela de pagamento, que inicia o
+  // cronômetro de 2 minutos. Esgotado o tempo, o pedido expira e o cliente monta outro.
+  const [etapa, setEtapa] = useState<"dados" | "pagamento">("dados");
+  const [pedidoIdPagamento, setPedidoIdPagamento] = useState<string | null>(null);
+  const [prazo, setPrazo] = useState<SituacaoPrazoPagamento | null>(null);
+  const prazoExpirado = prazo?.expirado ?? false;
+  const segundosPrazo = useContagemPrazo(
+    prazoExpirado ? null : prazo?.expiraEm,
+    prazo?.agora,
+    async () => {
+      // Cobrança em andamento: o resultado dela decide.
+      if (!pedidoIdPagamento || enviandoRef.current) return;
+      const situacao = await confirmarFimDoPrazo(pedidoIdPagamento);
+      if (situacao) setPrazo(situacao);
+    },
+  );
+
+  function montarNovoPedido() {
+    // O pedido expirado não é reaproveitado: volta aos dados e o próximo passo cria outro.
+    setPedidoIdPagamento(null);
+    setPrazo(null);
+    setEtapa("dados");
+  }
 
   const totalComDesconto = useMemo(
     () => Math.max(0, total - (cupomAplicado?.desconto ?? 0)),
@@ -517,6 +560,63 @@ function CheckoutPage() {
       return;
     }
 
+    // Etapa "dados" → abre a tela de pagamento: salva o pedido e inicia o cronômetro.
+    if (etapa === "dados") {
+      setEnviando(true);
+      try {
+        const linhas = itens.map((it) => ({
+          nome: appendTamanhoAoNome(it.nome, it.tamanho),
+          quantidade: it.quantidade,
+          preco: it.preco,
+          ...(it.tamanho ? { tamanho: it.tamanho } : {}),
+        }));
+        const [primeiro, ...demais] = linhas;
+        const { id: novoPedidoId, error: erRasc } = await upsertRascunho(
+          {
+            cliente: { nome: cliente.data.nome, whatsapp: cliente.data.whatsapp },
+            destinatario,
+            cesta: primeiro
+              ? {
+                  nome: primeiro.nome,
+                  quantidade: primeiro.quantidade,
+                  preco: primeiro.preco,
+                  ...(primeiro.tamanho ? { tamanho: primeiro.tamanho } : {}),
+                }
+              : undefined,
+            sobremesas: demais.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
+            tipo: tipoEntrega,
+            enderecoOuUnidade:
+              tipoEntrega === "delivery"
+                ? enderecoEntrega
+                : (unidades.find((u) => u.id === unidadeId)?.nome ?? "Retirada na loja"),
+            unidadeId: tipoEntrega === "retirada" ? unidadeId : undefined,
+            data,
+            horario,
+            pagamento: { metodo: metodo.toLowerCase(), status: "pendente" },
+            total,
+          },
+          undefined,
+          campanhaAtiva?.id,
+        );
+        if (erRasc || !novoPedidoId) throw erRasc ?? new Error("rascunho falhou");
+        setPedidoIdPagamento(novoPedidoId);
+        setPrazo(await consultarPrazoPagamento(novoPedidoId, { iniciar: true }));
+        setEtapa("pagamento");
+        requestAnimationFrame(() =>
+          document
+            .getElementById("pagamento")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        );
+      } catch (err) {
+        console.error(err);
+        toast.error("Não foi possível continuar. Tente novamente.");
+      } finally {
+        setEnviando(false);
+      }
+      return;
+    }
+    if (!pedidoIdPagamento || prazoExpirado) return;
+
     let cardData: {
       number: string;
       expiryMonth: string;
@@ -579,39 +679,9 @@ function CheckoutPage() {
         preco: it.preco,
         ...(it.tamanho ? { tamanho: it.tamanho } : {}),
       }));
-      const [primeiro, ...demais] = linhas;
+      const pedidoId = pedidoIdPagamento;
 
-      // 1. rascunho com produtos + frete (sem desconto; /charge revalida o cupom)
-      const { id: pedidoId, error: erRasc } = await upsertRascunho(
-        {
-          cliente: { nome: cliente.data.nome, whatsapp: cliente.data.whatsapp },
-          destinatario,
-          cesta: primeiro
-            ? {
-                nome: primeiro.nome,
-                quantidade: primeiro.quantidade,
-                preco: primeiro.preco,
-                ...(primeiro.tamanho ? { tamanho: primeiro.tamanho } : {}),
-              }
-            : undefined,
-          sobremesas: demais.map(({ nome, quantidade, preco }) => ({ nome, quantidade, preco })),
-          tipo: tipoEntrega,
-          enderecoOuUnidade:
-            tipoEntrega === "delivery"
-              ? enderecoEntrega
-              : (unidades.find((u) => u.id === unidadeId)?.nome ?? "Retirada na loja"),
-          unidadeId: tipoEntrega === "retirada" ? unidadeId : undefined,
-          data,
-          horario,
-          pagamento: { metodo: metodo.toLowerCase(), status: "pendente" },
-          total,
-        },
-        undefined,
-        campanhaAtiva?.id,
-      );
-      if (erRasc || !pedidoId) throw erRasc ?? new Error("rascunho falhou");
-
-      // 2. dispara cobrança
+      // Cobrança no pedido salvo ao abrir a tela de pagamento (cronômetro já correndo)
       const res = await fetch("/api/public/asaas/charge", {
         method: "POST",
         headers: {
@@ -636,6 +706,16 @@ function CheckoutPage() {
       });
       const cobranca = await res.json();
       if (!res.ok) {
+        if (cobranca?.error === "expirado") {
+          setPrazo((p) => ({
+            status: "expirado",
+            expiraEm: p?.expiraEm ?? null,
+            agora: new Date().toISOString(),
+            pago: false,
+            expirado: true,
+          }));
+          return;
+        }
         toast.error(cobranca?.motivo ?? "Falha no pagamento");
         return;
       }
@@ -674,732 +754,747 @@ function CheckoutPage() {
 
       <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 md:grid-cols-[1fr_400px]">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Contato */}
-          <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
-            <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">Quem está pedindo</h2>
-            <p className="mb-4 text-sm text-charcoal/60">Dados de quem faz e paga o pedido.</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="nome">Nome completo</Label>
-                <Input
-                  id="nome"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  required
-                  maxLength={120}
-                />
-                {erroLine("nome")}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cpf">CPF</Label>
-                <Input
-                  id="cpf"
-                  value={cpf}
-                  onChange={(e) => setCpf(maskCpf(e.target.value))}
-                  placeholder="000.000.000-00"
-                  required
-                />
-                {erroLine("cpf")}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="wpp">WhatsApp</Label>
-                <Input
-                  id="wpp"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(maskPhone(e.target.value))}
-                  placeholder="(61) 99999-9999"
-                  required
-                />
-                {erroLine("whatsapp")}
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  maxLength={180}
-                />
-                {erroLine("email")}
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
-            <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">
-              Para quem é a encomenda?
-            </h2>
-            <p className="mb-4 text-sm text-charcoal/60">
-              {temCestaCafe
-                ? "Nas cestas de café, informe se o presente é para você ou para outra pessoa."
-                : "Se for presente, preencha os dados de quem vai receber."}
-            </p>
-            <div className="mb-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setOutraPessoa(false)}
-                className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
-                  !outraPessoa
-                    ? "border-charcoal bg-charcoal text-white"
-                    : "border-border bg-white text-charcoal hover:border-charcoal/40"
-                }`}
-              >
-                Para mim
-              </button>
-              <button
-                type="button"
-                onClick={() => setOutraPessoa(true)}
-                className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
-                  outraPessoa
-                    ? "border-charcoal bg-charcoal text-white"
-                    : "border-border bg-white text-charcoal hover:border-charcoal/40"
-                }`}
-              >
-                Para outra pessoa
-              </button>
-            </div>
-            {outraPessoa && (
+          {/* Na tela de pagamento os dados ficam travados: mudar exige um novo pedido. */}
+          <fieldset disabled={etapa === "pagamento"} className="min-w-0 space-y-6">
+            {/* Contato */}
+            <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
+              <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">Quem está pedindo</h2>
+              <p className="mb-4 text-sm text-charcoal/60">Dados de quem faz e paga o pedido.</p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="dest-nome">Nome de quem vai receber</Label>
+                  <Label htmlFor="nome">Nome completo</Label>
                   <Input
-                    id="dest-nome"
-                    value={destNome}
-                    onChange={(e) => setDestNome(e.target.value)}
-                    placeholder="Nome completo"
+                    id="nome"
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
+                    required
                     maxLength={120}
                   />
-                  {erroLine("destNome")}
+                  {erroLine("nome")}
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="dest-wpp">Telefone / WhatsApp</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="cpf">CPF</Label>
                   <Input
-                    id="dest-wpp"
-                    value={destWhatsapp}
-                    onChange={(e) => setDestWhatsapp(maskPhone(e.target.value))}
+                    id="cpf"
+                    value={cpf}
+                    onChange={(e) => setCpf(maskCpf(e.target.value))}
+                    placeholder="000.000.000-00"
+                    required
+                  />
+                  {erroLine("cpf")}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wpp">WhatsApp</Label>
+                  <Input
+                    id="wpp"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(maskPhone(e.target.value))}
                     placeholder="(61) 99999-9999"
+                    required
                   />
-                  {erroLine("destWhatsapp")}
+                  {erroLine("whatsapp")}
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="dest-end">Endereço de quem vai receber</Label>
+                  <Label htmlFor="email">E-mail</Label>
                   <Input
-                    id="dest-end"
-                    value={destEndereco}
-                    onChange={(e) => {
-                      setDestEndereco(e.target.value);
-                      if (tipoEntrega === "delivery") setEnderecoStr(e.target.value);
-                    }}
-                    placeholder="Rua, número, bairro, complemento"
-                    maxLength={250}
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    maxLength={180}
                   />
-                  {erroLine("destEndereco")}
+                  {erroLine("email")}
                 </div>
               </div>
-            )}
-          </section>
+            </section>
 
-          {/* Entrega */}
-          <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
-            <h2 className="mb-4 font-serif text-xl font-bold text-charcoal">Entrega ou retirada</h2>
-            <div className="mb-4 flex gap-2">
-              {(["retirada", "delivery"] as const)
-                .filter((t) => (t === "retirada" ? podeRetirada : podeDelivery))
-                .map((t) => {
-                  const bloqueado = t === "delivery" && soBolos;
-                  return (
-                    <button
-                      type="button"
-                      key={t}
-                      disabled={bloqueado}
-                      title={bloqueado ? MSG_BOLO_ENTREGA_INDISPONIVEL : undefined}
-                      onClick={() => {
-                        if (bloqueado) return;
-                        setTipoEntrega(t);
-                        setData("");
-                        setHorario("");
-                        setZonaEntregaAtual(null);
-                        if (t !== "retirada") setUnidadeId("");
-                      }}
-                      className={`flex-1 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
-                        bloqueado
-                          ? "cursor-not-allowed border-border bg-linen text-charcoal/40"
-                          : tipoEntrega === t
-                            ? "border-terracotta bg-terracotta/10 text-terracotta"
-                            : "border-border text-charcoal hover:border-charcoal/40"
-                      }`}
-                    >
-                      {t === "retirada" ? "Retirada" : "Entrega"}
-                    </button>
-                  );
-                })}
-            </div>
-            {boloSemRetirada ? (
-              <p
-                role="alert"
-                className="mb-4 rounded-lg border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-charcoal"
-              >
-                {MSG_BOLO_SEM_RETIRADA}
+            <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
+              <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">
+                Para quem é a encomenda?
+              </h2>
+              <p className="mb-4 text-sm text-charcoal/60">
+                {temCestaCafe
+                  ? "Nas cestas de café, informe se o presente é para você ou para outra pessoa."
+                  : "Se for presente, preencha os dados de quem vai receber."}
               </p>
-            ) : (
-              soBolos &&
-              podeDelivery && (
-                <p className="mb-4 rounded-lg bg-linen px-3 py-2 text-sm text-charcoal">
-                  {MSG_BOLO_ENTREGA_INDISPONIVEL}
-                </p>
-              )
-            )}
-            {entregaBloqueadaPorBolo && (
-              <div
-                role="alert"
-                className="mb-4 rounded-lg border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-charcoal"
-              >
-                <p className="font-semibold">Bolo não é entregue</p>
-                <p className="mt-1">{MSG_BOLO_PEDIDO_SEPARADO}</p>
-                <p className="mt-1 text-xs text-charcoal/70">
-                  Bolos no pedido:{" "}
-                  {bolosNoCarrinho.map((b) => appendTamanhoAoNome(b.nome, b.tamanho)).join(", ")}
-                </p>
-              </div>
-            )}
-            {tipoEntrega === "retirada" && podeRetirada && (
-              <div className="mb-4 space-y-2">
-                <Label>Loja de retirada</Label>
-                {unidades.length === 0 ? (
-                  <p className="text-xs text-terracotta">Nenhuma loja disponível no momento.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {unidades.map((u) => {
-                      const sel = unidadeId === u.id;
-                      return (
-                        <button
-                          type="button"
-                          key={u.id}
-                          onClick={() => setUnidadeId(u.id)}
-                          className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
-                            sel
-                              ? "border-terracotta bg-terracotta/5"
-                              : "border-border hover:border-charcoal/40"
-                          }`}
-                        >
-                          <div
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                              sel ? "bg-terracotta text-white" : "bg-linen text-charcoal"
-                            }`}
-                          >
-                            <MapPin className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-charcoal">{u.nome}</p>
-                            {u.endereco ? (
-                              <p className="truncate text-xs text-charcoal/60">{u.endereco}</p>
-                            ) : null}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {erroLine("unidade")}
-              </div>
-            )}
-            {tipoEntrega === "delivery" && (
-              <div className="space-y-3">
-                <p className="rounded-lg bg-linen px-3 py-2 text-xs leading-relaxed text-charcoal/80">
-                  {MSG_AREA_ENTREGA}
-                </p>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 space-y-1.5">
-                    <Label htmlFor="cep-entrega">CEP</Label>
-                    <Input
-                      id="cep-entrega"
-                      inputMode="numeric"
-                      value={cepEntrega}
-                      onChange={(e) => {
-                        setCepEntrega(maskCep(e.target.value));
-                        if (foraArea) setForaArea(false);
-                      }}
-                      placeholder="00000-000"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    disabled={buscandoCep || buscandoLocalizacao}
-                    onClick={async () => {
-                      const limpo = onlyDigits(cepEntrega);
-                      if (limpo.length !== 8) {
-                        toast.error("CEP inválido");
-                        return;
-                      }
-                      setBuscandoCep(true);
-                      const d = await buscarCep(limpo);
-                      setBuscandoCep(false);
-                      if (!d) {
-                        toast.error("CEP não encontrado");
-                        return;
-                      }
-                      const linha = [d.street, d.neighborhood, `${d.city}/${d.state}`]
-                        .filter(Boolean)
-                        .join(", ");
-                      setEnderecoStr(linha);
-                      setDestEndereco((atual) => atual.trim() || linha);
-                      const ok = atendeAreaEntrega({
-                        city: d.city,
-                        neighborhood: d.neighborhood,
-                        street: d.street,
-                        state: d.state,
-                      });
-                      salvarCepEntrega({
-                        cep: limpo,
-                        neighborhood: d.neighborhood,
-                        city: d.city,
-                        atende: ok,
-                      });
-                      setForaArea(!ok);
-                      if (!ok) {
-                        setZonaEntregaAtual(null);
-                        toast.error(MSG_FORA_AREA);
-                        return;
-                      }
-
-                      const zonasConfig = campanhaAtiva?.delivery?.zonas;
-                      const zonasAtivas = Boolean(
-                        zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0,
-                      );
-                      if (zonasAtivas && zonasConfig) {
-                        const consulta = [
-                          d.street,
-                          d.neighborhood,
-                          `${d.city}/${d.state}`,
-                          limpo,
-                          "Brasil",
-                        ]
-                          .filter(Boolean)
-                          .join(", ");
-                        let coords =
-                          d.lat != null && d.lng != null
-                            ? { lat: d.lat, lng: d.lng }
-                            : await geocodificarViaBrasilAPI(limpo);
-                        if (!coords) coords = await geocodificarCep(limpo);
-                        if (!coords) coords = await geocodificarEndereco(consulta);
-                        if (!coords) {
-                          const zonaFallback = zonasConfig.zonas[0];
-                          setZonaEntregaAtual(zonaFallback);
-                          toast.success(
-                            `Endereço aceito — ${zonaFallback.nome}. Confirmaremos a disponibilidade pelo WhatsApp.`,
-                          );
-                          return;
-                        }
-                        const zona = encontrarZonaComTolerancia(coords, zonasConfig.zonas);
-                        if (!zona) {
-                          setForaArea(true);
-                          setZonaEntregaAtual(null);
-                          toast.error(
-                            "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha retirada.",
-                          );
-                          return;
-                        }
-                        setZonaEntregaAtual(zona);
-                        toast.success(`Endereço confirmado — ${zona.nome}.`);
-                        return;
-                      }
-
-                      setZonaEntregaAtual(null);
-                      toast.success("Endereço encontrado — área atendida.");
-                    }}
-                    className="bg-charcoal text-white hover:bg-charcoal/90"
-                  >
-                    {buscandoCep ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
-                  </Button>
-                </div>
-                <Button
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                <button
                   type="button"
-                  variant="outline"
-                  disabled={buscandoCep || buscandoLocalizacao}
-                  className="w-full border-charcoal/20 text-charcoal"
-                  onClick={async () => {
-                    setBuscandoLocalizacao(true);
-                    setForaArea(false);
-                    try {
-                      const loc = await enderecoDaLocalizacaoAtual();
-                      if (loc.cep.length === 8) setCepEntrega(maskCep(loc.cep));
-                      const linha = [loc.street, loc.neighborhood, `${loc.city}/${loc.state}`]
-                        .filter(Boolean)
-                        .join(", ");
-                      if (linha) {
-                        setEnderecoStr(linha);
-                        setDestEndereco((atual) => atual.trim() || linha);
-                      }
-                      const ok = atendeAreaEntrega({
-                        city: loc.city,
-                        neighborhood: loc.neighborhood,
-                        street: loc.street,
-                        state: loc.state,
-                      });
-                      if (loc.cep.length === 8) {
-                        salvarCepEntrega({
-                          cep: loc.cep,
-                          neighborhood: loc.neighborhood,
-                          city: loc.city,
-                          atende: ok,
-                        });
-                      }
-                      setForaArea(!ok);
-                      if (!ok) {
-                        setZonaEntregaAtual(null);
-                        toast.error(MSG_FORA_AREA);
-                        return;
-                      }
-
-                      const zonasConfig = campanhaAtiva?.delivery?.zonas;
-                      const zonasAtivas = Boolean(
-                        zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0,
-                      );
-                      if (zonasAtivas && zonasConfig) {
-                        const zona = encontrarZonaComTolerancia(
-                          { lat: loc.lat, lng: loc.lng },
-                          zonasConfig.zonas,
-                        );
-                        if (!zona) {
-                          setForaArea(true);
-                          setZonaEntregaAtual(null);
-                          toast.error(
-                            "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha retirada.",
-                          );
-                          return;
-                        }
-                        setZonaEntregaAtual(zona);
-                        toast.success(`Localização confirmada — ${zona.nome}.`);
-                        return;
-                      }
-
-                      setZonaEntregaAtual(null);
-                      toast.success("Localização encontrada — área atendida.");
-                    } catch (e) {
-                      const msg =
-                        e instanceof LocalizacaoError
-                          ? mensagemErroLocalizacao(e.code)
-                          : "Não foi possível usar a localização. Digite o CEP.";
-                      toast.error(msg);
-                    } finally {
-                      setBuscandoLocalizacao(false);
-                    }
-                  }}
+                  onClick={() => setOutraPessoa(false)}
+                  className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                    !outraPessoa
+                      ? "border-charcoal bg-charcoal text-white"
+                      : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                  }`}
                 >
-                  {buscandoLocalizacao ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <LocateFixed className="mr-2 h-4 w-4" />
-                  )}
-                  Usar minha localização
-                </Button>
-                {outraPessoa ? (
-                  <p className="rounded-lg bg-linen px-3 py-2 text-xs text-charcoal/70">
-                    A entrega será no endereço de quem vai receber, informado acima. Use o CEP para
-                    confirmar a área e o frete.
-                  </p>
-                ) : (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="end">Endereço completo</Label>
+                  Para mim
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOutraPessoa(true)}
+                  className={`rounded-xl border-2 py-3 text-sm font-medium transition-all ${
+                    outraPessoa
+                      ? "border-charcoal bg-charcoal text-white"
+                      : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                  }`}
+                >
+                  Para outra pessoa
+                </button>
+              </div>
+              {outraPessoa && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="dest-nome">Nome de quem vai receber</Label>
                     <Input
-                      id="end"
-                      value={enderecoStr}
-                      onChange={(e) => setEnderecoStr(e.target.value)}
+                      id="dest-nome"
+                      value={destNome}
+                      onChange={(e) => setDestNome(e.target.value)}
+                      placeholder="Nome completo"
+                      maxLength={120}
+                    />
+                    {erroLine("destNome")}
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="dest-wpp">Telefone / WhatsApp</Label>
+                    <Input
+                      id="dest-wpp"
+                      value={destWhatsapp}
+                      onChange={(e) => setDestWhatsapp(maskPhone(e.target.value))}
+                      placeholder="(61) 99999-9999"
+                    />
+                    {erroLine("destWhatsapp")}
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="dest-end">Endereço de quem vai receber</Label>
+                    <Input
+                      id="dest-end"
+                      value={destEndereco}
+                      onChange={(e) => {
+                        setDestEndereco(e.target.value);
+                        if (tipoEntrega === "delivery") setEnderecoStr(e.target.value);
+                      }}
                       placeholder="Rua, número, bairro, complemento"
                       maxLength={250}
-                      required
                     />
-                    {erroLine("endereco")}
+                    {erroLine("destEndereco")}
                   </div>
-                )}
-                {foraArea && (
-                  <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
-                    {MSG_FORA_AREA}
-                  </p>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </section>
 
-            <div className="mt-5 space-y-3 border-t border-border pt-5">
-              <div>
-                <Label>Data {tipoEntrega === "retirada" ? "da retirada" : "da entrega"}</Label>
-                {todosDias ? (
-                  <div className="mt-2 flex justify-center">
-                    <Calendar
-                      mode="single"
-                      selected={data ? parseDatePtBRToDate(data) : undefined}
-                      disabled={(day) => {
-                        const iso = toISODateString(day);
-                        if (iso < hojeISO) return true;
-                        return dataRetiradaBloqueada(
-                          iso,
-                          hojeISO,
-                          REGRA_RETIRADA_PADRAO,
-                          ctxAntecedencia,
-                        );
-                      }}
-                      fromMonth={new Date()}
-                      onSelect={(day) => {
-                        if (!day) return;
-                        const d = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12);
-                        setData(formatDatePtBR(d));
-                        setHorario("");
-                      }}
-                    />
-                  </div>
-                ) : datasDisponiveis.length === 0 ? (
-                  <p className="mt-2 text-xs text-terracotta">
-                    Nenhuma data disponível no momento.
-                  </p>
-                ) : datasDisponiveis.length > 4 ? (
-                  (() => {
-                    const datasIds = new Set(
-                      datasDisponiveis
-                        .map((d) => d.id)
-                        .filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
-                    );
-                    const selectedDatum = datasDisponiveis.find((d) => d.label === data);
-                    const selectedDate =
-                      selectedDatum?.id && /^\d{4}-\d{2}-\d{2}$/.test(selectedDatum.id)
-                        ? (() => {
-                            const [y, m, day] = selectedDatum.id.split("-").map(Number);
-                            return new Date(y, m - 1, day, 12);
-                          })()
-                        : undefined;
+            {/* Entrega */}
+            <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
+              <h2 className="mb-4 font-serif text-xl font-bold text-charcoal">
+                Entrega ou retirada
+              </h2>
+              <div className="mb-4 flex gap-2">
+                {(["retirada", "delivery"] as const)
+                  .filter((t) => (t === "retirada" ? podeRetirada : podeDelivery))
+                  .map((t) => {
+                    const bloqueado = t === "delivery" && soBolos;
                     return (
-                      <div className="mt-2 flex justify-center">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          disabled={(day) => !datasIds.has(toISODateString(day))}
-                          onSelect={(day) => {
-                            if (!day) return;
-                            const iso = toISODateString(day);
-                            const found = datasDisponiveis.find((d) => d.id === iso);
-                            if (found) {
-                              setData(found.label);
-                              setHorario("");
-                            }
-                          }}
-                        />
-                      </div>
+                      <button
+                        type="button"
+                        key={t}
+                        disabled={bloqueado}
+                        title={bloqueado ? MSG_BOLO_ENTREGA_INDISPONIVEL : undefined}
+                        onClick={() => {
+                          if (bloqueado) return;
+                          setTipoEntrega(t);
+                          setData("");
+                          setHorario("");
+                          setZonaEntregaAtual(null);
+                          if (t !== "retirada") setUnidadeId("");
+                        }}
+                        className={`flex-1 rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                          bloqueado
+                            ? "cursor-not-allowed border-border bg-linen text-charcoal/40"
+                            : tipoEntrega === t
+                              ? "border-terracotta bg-terracotta/10 text-terracotta"
+                              : "border-border text-charcoal hover:border-charcoal/40"
+                        }`}
+                      >
+                        {t === "retirada" ? "Retirada" : "Entrega"}
+                      </button>
                     );
-                  })()
-                ) : (
-                  <div
-                    className={`mt-2 grid gap-2 ${
-                      datasDisponiveis.length === 3 ? "grid-cols-3" : "grid-cols-2"
-                    }`}
-                  >
-                    {datasDisponiveis.map((d) => {
-                      const sel = data === d.label;
-                      const parsed = parseDateId(d.id);
-                      const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
-                      const numero = parsed?.dia ?? "•";
-                      const mesAno = parsed?.mesAno ?? "";
-                      return (
-                        <button
-                          type="button"
-                          key={d.id}
-                          onClick={() => {
-                            setData(d.label);
-                            setHorario("");
-                          }}
-                          className={`min-h-[68px] rounded-xl border-2 p-3 text-center transition-all ${
-                            sel
-                              ? "border-terracotta bg-terracotta text-white"
-                              : "border-border bg-white text-charcoal hover:border-charcoal/40"
-                          }`}
-                        >
-                          <div
-                            className={`font-serif text-2xl font-bold leading-none ${sel ? "text-white" : "text-charcoal"}`}
-                          >
-                            {numero}
-                          </div>
-                          <div
-                            className={`mt-1 text-xs font-medium ${sel ? "text-white" : "text-charcoal"}`}
-                          >
-                            {semana}
-                          </div>
-                          {mesAno ? (
-                            <div
-                              className={`mt-0.5 text-[10px] ${sel ? "text-white/80" : "text-charcoal/50"}`}
-                            >
-                              {mesAno}
-                            </div>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {erroLine("data")}
+                  })}
               </div>
-
-              {data ? (
-                <div>
-                  <Label>Horário</Label>
-                  {horariosDisponiveis.length === 0 ? (
-                    <p className="mt-2 text-xs text-terracotta">
-                      Nenhum horário disponível nesta data.
-                    </p>
+              {boloSemRetirada ? (
+                <p
+                  role="alert"
+                  className="mb-4 rounded-lg border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-charcoal"
+                >
+                  {MSG_BOLO_SEM_RETIRADA}
+                </p>
+              ) : (
+                soBolos &&
+                podeDelivery && (
+                  <p className="mb-4 rounded-lg bg-linen px-3 py-2 text-sm text-charcoal">
+                    {MSG_BOLO_ENTREGA_INDISPONIVEL}
+                  </p>
+                )
+              )}
+              {entregaBloqueadaPorBolo && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-lg border border-terracotta/40 bg-terracotta/10 px-3 py-2 text-sm text-charcoal"
+                >
+                  <p className="font-semibold">Bolo não é entregue</p>
+                  <p className="mt-1">{MSG_BOLO_PEDIDO_SEPARADO}</p>
+                  <p className="mt-1 text-xs text-charcoal/70">
+                    Bolos no pedido:{" "}
+                    {bolosNoCarrinho.map((b) => appendTamanhoAoNome(b.nome, b.tamanho)).join(", ")}
+                  </p>
+                </div>
+              )}
+              {tipoEntrega === "retirada" && podeRetirada && (
+                <div className="mb-4 space-y-2">
+                  <Label>Loja de retirada</Label>
+                  {unidades.length === 0 ? (
+                    <p className="text-xs text-terracotta">Nenhuma loja disponível no momento.</p>
                   ) : (
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {horariosDisponiveis.map((h) => {
-                        const sel = horario === h.label;
+                    <div className="space-y-2">
+                      {unidades.map((u) => {
+                        const sel = unidadeId === u.id;
                         return (
                           <button
                             type="button"
-                            key={h.label}
-                            onClick={() => setHorario(h.label)}
-                            className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-xs font-medium transition-all sm:text-sm ${
+                            key={u.id}
+                            onClick={() => setUnidadeId(u.id)}
+                            className={`flex w-full items-center gap-3 rounded-xl border-2 bg-white p-3 text-left transition-all ${
                               sel
-                                ? "border-terracotta bg-terracotta text-white"
-                                : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                                ? "border-terracotta bg-terracotta/5"
+                                : "border-border hover:border-charcoal/40"
                             }`}
                           >
-                            <Clock className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{h.label}</span>
+                            <div
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                sel ? "bg-terracotta text-white" : "bg-linen text-charcoal"
+                              }`}
+                            >
+                              <MapPin className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-charcoal">{u.nome}</p>
+                              {u.endereco ? (
+                                <p className="truncate text-xs text-charcoal/60">{u.endereco}</p>
+                              ) : null}
+                            </div>
                           </button>
                         );
                       })}
                     </div>
                   )}
-                  {erroLine("horario")}
+                  {erroLine("unidade")}
                 </div>
-              ) : null}
-            </div>
-          </section>
+              )}
+              {tipoEntrega === "delivery" && (
+                <div className="space-y-3">
+                  <p className="rounded-lg bg-linen px-3 py-2 text-xs leading-relaxed text-charcoal/80">
+                    {MSG_AREA_ENTREGA}
+                  </p>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="cep-entrega">CEP</Label>
+                      <Input
+                        id="cep-entrega"
+                        inputMode="numeric"
+                        value={cepEntrega}
+                        onChange={(e) => {
+                          setCepEntrega(maskCep(e.target.value));
+                          if (foraArea) setForaArea(false);
+                        }}
+                        placeholder="00000-000"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      disabled={buscandoCep || buscandoLocalizacao}
+                      onClick={async () => {
+                        const limpo = onlyDigits(cepEntrega);
+                        if (limpo.length !== 8) {
+                          toast.error("CEP inválido");
+                          return;
+                        }
+                        setBuscandoCep(true);
+                        const d = await buscarCep(limpo);
+                        setBuscandoCep(false);
+                        if (!d) {
+                          toast.error("CEP não encontrado");
+                          return;
+                        }
+                        const linha = [d.street, d.neighborhood, `${d.city}/${d.state}`]
+                          .filter(Boolean)
+                          .join(", ");
+                        setEnderecoStr(linha);
+                        setDestEndereco((atual) => atual.trim() || linha);
+                        const ok = atendeAreaEntrega({
+                          city: d.city,
+                          neighborhood: d.neighborhood,
+                          street: d.street,
+                          state: d.state,
+                        });
+                        salvarCepEntrega({
+                          cep: limpo,
+                          neighborhood: d.neighborhood,
+                          city: d.city,
+                          atende: ok,
+                        });
+                        setForaArea(!ok);
+                        if (!ok) {
+                          setZonaEntregaAtual(null);
+                          toast.error(MSG_FORA_AREA);
+                          return;
+                        }
 
-          {/* Pagamento */}
-          <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
-            <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">Pagamento</h2>
-            <p className="mb-4 inline-flex items-center gap-1 text-xs text-charcoal/70">
-              <Lock className="h-3 w-3" /> Pagamento processado com segurança via Asaas
-            </p>
+                        const zonasConfig = campanhaAtiva?.delivery?.zonas;
+                        const zonasAtivas = Boolean(
+                          zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0,
+                        );
+                        if (zonasAtivas && zonasConfig) {
+                          const consulta = [
+                            d.street,
+                            d.neighborhood,
+                            `${d.city}/${d.state}`,
+                            limpo,
+                            "Brasil",
+                          ]
+                            .filter(Boolean)
+                            .join(", ");
+                          let coords =
+                            d.lat != null && d.lng != null
+                              ? { lat: d.lat, lng: d.lng }
+                              : await geocodificarViaBrasilAPI(limpo);
+                          if (!coords) coords = await geocodificarCep(limpo);
+                          if (!coords) coords = await geocodificarEndereco(consulta);
+                          if (!coords) {
+                            const zonaFallback = zonasConfig.zonas[0];
+                            setZonaEntregaAtual(zonaFallback);
+                            toast.success(
+                              `Endereço aceito — ${zonaFallback.nome}. Confirmaremos a disponibilidade pelo WhatsApp.`,
+                            );
+                            return;
+                          }
+                          const zona = encontrarZonaComTolerancia(coords, zonasConfig.zonas);
+                          if (!zona) {
+                            setForaArea(true);
+                            setZonaEntregaAtual(null);
+                            toast.error(
+                              "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha retirada.",
+                            );
+                            return;
+                          }
+                          setZonaEntregaAtual(zona);
+                          toast.success(`Endereço confirmado — ${zona.nome}.`);
+                          return;
+                        }
 
-            <div className="mb-4 grid grid-cols-2 gap-2">
-              {(["PIX", "CREDIT_CARD"] as const).map((m) => (
-                <button
-                  type="button"
-                  key={m}
-                  onClick={() => setMetodo(m)}
-                  className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
-                    metodo === m
-                      ? "border-terracotta bg-terracotta/10 text-terracotta"
-                      : "border-border text-charcoal hover:border-charcoal/40"
-                  }`}
-                >
-                  {m === "PIX" ? "PIX" : "Cartão de Crédito"}
-                </button>
-              ))}
-            </div>
+                        setZonaEntregaAtual(null);
+                        toast.success("Endereço encontrado — área atendida.");
+                      }}
+                      className="bg-charcoal text-white hover:bg-charcoal/90"
+                    >
+                      {buscandoCep ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={buscandoCep || buscandoLocalizacao}
+                    className="w-full border-charcoal/20 text-charcoal"
+                    onClick={async () => {
+                      setBuscandoLocalizacao(true);
+                      setForaArea(false);
+                      try {
+                        const loc = await enderecoDaLocalizacaoAtual();
+                        if (loc.cep.length === 8) setCepEntrega(maskCep(loc.cep));
+                        const linha = [loc.street, loc.neighborhood, `${loc.city}/${loc.state}`]
+                          .filter(Boolean)
+                          .join(", ");
+                        if (linha) {
+                          setEnderecoStr(linha);
+                          setDestEndereco((atual) => atual.trim() || linha);
+                        }
+                        const ok = atendeAreaEntrega({
+                          city: loc.city,
+                          neighborhood: loc.neighborhood,
+                          street: loc.street,
+                          state: loc.state,
+                        });
+                        if (loc.cep.length === 8) {
+                          salvarCepEntrega({
+                            cep: loc.cep,
+                            neighborhood: loc.neighborhood,
+                            city: loc.city,
+                            atende: ok,
+                          });
+                        }
+                        setForaArea(!ok);
+                        if (!ok) {
+                          setZonaEntregaAtual(null);
+                          toast.error(MSG_FORA_AREA);
+                          return;
+                        }
 
-            {metodo === "PIX" ? (
-              <div className="rounded-lg bg-linen p-4 text-sm text-charcoal/80">
-                Após confirmar, você verá o QR Code e o código copia-e-cola para pagar. A
-                confirmação é automática.
+                        const zonasConfig = campanhaAtiva?.delivery?.zonas;
+                        const zonasAtivas = Boolean(
+                          zonasConfig?.ativo && (zonasConfig.zonas?.length ?? 0) > 0,
+                        );
+                        if (zonasAtivas && zonasConfig) {
+                          const zona = encontrarZonaComTolerancia(
+                            { lat: loc.lat, lng: loc.lng },
+                            zonasConfig.zonas,
+                          );
+                          if (!zona) {
+                            setForaArea(true);
+                            setZonaEntregaAtual(null);
+                            toast.error(
+                              "Este endereço está fora da nossa área de entrega. Tente outro CEP ou escolha retirada.",
+                            );
+                            return;
+                          }
+                          setZonaEntregaAtual(zona);
+                          toast.success(`Localização confirmada — ${zona.nome}.`);
+                          return;
+                        }
+
+                        setZonaEntregaAtual(null);
+                        toast.success("Localização encontrada — área atendida.");
+                      } catch (e) {
+                        const msg =
+                          e instanceof LocalizacaoError
+                            ? mensagemErroLocalizacao(e.code)
+                            : "Não foi possível usar a localização. Digite o CEP.";
+                        toast.error(msg);
+                      } finally {
+                        setBuscandoLocalizacao(false);
+                      }
+                    }}
+                  >
+                    {buscandoLocalizacao ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <LocateFixed className="mr-2 h-4 w-4" />
+                    )}
+                    Usar minha localização
+                  </Button>
+                  {outraPessoa ? (
+                    <p className="rounded-lg bg-linen px-3 py-2 text-xs text-charcoal/70">
+                      A entrega será no endereço de quem vai receber, informado acima. Use o CEP
+                      para confirmar a área e o frete.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="end">Endereço completo</Label>
+                      <Input
+                        id="end"
+                        value={enderecoStr}
+                        onChange={(e) => setEnderecoStr(e.target.value)}
+                        placeholder="Rua, número, bairro, complemento"
+                        maxLength={250}
+                        required
+                      />
+                      {erroLine("endereco")}
+                    </div>
+                  )}
+                  {foraArea && (
+                    <p className="rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">
+                      {MSG_FORA_AREA}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-5 space-y-3 border-t border-border pt-5">
+                <div>
+                  <Label>Data {tipoEntrega === "retirada" ? "da retirada" : "da entrega"}</Label>
+                  {todosDias ? (
+                    <div className="mt-2 flex justify-center">
+                      <Calendar
+                        mode="single"
+                        selected={data ? parseDatePtBRToDate(data) : undefined}
+                        disabled={(day) => {
+                          const iso = toISODateString(day);
+                          if (iso < hojeISO) return true;
+                          return dataRetiradaBloqueada(
+                            iso,
+                            hojeISO,
+                            REGRA_RETIRADA_PADRAO,
+                            ctxAntecedencia,
+                          );
+                        }}
+                        fromMonth={new Date()}
+                        onSelect={(day) => {
+                          if (!day) return;
+                          const d = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12);
+                          setData(formatDatePtBR(d));
+                          setHorario("");
+                        }}
+                      />
+                    </div>
+                  ) : datasDisponiveis.length === 0 ? (
+                    <p className="mt-2 text-xs text-terracotta">
+                      Nenhuma data disponível no momento.
+                    </p>
+                  ) : datasDisponiveis.length > 4 ? (
+                    (() => {
+                      const datasIds = new Set(
+                        datasDisponiveis
+                          .map((d) => d.id)
+                          .filter((id) => /^\d{4}-\d{2}-\d{2}$/.test(id)),
+                      );
+                      const selectedDatum = datasDisponiveis.find((d) => d.label === data);
+                      const selectedDate =
+                        selectedDatum?.id && /^\d{4}-\d{2}-\d{2}$/.test(selectedDatum.id)
+                          ? (() => {
+                              const [y, m, day] = selectedDatum.id.split("-").map(Number);
+                              return new Date(y, m - 1, day, 12);
+                            })()
+                          : undefined;
+                      return (
+                        <div className="mt-2 flex justify-center">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            disabled={(day) => !datasIds.has(toISODateString(day))}
+                            onSelect={(day) => {
+                              if (!day) return;
+                              const iso = toISODateString(day);
+                              const found = datasDisponiveis.find((d) => d.id === iso);
+                              if (found) {
+                                setData(found.label);
+                                setHorario("");
+                              }
+                            }}
+                          />
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div
+                      className={`mt-2 grid gap-2 ${
+                        datasDisponiveis.length === 3 ? "grid-cols-3" : "grid-cols-2"
+                      }`}
+                    >
+                      {datasDisponiveis.map((d) => {
+                        const sel = data === d.label;
+                        const parsed = parseDateId(d.id);
+                        const semana = parsed?.semana ?? (d.label.split(",")[0]?.trim() || d.label);
+                        const numero = parsed?.dia ?? "•";
+                        const mesAno = parsed?.mesAno ?? "";
+                        return (
+                          <button
+                            type="button"
+                            key={d.id}
+                            onClick={() => {
+                              setData(d.label);
+                              setHorario("");
+                            }}
+                            className={`min-h-[68px] rounded-xl border-2 p-3 text-center transition-all ${
+                              sel
+                                ? "border-terracotta bg-terracotta text-white"
+                                : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                            }`}
+                          >
+                            <div
+                              className={`font-serif text-2xl font-bold leading-none ${sel ? "text-white" : "text-charcoal"}`}
+                            >
+                              {numero}
+                            </div>
+                            <div
+                              className={`mt-1 text-xs font-medium ${sel ? "text-white" : "text-charcoal"}`}
+                            >
+                              {semana}
+                            </div>
+                            {mesAno ? (
+                              <div
+                                className={`mt-0.5 text-[10px] ${sel ? "text-white/80" : "text-charcoal/50"}`}
+                              >
+                                {mesAno}
+                              </div>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {erroLine("data")}
+                </div>
+
+                {data ? (
+                  <div>
+                    <Label>Horário</Label>
+                    {horariosDisponiveis.length === 0 ? (
+                      <p className="mt-2 text-xs text-terracotta">
+                        Nenhum horário disponível nesta data.
+                      </p>
+                    ) : (
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {horariosDisponiveis.map((h) => {
+                          const sel = horario === h.label;
+                          return (
+                            <button
+                              type="button"
+                              key={h.label}
+                              onClick={() => setHorario(h.label)}
+                              className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2.5 text-xs font-medium transition-all sm:text-sm ${
+                                sel
+                                  ? "border-terracotta bg-terracotta text-white"
+                                  : "border-border bg-white text-charcoal hover:border-charcoal/40"
+                              }`}
+                            >
+                              <Clock className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{h.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {erroLine("horario")}
+                  </div>
+                ) : null}
               </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="cardName">Nome impresso no cartão</Label>
-                  <Input
-                    id="cardName"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value.toUpperCase())}
-                    maxLength={120}
-                  />
-                  {erroLine("cardName")}
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="cardNumber">Número do cartão</Label>
-                  <Input
-                    id="cardNumber"
-                    inputMode="numeric"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(maskCard(e.target.value))}
-                    placeholder="0000 0000 0000 0000"
-                  />
-                  {erroLine("cardNumber")}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="cardExpiry">Validade</Label>
-                  <Input
-                    id="cardExpiry"
-                    inputMode="numeric"
-                    value={cardExpiry}
-                    onChange={(e) => setCardExpiry(maskExpiry(e.target.value))}
-                    placeholder="MM/AA"
-                  />
-                  {erroLine("cardExpiry")}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="cardCcv">CCV</Label>
-                  <Input
-                    id="cardCcv"
-                    inputMode="numeric"
-                    value={cardCcv}
-                    onChange={(e) => setCardCcv(onlyDigits(e.target.value).slice(0, 4))}
-                    placeholder="000"
-                  />
-                  {erroLine("cardCcv")}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="cep">CEP do titular</Label>
-                  <Input
-                    id="cep"
-                    inputMode="numeric"
-                    value={cep}
-                    onChange={(e) => setCep(maskCep(e.target.value))}
-                    placeholder="00000-000"
-                  />
-                  {erroLine("cep")}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="numero">Número</Label>
-                  <Input
-                    id="numero"
-                    value={numero}
-                    onChange={(e) => setNumero(e.target.value)}
-                    maxLength={10}
-                  />
-                  {erroLine("numero")}
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="complemento">Complemento (opcional)</Label>
-                  <Input
-                    id="complemento"
-                    value={complemento}
-                    onChange={(e) => setComplemento(e.target.value)}
-                    maxLength={80}
-                  />
-                </div>
+            </section>
+          </fieldset>
+
+          {/* Pagamento — só aparece na etapa de pagamento, com o cronômetro */}
+          {etapa === "pagamento" && prazoExpirado && (
+            <PrazoEsgotado onNovoPedido={montarNovoPedido} />
+          )}
+          {etapa === "pagamento" && !prazoExpirado && (
+            <section id="pagamento" className="rounded-2xl bg-white p-6 ring-1 ring-border">
+              <ContagemPrazo segundos={segundosPrazo} className="mb-4" />
+              <h2 className="mb-1 font-serif text-xl font-bold text-charcoal">Pagamento</h2>
+              <p className="mb-4 inline-flex items-center gap-1 text-xs text-charcoal/70">
+                <Lock className="h-3 w-3" /> Pagamento processado com segurança via Asaas
+              </p>
+
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                {(["PIX", "CREDIT_CARD"] as const).map((m) => (
+                  <button
+                    type="button"
+                    key={m}
+                    onClick={() => setMetodo(m)}
+                    className={`rounded-lg border-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                      metodo === m
+                        ? "border-terracotta bg-terracotta/10 text-terracotta"
+                        : "border-border text-charcoal hover:border-charcoal/40"
+                    }`}
+                  >
+                    {m === "PIX" ? "PIX" : "Cartão de Crédito"}
+                  </button>
+                ))}
               </div>
-            )}
-          </section>
+
+              {metodo === "PIX" ? (
+                <div className="rounded-lg bg-linen p-4 text-sm text-charcoal/80">
+                  Após confirmar, você verá o QR Code e o código copia-e-cola para pagar. A
+                  confirmação é automática.
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="cardName">Nome impresso no cartão</Label>
+                    <Input
+                      id="cardName"
+                      value={cardName}
+                      onChange={(e) => setCardName(e.target.value.toUpperCase())}
+                      maxLength={120}
+                    />
+                    {erroLine("cardName")}
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="cardNumber">Número do cartão</Label>
+                    <Input
+                      id="cardNumber"
+                      inputMode="numeric"
+                      value={cardNumber}
+                      onChange={(e) => setCardNumber(maskCard(e.target.value))}
+                      placeholder="0000 0000 0000 0000"
+                    />
+                    {erroLine("cardNumber")}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cardExpiry">Validade</Label>
+                    <Input
+                      id="cardExpiry"
+                      inputMode="numeric"
+                      value={cardExpiry}
+                      onChange={(e) => setCardExpiry(maskExpiry(e.target.value))}
+                      placeholder="MM/AA"
+                    />
+                    {erroLine("cardExpiry")}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cardCcv">CCV</Label>
+                    <Input
+                      id="cardCcv"
+                      inputMode="numeric"
+                      value={cardCcv}
+                      onChange={(e) => setCardCcv(onlyDigits(e.target.value).slice(0, 4))}
+                      placeholder="000"
+                    />
+                    {erroLine("cardCcv")}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cep">CEP do titular</Label>
+                    <Input
+                      id="cep"
+                      inputMode="numeric"
+                      value={cep}
+                      onChange={(e) => setCep(maskCep(e.target.value))}
+                      placeholder="00000-000"
+                    />
+                    {erroLine("cep")}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="numero">Número</Label>
+                    <Input
+                      id="numero"
+                      value={numero}
+                      onChange={(e) => setNumero(e.target.value)}
+                      maxLength={10}
+                    />
+                    {erroLine("numero")}
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="complemento">Complemento (opcional)</Label>
+                    <Input
+                      id="complemento"
+                      value={complemento}
+                      onChange={(e) => setComplemento(e.target.value)}
+                      maxLength={80}
+                    />
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {entregaBloqueadaPorBolo && (
             <p className="text-center text-sm font-medium text-terracotta">
               Para finalizar, escolha Retirada ou faça um pedido separado para os bolos.
             </p>
           )}
-          <Button
-            type="submit"
-            disabled={enviando}
-            className="w-full bg-terracotta py-6 text-base font-semibold text-white hover:bg-terracotta/90"
-          >
-            {enviando ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processando…
-              </>
-            ) : (
-              `Pagar ${formatBRL(totalComDesconto)}`
-            )}
-          </Button>
+          {!(etapa === "pagamento" && prazoExpirado) && (
+            <Button
+              type="submit"
+              disabled={enviando}
+              className="w-full bg-terracotta py-6 text-base font-semibold text-white hover:bg-terracotta/90"
+            >
+              {enviando ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processando…
+                </>
+              ) : etapa === "dados" ? (
+                "Ir para o pagamento"
+              ) : (
+                `Pagar ${formatBRL(totalComDesconto)}`
+              )}
+            </Button>
+          )}
         </form>
 
         <aside className="h-fit space-y-4">

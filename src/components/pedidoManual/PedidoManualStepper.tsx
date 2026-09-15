@@ -14,6 +14,13 @@ import { useManualOrder, ETAPAS, type Etapa } from "./useManualOrder";
 import { LinkPagamentoAcoes } from "./LinkPagamentoAcoes";
 import { PixQrCode } from "./PixQrCode";
 import { CartaoQrDisplay } from "./CartaoQrDisplay";
+import { ContagemPrazo, useContagemPrazo } from "@/components/PrazoPagamento";
+import {
+  confirmarFimDoPrazo,
+  consultarPrazoPagamento,
+  headersEquipe,
+  type SituacaoPrazoPagamento,
+} from "@/lib/prazoPagamentoClient";
 import {
   criarPedidoManual,
   gerarLinkPagamento,
@@ -122,6 +129,23 @@ export function PedidoManualStepper({
     payload: string;
     expiraEm?: string | null;
   } | null>(null);
+
+  // O cliente tem 2 minutos para pagar o PIX/link gerado; depois o pedido expira.
+  const [prazoPagamento, setPrazoPagamento] = useState<SituacaoPrazoPagamento | null>(null);
+  const [pagamentoExpirado, setPagamentoExpirado] = useState(false);
+  const segundosPrazo = useContagemPrazo(
+    pagamentoExpirado ? null : prazoPagamento?.expiraEm,
+    prazoPagamento?.agora,
+    async () => {
+      if (!pedidoId) return;
+      const situacao = await confirmarFimDoPrazo(pedidoId, { headers: await headersEquipe() });
+      if (situacao?.expirado) setPagamentoExpirado(true);
+    },
+  );
+  const carregarPrazo = async (id: string) => {
+    const situacao = await consultarPrazoPagamento(id, { headers: await headersEquipe() });
+    if (situacao) setPrazoPagamento(situacao);
+  };
 
   const stepRef = useRef<HTMLDivElement>(null);
 
@@ -236,21 +260,31 @@ export function PedidoManualStepper({
     if (metodo === "pix") {
       const res = await gerarPix(pedidoId, parsed.data);
       setGerando(false);
+      if (res.error === "expirado") {
+        setPagamentoExpirado(true);
+        return;
+      }
       if (!res.ok || !res.qrImage || !res.payload) {
         toast.error("Não foi possível gerar o PIX", { description: res.error });
         return;
       }
       setPixResult({ qrImage: res.qrImage, payload: res.payload, expiraEm: res.expiraEm });
+      void carregarPrazo(pedidoId);
       toast.success("PIX gerado!");
       return;
     }
     const res = await gerarLinkPagamento(pedidoId, parsed.data);
     setGerando(false);
+    if (res.error === "expirado") {
+      setPagamentoExpirado(true);
+      return;
+    }
     if (!res.ok || !res.invoiceUrl) {
       toast.error("Não foi possível gerar o link", { description: res.error });
       return;
     }
     setInvoiceUrl(res.invoiceUrl);
+    void carregarPrazo(pedidoId);
     toast.success("Link gerado!");
   };
 
@@ -297,6 +331,10 @@ export function PedidoManualStepper({
     setGerando(true);
     const res = await gerarLinkPagamento(pedidoId, cpfConfirmado);
     setGerando(false);
+    if (res.error === "expirado") {
+      setPagamentoExpirado(true);
+      return;
+    }
     if (!res.ok || !res.invoiceUrl) {
       toast.error("Não foi possível gerar o link", { description: res.error });
       return;
@@ -625,13 +663,24 @@ export function PedidoManualStepper({
               <ResultadoOk titulo="Pago no cartão!" desc="Pagamento confirmado pelo cliente." onConcluir={() => onFinalizado(pedidoId)} />
             ) : posPago ? (
               <ResultadoOk titulo="Pago na maquininha!" desc={`${posBandeira} · ${posTipo === "credito" ? "Crédito" : "Débito"}`} onConcluir={() => onFinalizado(pedidoId)} />
+            ) : pagamentoExpirado ? (
+              <div className="flex flex-col gap-3 rounded-2xl border border-terracotta/30 bg-terracotta/5 p-4 text-sm text-charcoal">
+                <p className="font-semibold">Tempo esgotado</p>
+                <p>
+                  O cliente não pagou em 2 minutos. O pedido foi marcado como expirado e a
+                  cobrança foi cancelada — para vender, crie um novo pedido.
+                </p>
+                <Button className="w-full" onClick={() => onFinalizado(pedidoId)}>Concluir</Button>
+              </div>
             ) : pixResult ? (
               <>
-                <PixQrCode qrImage={pixResult.qrImage} payload={pixResult.payload} expiraEm={pixResult.expiraEm} />
+                <ContagemPrazo segundos={segundosPrazo} />
+                <PixQrCode qrImage={pixResult.qrImage} payload={pixResult.payload} />
                 <Button className="w-full" onClick={() => onFinalizado(pedidoId)}>Concluir</Button>
               </>
             ) : invoiceUrl ? (
               <>
+                <ContagemPrazo segundos={segundosPrazo} />
                 <LinkPagamentoAcoes invoiceUrl={invoiceUrl} whatsapp={state.cliente.whatsapp}
                   email={state.cliente.email || undefined} onGerarNovo={regenerar} gerando={gerando} />
                 <Button className="w-full" onClick={() => onFinalizado(pedidoId)}>Concluir</Button>
@@ -640,6 +689,7 @@ export function PedidoManualStepper({
               <CartaoQrDisplay
                 pedidoId={pedidoId}
                 onPago={() => setCartaoQrPago(true)}
+                onExpirado={() => setPagamentoExpirado(true)}
               />
             ) : metodo === "pix" || metodo === "cartao" ? (
               <div className="flex flex-col gap-3">

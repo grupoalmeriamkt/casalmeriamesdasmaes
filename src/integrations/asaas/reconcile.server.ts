@@ -11,12 +11,18 @@ import {
   registrarConciliacaoEvento,
   syncPedidoPaymentFields,
 } from "@/lib/pedidoSync";
+import { PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
+import {
+  aplicarPrazoNaConfirmacao,
+  expirarPedidoSeVencido,
+} from "@/lib/prazoPagamento.server";
 
 export type ConciliacaoResultado = {
   pagamentosVerificados: number;
   pagamentosAtualizados: number;
   pedidosAtualizados: number;
   pendenciasCriadas: number;
+  pedidosExpirados: number;
   detalhes: {
     pagamentoId: string;
     pedidoId: string;
@@ -56,7 +62,8 @@ async function reavaliarPedido(
       .maybeSingle(),
   ]);
 
-  if (!pedido) return;
+  // Pedido expirado com pagamento confirmado já foi para estorno (aplicarPrazoNaConfirmacao).
+  if (!pedido || pedido.status === PEDIDO_EXPIRADO) return;
   const rel = pagamentoRelevante(pagamentos ?? []);
   const asaasPago = rel && ASAAS_FINAL_PAID.has(rel.status);
   const localAprovado = isPagamentoAprovado(
@@ -86,17 +93,34 @@ export async function conciliarPagamentosAsaas(
     pagamentosAtualizados: 0,
     pedidosAtualizados: 0,
     pendenciasCriadas: 0,
+    pedidosExpirados: 0,
     detalhes: [],
     erros: [],
   };
 
+  // Prazo de pagamento vencido sem ninguém na tela (cliente fechou a aba): expira aqui.
+  const { data: prazosVencidos } = await admin
+    .from("pedidos")
+    .select("id")
+    .in("status", ["rascunho", "pendente", "aguardando_pagamento", "vencido"])
+    .lt("pagamento_expira_em", new Date().toISOString());
+  for (const p of prazosVencidos ?? []) {
+    try {
+      const situacao = await expirarPedidoSeVencido(admin, asaas, p.id as string);
+      if (situacao?.expirado) resultado.pedidosExpirados += 1;
+    } catch (e) {
+      console.error("[conciliacao] expirar pedido", p.id, e);
+    }
+  }
+
   // Só re-consulta o Asaas para cobranças de pedidos ainda ABERTOS. Antes varria
   // TODOS os pagamentos serialmente e estourava os 30s da função conforme o volume
-  // crescia (backstop parava de curar silenciosamente).
+  // crescia (backstop parava de curar silenciosamente). Expirados entram para pegar
+  // pagamento feito depois do prazo (que precisa ser estornado).
   const { data: pedidosAbertos } = await admin
     .from("pedidos")
     .select("id")
-    .in("status", ["aguardando_pagamento", "vencido"]);
+    .in("status", ["aguardando_pagamento", "vencido", PEDIDO_EXPIRADO]);
   const abertosIds = (pedidosAbertos ?? []).map((p) => p.id as string);
 
   let rows: PagamentoRow[] = [];
@@ -142,6 +166,13 @@ export async function conciliarPagamentosAsaas(
           erro: updErr.message,
         });
         continue;
+      }
+
+      if (ASAAS_FINAL_PAID.has(asaasPayment.status)) {
+        // Sem o horário exato da confirmação: só estorna se o pedido já tinha expirado.
+        await aplicarPrazoNaConfirmacao(admin, asaas, row.pedido_id, row.asaas_payment_id, {
+          statusAsaas: asaasPayment.status,
+        });
       }
 
       resultado.pagamentosAtualizados += 1;
@@ -209,7 +240,7 @@ export async function detectarDivergenciasPagamento(
   const { data: pedidos } = await admin
     .from("pedidos")
     .select("id, status, payment_status_normalized")
-    .neq("status", "cancelado")
+    .not("status", "in", `(cancelado,${PEDIDO_EXPIRADO})`)
     .limit(500);
 
   let count = 0;

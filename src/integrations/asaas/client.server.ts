@@ -59,16 +59,36 @@ export function makeAsaasClient(apiKey: string) {
     },
 
     async createCustomer(input: AsaasCreateCustomer): Promise<AsaasCustomer> {
+      // Por padrão o Asaas não notifica o cliente (e-mail/SMS/WhatsApp); a comunicação é nossa.
       return asaasFetch<AsaasCustomer>(apiKey, "/customers", {
         method: "POST",
+        body: JSON.stringify({ notificationDisabled: true, ...input }),
+      });
+    },
+
+    async updateCustomer(
+      customerId: string,
+      input: Partial<AsaasCreateCustomer>,
+    ): Promise<AsaasCustomer> {
+      return asaasFetch<AsaasCustomer>(apiKey, `/customers/${customerId}`, {
+        method: "PUT",
         body: JSON.stringify(input),
       });
     },
 
     async upsertCustomer(input: AsaasCreateCustomer): Promise<AsaasCustomer> {
       const existing = await this.findCustomerByCpf(input.cpfCnpj);
-      if (existing) return existing;
-      return this.createCustomer(input);
+      if (!existing) return this.createCustomer(input);
+      // Cliente antigo pode ter notificações ligadas: o Asaas mandaria o link da cobrança
+      // por e-mail/SMS. Desliga antes de criar a cobrança; falha não impede a venda.
+      if (existing.notificationDisabled !== true) {
+        try {
+          return await this.updateCustomer(existing.id, { notificationDisabled: true });
+        } catch (e) {
+          console.error("[asaas] desligar notificações do cliente", existing.id, e);
+        }
+      }
+      return existing;
     },
 
     async createPayment(input: AsaasCreatePayment): Promise<AsaasPayment> {
@@ -89,6 +109,14 @@ export function makeAsaasClient(apiKey: string) {
     async deletePayment(paymentId: string): Promise<{ deleted?: boolean; id?: string }> {
       return asaasFetch<{ deleted?: boolean; id?: string }>(apiKey, `/payments/${paymentId}`, {
         method: "DELETE",
+      });
+    },
+
+    /** Estorno total da cobrança (PIX ou cartão). */
+    async refundPayment(paymentId: string): Promise<AsaasPayment> {
+      return asaasFetch<AsaasPayment>(apiKey, `/payments/${paymentId}/refund`, {
+        method: "POST",
+        body: JSON.stringify({}),
       });
     },
   };

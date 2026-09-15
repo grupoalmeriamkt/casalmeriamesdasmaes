@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { ThemeApplier } from "@/components/ThemeApplier";
@@ -7,10 +7,20 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { useAdmin } from "@/store/admin";
 import { usePedido } from "@/store/pedido";
-import { CheckCircle2, Copy, Loader2, MessageCircle, Clock, ArrowLeft } from "lucide-react";
+import {
+  CheckCircle2,
+  Copy,
+  Loader2,
+  MessageCircle,
+  Clock,
+  ArrowLeft,
+  TimerOff,
+} from "lucide-react";
+import { ContagemPrazo, useContagemPrazo } from "@/components/PrazoPagamento";
 import { fbqTrack, newEventId, sendCapiEvent } from "@/lib/metaPixel";
 import { trackPurchase } from "@/lib/gtm";
 import { checkoutAccessHeadersForPagamento } from "@/lib/checkoutAccess";
+import { MSG_PRAZO_EXPIRADO, PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
 
 export const Route = createFileRoute("/sucesso/$id")({
   head: () => ({
@@ -36,6 +46,8 @@ type Pagamento = {
   atualizado_em?: string;
 };
 
+type Prazo = { status: string; expiraEm: string | null; agora: string };
+
 const PAGO_STATUSES = new Set(["CONFIRMED", "RECEIVED"]);
 const FALHOU_STATUSES = new Set(["REFUNDED", "PAYMENT_DELETED", "CHARGEBACK_REQUESTED"]);
 
@@ -44,6 +56,9 @@ function SucessoPage() {
   const [pagamento, setPagamento] = useState<Pagamento | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [statusLive, setStatusLive] = useState<string | null>(null);
+  const [prazo, setPrazo] = useState<Prazo | null>(null);
+  const [pago, setPago] = useState(false);
+  const [expirado, setExpirado] = useState(false);
 
   const whatsappUrl = useAdmin((s) => s.home.rodape.redes.whatsapp);
   const pixelId = useAdmin((s) => s.integracoes.metaPixelId);
@@ -65,10 +80,14 @@ function SucessoPage() {
           setCarregando(false);
           return;
         }
-        const json = (await res.json()) as { pagamento?: Pagamento };
+        const json = (await res.json()) as { pagamento?: Pagamento; prazo?: Prazo | null };
         if (json.pagamento) {
+          const jaExpirado = json.prazo?.status === PEDIDO_EXPIRADO;
           setPagamento(json.pagamento);
           setStatusLive(json.pagamento.status);
+          setPrazo(json.prazo ?? null);
+          setExpirado(jaExpirado);
+          setPago(PAGO_STATUSES.has(json.pagamento.status) && !jaExpirado);
         }
       } catch (e) {
         console.error("[sucesso] erro ao buscar pagamento", e);
@@ -82,30 +101,40 @@ function SucessoPage() {
     };
   }, [id]);
 
-  // Polling do status enquanto não está pago
-  useEffect(() => {
-    if (!pagamento) return;
-    if (PAGO_STATUSES.has(statusLive ?? "")) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/public/asaas/status/${id}`, {
-          headers: checkoutAccessHeadersForPagamento(pagamento?.pedido_id, id),
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        setStatusLive(data.status);
-        if (PAGO_STATUSES.has(data.status)) {
-          toast.success("Pagamento confirmado!");
-        }
-      } catch {
-        /* ignore */
+  const consultarStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/public/asaas/status/${id}`, {
+        headers: checkoutAccessHeadersForPagamento(pagamento?.pedido_id, id),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { status: string; pago?: boolean; expirado?: boolean };
+      setStatusLive(data.status);
+      if (data.expirado) {
+        setExpirado(true);
+      } else if (data.pago) {
+        setPago(true);
+        toast.success("Pagamento confirmado!");
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [pagamento, statusLive, id]);
+    } catch {
+      /* ignore */
+    }
+  }, [id, pagamento?.pedido_id]);
 
-  const pago = PAGO_STATUSES.has(statusLive ?? "");
-  const falhou = FALHOU_STATUSES.has(statusLive ?? "");
+  // Polling do status enquanto não está pago nem expirado
+  useEffect(() => {
+    if (!pagamento || pago || expirado) return;
+    const interval = setInterval(() => void consultarStatus(), 5000);
+    return () => clearInterval(interval);
+  }, [pagamento, pago, expirado, consultarStatus]);
+
+  // Fim dos 2 minutos: confere na hora — o servidor cancela a cobrança e expira o pedido.
+  const segundos = useContagemPrazo(
+    pagamento && !pago && !expirado ? prazo?.expiraEm : null,
+    prazo?.agora,
+    () => void consultarStatus(),
+  );
+
+  const falhou = !expirado && FALHOU_STATUSES.has(statusLive ?? "");
 
   // Purchase — dispara uma única vez quando pagamento é confirmado
   useEffect(() => {
@@ -173,6 +202,8 @@ function SucessoPage() {
     );
   }
 
+  const aguardando = !pago && !expirado && !falhou;
+
   return (
     <div className="min-h-screen bg-linen">
       <ThemeApplier />
@@ -201,6 +232,18 @@ function SucessoPage() {
                 Seu pagamento foi recebido. Em breve entraremos em contato pelo WhatsApp.
               </p>
             </>
+          ) : expirado ? (
+            <>
+              <TimerOff className="mx-auto h-14 w-14 text-terracotta" />
+              <h1 className="mt-3 font-serif text-3xl font-bold text-charcoal">Tempo esgotado</h1>
+              <p className="mt-2 text-charcoal/80">{MSG_PRAZO_EXPIRADO}</p>
+              <Link
+                to="/"
+                className="mt-5 inline-flex items-center justify-center rounded-md bg-terracotta px-5 py-2.5 text-sm font-semibold text-white hover:bg-terracotta/90"
+              >
+                Montar novo pedido
+              </Link>
+            </>
           ) : falhou ? (
             <>
               <h1 className="font-serif text-3xl font-bold text-charcoal">
@@ -225,8 +268,10 @@ function SucessoPage() {
           )}
         </section>
 
+        {aguardando && <ContagemPrazo segundos={segundos} />}
+
         {/* PIX QR Code */}
-        {pagamento.metodo === "PIX" && !pago && pagamento.pix_qrcode_image && (
+        {pagamento.metodo === "PIX" && aguardando && pagamento.pix_qrcode_image && (
           <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
             <h2 className="mb-4 font-serif text-xl font-bold text-charcoal">QR Code PIX</h2>
             <div className="grid gap-6 sm:grid-cols-[220px_1fr] sm:items-start">
@@ -257,18 +302,13 @@ function SucessoPage() {
                   <Copy className="mr-2 h-4 w-4" />
                   Copiar código copia-e-cola
                 </Button>
-                {pagamento.pix_expira_em && (
-                  <p className="text-xs text-charcoal/60">
-                    Expira em {new Date(pagamento.pix_expira_em).toLocaleString("pt-BR")}
-                  </p>
-                )}
               </div>
             </div>
           </section>
         )}
 
         {/* Cartão */}
-        {pagamento.metodo === "CREDIT_CARD" && (
+        {pagamento.metodo === "CREDIT_CARD" && !expirado && (
           <section className="rounded-2xl bg-white p-6 ring-1 ring-border">
             <h2 className="mb-2 font-serif text-xl font-bold text-charcoal">Cartão de Crédito</h2>
             <p className="text-sm text-charcoal/80">

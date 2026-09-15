@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { Loader2, Tag, Lock, CheckCircle2, Zap, CreditCard, Store, MapPin, Calen
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ContagemPrazo, PrazoEsgotado, useContagemPrazo } from "@/components/PrazoPagamento";
 import { usePedido, formatBRL, selectTotal, selectPrecoEfetivo } from "@/store/pedido";
 import { useCampanhaAtiva, calcTaxaEntrega } from "@/store/admin";
 import { finalizarPedido } from "@/lib/pedidos";
@@ -13,6 +14,11 @@ import { buildCestaPayloadFromState } from "@/lib/cestaTamanho";
 import { checkoutAccessHeaders, linkPagamentoAccess } from "@/lib/checkoutAccess";
 import { MSG_LOJA_FECHADA, novosPedidosBloqueados } from "@/lib/availability/loja";
 import { atendeAreaEntrega, MSG_AREA_ENTREGA, MSG_FORA_AREA } from "@/lib/entregaArea";
+import {
+  confirmarFimDoPrazo,
+  consultarPrazoPagamento,
+  type SituacaoPrazoPagamento,
+} from "@/lib/prazoPagamentoClient";
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
@@ -61,9 +67,11 @@ type Props = {
   habilitarPix?: boolean;
   habilitarCartao?: boolean;
   taxaEntrega?: number;
+  /** Pré-visualização no admin: não grava pedido nem inicia cronômetro. */
+  preview?: boolean;
 };
 
-export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao = true, taxaEntrega: taxaEntregaProp }: Props) {
+export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao = true, taxaEntrega: taxaEntregaProp, preview = false }: Props) {
   const navigate = useNavigate();
   const pedidoState = usePedido((s) => s);
   const subtotal = usePedido(selectTotal);
@@ -104,12 +112,31 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
 
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
+  const enviandoRef = useRef(false);
+  enviandoRef.current = enviando;
   // Domingo: loja fechada para novos pedidos (revalida caso a página fique aberta).
   const [lojaFechada, setLojaFechada] = useState(() => novosPedidosBloqueados());
   useEffect(() => {
     const id = setInterval(() => setLojaFechada(novosPedidosBloqueados()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Cronômetro de 2 minutos: começa ao abrir esta tela (pedido salvo + prazo no servidor).
+  const [prazo, setPrazo] = useState<SituacaoPrazoPagamento | null>(null);
+  const [iniciandoPrazo, setIniciandoPrazo] = useState(false);
+  const iniciandoPrazoRef = useRef(false);
+  const prazoExpirado = prazo?.expirado ?? false;
+  const segundosPrazo = useContagemPrazo(
+    prazoExpirado ? null : prazo?.expiraEm,
+    prazo?.agora,
+    async () => {
+      const id = usePedido.getState().pedidoId;
+      // Cobrança em andamento: o resultado dela decide.
+      if (!id || enviandoRef.current) return;
+      const situacao = await confirmarFimDoPrazo(id);
+      if (situacao) setPrazo(situacao);
+    },
+  );
 
   const totalComDesconto = useMemo(
     () => Math.max(0, total - (cupomAplicado?.desconto ?? 0)),
@@ -120,6 +147,85 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
     if (cupomAplicado) void aplicarCupom(cupomAplicado.codigo, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
+
+  useEffect(() => {
+    void iniciarPrazo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Grava o pedido: cria na primeira vez, depois atualiza o mesmo id. */
+  function salvarPedido() {
+    const enderecoOuUnidade =
+      pedidoState.entregaTipo === "delivery" && pedidoState.endereco
+        ? `${pedidoState.endereco.rua}, ${pedidoState.endereco.numero} — ${pedidoState.endereco.bairro}, ${pedidoState.endereco.cidade}-${pedidoState.endereco.estado}`
+        : (pedidoState.unidade?.nome ?? "");
+
+    return finalizarPedido(
+      {
+        cliente: pedidoState.cliente,
+        destinatario: pedidoState.destinatario,
+        cesta: pedidoState.cesta
+          ? buildCestaPayloadFromState(
+              pedidoState.cesta,
+              pedidoState.tamanhoId,
+              precoEfetivo,
+            )
+          : undefined,
+        sobremesas: Object.values(pedidoState.sobremesas).map((s) => ({
+          nome: s.sobremesa.nome,
+          quantidade: s.quantidade,
+          preco: s.sobremesa.preco,
+        })),
+        tipo: pedidoState.entregaTipo ?? "",
+        enderecoOuUnidade,
+        unidadeId:
+          pedidoState.entregaTipo === "retirada" ? pedidoState.unidade?.id : undefined,
+        data: pedidoState.data,
+        horario: pedidoState.horario,
+        pagamento: {
+          metodo: metodo.toLowerCase(),
+          status: "pendente",
+          extras: pedidoState.extras,
+        },
+        // Subtotal: backend revalida cupom e atualiza pedido.total = valorFinal
+        total,
+      },
+      usePedido.getState().pedidoId,
+      campanhaAtiva?.id,
+    );
+  }
+
+  async function iniciarPrazo(novoPedido = false) {
+    if (preview || iniciandoPrazoRef.current || novosPedidosBloqueados()) return;
+    iniciandoPrazoRef.current = true;
+    setIniciandoPrazo(true);
+    try {
+      if (novoPedido) usePedido.setState({ pedidoId: undefined });
+      const { id, error } = await salvarPedido();
+      if (error || !id) {
+        console.error("[checkout] salvar pedido ao abrir o pagamento:", error);
+        return;
+      }
+      usePedido.getState().setPedidoId(id);
+      const situacao = await consultarPrazoPagamento(id, { iniciar: true });
+      if (situacao?.expirado && !novoPedido) {
+        // Pedido antigo guardado no navegador já expirou: esta tela começa um pedido novo.
+        iniciandoPrazoRef.current = false;
+        await iniciarPrazo(true);
+        return;
+      }
+      if (situacao) setPrazo(situacao);
+    } finally {
+      iniciandoPrazoRef.current = false;
+      setIniciandoPrazo(false);
+    }
+  }
+
+  function montarNovoPedido() {
+    // O pedido expirado não é reaproveitado: cria outro com os mesmos itens.
+    setPrazo(null);
+    void iniciarPrazo(true);
+  }
 
   async function aplicarCupom(codigo: string, silent = false) {
     if (!codigo.trim()) return;
@@ -146,6 +252,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
   }
 
   async function pagar() {
+    if (prazoExpirado) return;
     if (novosPedidosBloqueados()) {
       setLojaFechada(true);
       toast.error(MSG_LOJA_FECHADA);
@@ -269,49 +376,17 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         })),
       ];
 
-      const enderecoOuUnidade =
-        pedidoState.entregaTipo === "delivery" && pedidoState.endereco
-          ? `${pedidoState.endereco.rua}, ${pedidoState.endereco.numero} — ${pedidoState.endereco.bairro}, ${pedidoState.endereco.cidade}-${pedidoState.endereco.estado}`
-          : (pedidoState.unidade?.nome ?? "");
-
-      const { id: pedidoId, error } = await finalizarPedido(
-        {
-          cliente: pedidoState.cliente,
-          destinatario: pedidoState.destinatario,
-          cesta: pedidoState.cesta
-            ? buildCestaPayloadFromState(
-                pedidoState.cesta,
-                pedidoState.tamanhoId,
-                precoEfetivo,
-              )
-            : undefined,
-          sobremesas: Object.values(pedidoState.sobremesas).map((s) => ({
-            nome: s.sobremesa.nome,
-            quantidade: s.quantidade,
-            preco: s.sobremesa.preco,
-          })),
-          tipo: pedidoState.entregaTipo ?? "",
-          enderecoOuUnidade,
-          unidadeId:
-            pedidoState.entregaTipo === "retirada" ? pedidoState.unidade?.id : undefined,
-          data: pedidoState.data,
-          horario: pedidoState.horario,
-          pagamento: {
-            metodo: metodo.toLowerCase(),
-            status: "pendente",
-            extras: pedidoState.extras,
-          },
-          // Subtotal: backend revalida cupom e atualiza pedido.total = valorFinal
-          total,
-        },
-        pedidoState.pedidoId,
-        campanhaAtiva?.id,
-      );
+      const { id: pedidoId, error } = await salvarPedido();
       if (error || !pedidoId) {
         const msg = (error as { message?: string } | null)?.message ?? "Falha ao registrar pedido";
         console.error("[checkout] finalizarPedido error:", error);
         toast.error(`Erro ao salvar pedido: ${msg}`);
         return;
+      }
+      usePedido.getState().setPedidoId(pedidoId);
+      if (!prazo) {
+        // Cronômetro não iniciou ao abrir a tela (falha de rede): inicia agora.
+        void consultarPrazoPagamento(pedidoId, { iniciar: true }).then((s) => s && setPrazo(s));
       }
 
       const res = await fetch("/api/public/asaas/charge", {
@@ -342,6 +417,16 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
       try { data = JSON.parse(text) as Record<string, unknown>; } catch { /* resposta não-JSON */ }
 
       if (!res.ok) {
+        if (data.error === "expirado") {
+          setPrazo((p) => ({
+            status: "expirado",
+            expiraEm: p?.expiraEm ?? null,
+            agora: new Date().toISOString(),
+            pago: false,
+            expirado: true,
+          }));
+          return;
+        }
         const motivo = (data.motivo as string) ?? (data.error as string) ?? `Erro ${res.status}`;
         console.error("[checkout] charge error:", res.status, text.slice(0, 500));
         toast.error(motivo);
@@ -361,6 +446,21 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
   const erroLine = (k: string) =>
     erros[k] ? <p className="mt-1 text-xs text-terracotta">{erros[k]}</p> : null;
 
+  if (prazoExpirado) {
+    return (
+      <section className="animate-fade-up space-y-5">
+        <PrazoEsgotado onNovoPedido={montarNovoPedido} />
+        <button
+          type="button"
+          onClick={onVoltar}
+          className="mx-auto block text-xs text-ink/60 hover:text-charcoal"
+        >
+          ← Voltar
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section className="animate-fade-up space-y-5">
       <div>
@@ -370,6 +470,8 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
         </h1>
         <p className="mt-2 text-sm text-ink/65">Preencha seus dados e pague com segurança</p>
       </div>
+
+      <ContagemPrazo segundos={segundosPrazo} />
 
       {/* Resumo */}
       <div className="rounded-2xl bg-white p-4 ring-1 ring-sand/60 sm:p-5">
@@ -686,7 +788,7 @@ export function CheckoutAsaas({ onVoltar, habilitarPix = true, habilitarCartao =
       )}
 
       <Button
-        disabled={enviando || lojaFechada}
+        disabled={enviando || lojaFechada || iniciandoPrazo}
         onClick={pagar}
         className="w-full bg-terracotta py-6 text-base font-semibold text-white hover:bg-terracotta/90"
       >

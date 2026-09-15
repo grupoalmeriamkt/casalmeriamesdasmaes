@@ -10,6 +10,13 @@ import type { AsaasCreatePayment } from "@/integrations/asaas/types";
 import { notificarOpsPedidoPago } from "@/lib/opsNotify.server";
 import { buildPagamentoManualPatch } from "@/lib/pedidoSync";
 import { cancelarCobrancasPendentesDosPedidos } from "@/lib/cancelarCobrancasPendentes.server";
+import { PEDIDO_EXPIRADO, prazoEsgotado } from "@/lib/prazoPagamento";
+import {
+  cobrancaCriadaForaDoPrazo,
+  expirarPedidoSeVencido,
+  iniciarPrazoPagamento,
+  prazoExpiradoResponse,
+} from "@/lib/prazoPagamento.server";
 
 function deriveDueDate(dataEntrega: string | null): string {
   // Asaas exige YYYY-MM-DD. Usa a data de entrega se valida; senao hoje + 2 dias.
@@ -160,7 +167,9 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             console.error("[admin/pedidos] cancelar error", error);
             return Response.json({ error: error.message }, { status: 500 });
           }
-          return Response.json({ ok: true });
+          // Pedido cancelado não pode continuar pagável pelo link/PIX do Asaas.
+          const cobrancas = await cancelarCobrancasPendentesDosPedidos(auth.admin, [id]);
+          return Response.json({ ok: true, cobrancasCanceladas: cobrancas.canceladas });
         }
 
         if (action === "excluir") {
@@ -186,6 +195,10 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             console.error("[admin/pedidos] excluir archive error", archiveErr);
             return Response.json({ error: archiveErr.message }, { status: 500 });
           }
+
+          // Cancela no Asaas as cobranças abertas ANTES de apagar: os pagamentos saem em
+          // cascata pelo FK e o link/PIX continuaria pagável.
+          await cancelarCobrancasPendentesDosPedidos(auth.admin, [id]);
 
           // Pagamentos são excluídos em cascata pelo FK (ON DELETE CASCADE)
           const { error } = await auth.admin.from("pedidos").delete().eq("id", id);
@@ -393,6 +406,14 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           }
           const asaas = makeAsaasClient(secrets.asaasApiKey);
 
+          // Prazo de 2 minutos para o cliente pagar começa ao gerar o link.
+          const prazo = await iniciarPrazoPagamento(auth.admin, id);
+          if (prazo?.status === PEDIDO_EXPIRADO) return prazoExpiradoResponse();
+          if (prazo && prazoEsgotado(prazo.expiraEm)) {
+            await expirarPedidoSeVencido(auth.admin, asaas, id);
+            return prazoExpiradoResponse();
+          }
+
           const { data: pedido, error: pedidoErr } = await auth.admin
             .from("pedidos")
             .select("id, cliente_nome, cliente_whatsapp, cliente_email, total, data_entrega")
@@ -434,6 +455,9 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           } catch (e) {
             console.error("[admin/pedidos] gerar_link payment error", e);
             return Response.json({ error: "asaas_payment_error" }, { status: 502 });
+          }
+          if (await cobrancaCriadaForaDoPrazo(auth.admin, asaas, id, payment)) {
+            return prazoExpiradoResponse();
           }
 
           const { data: pagamento, error: insErr } = await auth.admin
@@ -534,6 +558,14 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           }
           const asaas = makeAsaasClient(secrets.asaasApiKey);
 
+          // Prazo de 2 minutos para o cliente pagar começa ao gerar o PIX.
+          const prazo = await iniciarPrazoPagamento(auth.admin, id);
+          if (prazo?.status === PEDIDO_EXPIRADO) return prazoExpiradoResponse();
+          if (prazo && prazoEsgotado(prazo.expiraEm)) {
+            await expirarPedidoSeVencido(auth.admin, asaas, id);
+            return prazoExpiradoResponse();
+          }
+
           const { data: pedido, error: pedidoErr } = await auth.admin
             .from("pedidos")
             .select("id, cliente_nome, cliente_whatsapp, cliente_email, total, data_entrega")
@@ -575,6 +607,9 @@ export const Route = createFileRoute("/api/admin/pedidos")({
           } catch (e) {
             console.error("[admin/pedidos] gerar_pix payment error", e);
             return Response.json({ error: "asaas_payment_error" }, { status: 502 });
+          }
+          if (await cobrancaCriadaForaDoPrazo(auth.admin, asaas, id, payment)) {
+            return prazoExpiradoResponse();
           }
 
           let qr;

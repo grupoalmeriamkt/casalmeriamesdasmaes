@@ -1,4 +1,7 @@
 import type { FalhaPagamento } from "@/lib/pagamentoFalha";
+import { PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
+
+export const LABEL_PAGAMENTO_EXPIRADO = "Expirado — tempo de pagamento esgotado";
 
 // RECEIVED_IN_CASH: baixa manual no Asaas ("Confirmar recebimento em dinheiro"),
 // usada quando o cliente paga por fora do QR dinâmico. Conta como pago.
@@ -74,7 +77,8 @@ export function pedidoStatusFromPagamentos(
   pagamentos: PagamentoLike[],
   pedidoStatus?: string,
 ): string {
-  if (pedidoStatus === "cancelado") return "cancelado";
+  // Cancelado e expirado são decisões finais do pedido; pagamentos não os reabrem.
+  if (pedidoStatus === "cancelado" || pedidoStatus === PEDIDO_EXPIRADO) return pedidoStatus;
   const rel = pagamentoRelevante(pagamentos);
   if (rel) return pedidoStatusFromAsaas(rel.status);
   return pedidoStatus ?? "aguardando_pagamento";
@@ -106,6 +110,7 @@ export const ASAAS_STATUS_LABEL: Record<string, string> = {
   pendente: "Aguardando pagamento",
   rascunho: "Em preenchimento",
   abandonado: "Abandonado",
+  expirado: "Expirado",
 };
 
 export const TIPO_PEDIDO_LABEL: Record<string, string> = {
@@ -156,6 +161,7 @@ export function labelPagamentoDetalhado(input: PagamentoDetalheInput): string {
   const metodo = normalizarMetodo(input.metodo);
 
   if (pedidoStatus === "cancelado") return "Cancelado";
+  if (pedidoStatus === PEDIDO_EXPIRADO) return LABEL_PAGAMENTO_EXPIRADO;
   if (ASAAS_FINAL_PAID.has(status) || pedidoStatus === "pago") {
     return labelStatusPagamento(status || "pago");
   }
