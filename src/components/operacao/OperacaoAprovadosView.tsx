@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { statusKeyPedido, type StatusKey } from "@/lib/statusPedidoTela";
+import { pedidoNaFilaAprovados } from "@/lib/statusPedidoTela";
 import {
   arquivarPedidos,
   listarPedidosPorToken,
@@ -36,12 +36,6 @@ import {
 import { useAdmin } from "@/store/admin";
 import { DetalhesPedido } from "@/components/operacao/PedidoDetalheContent";
 import { labelTipoPedido } from "@/lib/asaasStatus";
-
-// Defesa em profundidade: recomputa do pagamento relevante e NÃO confia na coluna
-// payment_status_normalized (que pode ficar defasada). Ver src/lib/statusPedidoTela.ts.
-function getStatus(p: PedidoSalvo, raw?: PedidoRow): StatusKey {
-  return statusKeyPedido(p.pagamento?.status, raw?.status);
-}
 
 function horaNow() {
   return new Date().toLocaleTimeString("pt-BR", {
@@ -104,12 +98,12 @@ export function OperacaoAprovadosView({ token }: Props) {
 
   const rawRowsById = useMemo(() => new Map(rawRows.map((r) => [r.id, r])), [rawRows]);
 
-  const pedidosAprovados = useMemo(() => {
-    return pedidos.filter((p) => {
-      if (p.archivedAt) return false;
-      return getStatus(p, rawRowsById.get(p.id)) === "aprovado";
-    });
-  }, [pedidos, rawRowsById]);
+  // Defesa em profundidade: recomputa do pagamento relevante e NÃO confia na coluna
+  // payment_status_normalized. Concluídos e arquivados saem da fila, como na central.
+  const pedidosAprovados = useMemo(
+    () => pedidos.filter((p) => pedidoNaFilaAprovados(p, rawRowsById.get(p.id)?.status)),
+    [pedidos, rawRowsById],
+  );
 
   const pedidosFiltrados = useMemo(() => {
     return pedidosAprovados.filter((p) => {

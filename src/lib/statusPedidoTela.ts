@@ -31,3 +31,21 @@ export function statusKeyPedido(
   const pedidoStatus = pedidoStatusInterno ?? pagamentoStatus ?? undefined;
   return statusKeyFromNormalized(normalizePaymentStatus(raw, pedidoStatus));
 }
+
+/**
+ * Fila do portal de operação: pedido aprovado que ainda não saiu da fila.
+ * Sai da fila quem foi arquivado OU concluído (`concluido_at`) — mesmo corte que
+ * a central de pedidos já aplica; sem ele, um pedido concluído na central
+ * continuava aparecendo no portal com o selo "Concluído".
+ */
+export function pedidoNaFilaAprovados(
+  p: {
+    archivedAt?: string | null;
+    concluidoAt?: string | null;
+    pagamento?: { status?: string | null };
+  },
+  pedidoStatusInterno?: string | null,
+): boolean {
+  if (p.archivedAt || p.concluidoAt) return false;
+  return statusKeyPedido(p.pagamento?.status, pedidoStatusInterno) === "aprovado";
+}

@@ -1,5 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { statusKeyPedido } from "@/lib/statusPedidoTela";
+import { pedidoNaFilaAprovados, statusKeyPedido } from "@/lib/statusPedidoTela";
+
+describe("pedidoNaFilaAprovados · fila do portal de operação", () => {
+  it("mantém pedido aprovado ainda não concluído nem arquivado", () => {
+    expect(pedidoNaFilaAprovados({ pagamento: { status: "RECEIVED" } }, "pago")).toBe(true);
+    // pago no balcão: sem registro em `pagamentos`, status do pagamento cai no do pedido
+    expect(pedidoNaFilaAprovados({ pagamento: { status: "pago" } }, "pago")).toBe(true);
+  });
+
+  it("tira da fila pedido concluído na central mesmo sem arquivar", () => {
+    expect(
+      pedidoNaFilaAprovados(
+        {
+          pagamento: { status: "RECEIVED" },
+          concluidoAt: "2026-09-09T16:49:31Z",
+          archivedAt: null,
+        },
+        "pago",
+      ),
+    ).toBe(false);
+  });
+
+  it("tira da fila pedido arquivado", () => {
+    expect(
+      pedidoNaFilaAprovados(
+        { pagamento: { status: "RECEIVED" }, archivedAt: "2026-09-09T16:49:31Z" },
+        "pago",
+      ),
+    ).toBe(false);
+  });
+
+  it("não inclui rascunho nem pedido aguardando pagamento", () => {
+    expect(pedidoNaFilaAprovados({ pagamento: { status: "rascunho" } }, "rascunho")).toBe(false);
+    expect(pedidoNaFilaAprovados({ pagamento: { status: "pendente" } }, "pendente")).toBe(false);
+  });
+});
 
 describe("statusKeyPedido · defesa em profundidade (não confia na coluna crua)", () => {
   it("pedido PIX pago (pagamento RECEIVED) mapeia como aprovado mesmo com status interno defasado", () => {
