@@ -48,6 +48,8 @@ export const ENTREGA_MOTOBOY_ID = "entrega-motoboy" as const;
 export const LOCAIS_RETIRADA_OPCOES = [
   { id: "asa-sul", label: "Retirada 104", key: "retirada 104", aliases: ["asa sul", "104 sul", "104"] },
   { id: "noroeste", label: "Retirada Noroeste", key: "retirada noroeste", aliases: ["noroeste"] },
+  { id: "almeria-beira-lago", label: "Retirada Almeria Beira Lago", key: "retirada almeria beira lago", aliases: ["beira lago"] },
+  { id: "wine-garden", label: "Retirada Wine Garden", key: "retirada wine garden", aliases: ["wine garden"] },
   { id: ENTREGA_MOTOBOY_ID, label: "Entrega Motoboy", key: "entrega motoboy", aliases: ["entrega", "delivery", "motoboy"] },
 ] as const;
 
@@ -58,6 +60,8 @@ export function locaisPlanilhaOpcoes(): LocalOpcaoRef[] {
 export const LOCAL_BADGE: Record<string, string> = {
   "retirada 104": "bg-blue-600 text-white",
   "retirada noroeste": "bg-amber-400 text-charcoal",
+  "retirada almeria beira lago": "bg-sky-500 text-white",
+  "retirada wine garden": "bg-rose-700 text-white",
   "entrega motoboy": "bg-emerald-600 text-white",
   outro: "bg-charcoal/10 text-charcoal",
 };

@@ -41,6 +41,12 @@ import {
 } from "@/lib/availability";
 import type { ManualOrderItem } from "@/lib/orderForm/types";
 
+// Unidades de retirada exclusivas do pedido manual (ids batem com LOCAIS_RETIRADA_OPCOES)
+const UNIDADES_RETIRADA_EXTRAS = [
+  { id: "almeria-beira-lago", nome: "Almeria Beira Lago" },
+  { id: "wine-garden", nome: "Wine Garden" },
+];
+
 const TITULOS: Record<Etapa, string> = {
   cliente: "Dados do cliente",
   produto: "Monte o pedido",
@@ -91,6 +97,10 @@ export function PedidoManualStepper({
   const sobremesas = useSobremesasAtivas();
   const categorias = useAdmin((s) => s.categorias);
   const unidades = useUnidadesAtivas();
+  const unidadesRetirada = useMemo(() => {
+    const extras = UNIDADES_RETIRADA_EXTRAS.filter((x) => !unidades.some((u) => u.id === x.id));
+    return [...unidades, ...extras];
+  }, [unidades]);
   const isMobile = useIsMobile();
 
   const [criando, setCriando] = useState(false);
@@ -465,11 +475,11 @@ export function PedidoManualStepper({
                 <select className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-olive/30"
                   value={state.unidadeId ?? ""}
                   onChange={(e) => {
-                    const u = unidades.find((x) => x.id === e.target.value);
+                    const u = unidadesRetirada.find((x) => x.id === e.target.value);
                     patch({ unidadeId: e.target.value || null, enderecoOuUnidade: u?.nome ?? "" });
                   }}>
                   <option value="">Selecione a unidade</option>
-                  {unidades.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  {unidadesRetirada.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
                 </select>
               </div>
             ) : (

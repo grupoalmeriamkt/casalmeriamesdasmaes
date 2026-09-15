@@ -148,10 +148,12 @@ describe("resolveLocalOptionId", () => {
 });
 
 describe("LOCAIS_RETIRADA_OPCOES", () => {
-  it("tem as três opções da planilha", () => {
+  it("tem as opções da planilha", () => {
     expect(LOCAIS_RETIRADA_OPCOES.map((l) => l.label)).toEqual([
       "Retirada 104",
       "Retirada Noroeste",
+      "Retirada Almeria Beira Lago",
+      "Retirada Wine Garden",
       "Entrega Motoboy",
     ]);
   });
