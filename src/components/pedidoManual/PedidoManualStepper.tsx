@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { toast } from "sonner";
-import { Banknote, QrCode, CreditCard, Check, Loader2, X, ScanLine, Nfc } from "lucide-react";
+import { QrCode, CreditCard, Check, Loader2, X, Nfc } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -704,11 +704,9 @@ export function PedidoManualStepper({
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
-                <MetodoCard icon={<Banknote className="h-5 w-5" />} titulo="Dinheiro" desc="Pago presencialmente, agora" onClick={pagarComDinheiro} disabled={gerando} />
-                <MetodoCard icon={<QrCode className="h-5 w-5" />} titulo="PIX" desc="Gera o QR Code na hora" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("pix"); }} />
-                <MetodoCard icon={<CreditCard className="h-5 w-5" />} titulo="Cartão" desc="Link p/ WhatsApp / e-mail" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("cartao"); }} />
-                <MetodoCard icon={<ScanLine className="h-5 w-5" />} titulo="Cartão via QR" desc="Cliente escaneia e digita o cartão" onClick={() => setMetodo("cartao_qr")} />
-                <MetodoCard icon={<Nfc className="h-5 w-5" />} titulo="POS (maquininha)" desc="Cielo — nasce pago na hora" onClick={() => { setPosCpf(state.cliente.cpf ?? ""); setPosNome(state.cliente.nome ?? ""); setMetodo("pos"); }} />
+                <MetodoCard icon={<QrCode className="h-5 w-5" />} titulo="PIX ASAAS LINK PGTO" desc="Gera o QR Code na hora" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("pix"); }} />
+                <MetodoCard icon={<CreditCard className="h-5 w-5" />} titulo="CARTÃO ASAAS LINK DE PGTO" desc="Link p/ WhatsApp / e-mail" onClick={() => { setCpf(state.cliente.cpf ?? ""); setMetodo("cartao"); }} />
+                <MetodoCard icon={<Nfc className="h-5 w-5" />} titulo="POS PRESENCIAL (maquininha)" desc="Cielo — nasce pago na hora" onClick={() => { setPosCpf(state.cliente.cpf ?? ""); setPosNome(state.cliente.nome ?? ""); setMetodo("pos"); }} />
               </div>
             )}
           </div>
