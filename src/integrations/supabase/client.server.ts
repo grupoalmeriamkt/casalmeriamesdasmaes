@@ -26,20 +26,24 @@ export function getAdminClient(): SupabaseClient | null {
   return _client;
 }
 
-/**
- * Lê os segredos do registro único `app_secrets.default`.
- * Retorna objeto vazio se o client não estiver configurado ou em caso de falha.
- */
-export async function getAppSecrets(): Promise<{
+export type AppSecrets = {
   mpAccessToken?: string;
   metaAccessToken?: string;
   webhookUrl?: string;
   asaasApiKey?: string;
   asaasWalletId?: string;
   asaasWebhookToken?: string;
-}> {
+};
+
+/**
+ * Lê os segredos do registro único `app_secrets.default`, separando falha de leitura
+ * (banco fora do ar) de segredo não cadastrado.
+ */
+export async function lerAppSecrets(): Promise<
+  { ok: true; secrets: AppSecrets } | { ok: false; error: string }
+> {
   const client = getAdminClient();
-  if (!client) return {};
+  if (!client) return { ok: false, error: "admin_client_indisponivel" };
   try {
     const { data, error } = await client
       .from("app_secrets")
@@ -47,12 +51,21 @@ export async function getAppSecrets(): Promise<{
       .eq("id", "default")
       .maybeSingle();
     if (error) {
-      console.error("[supabase admin] getAppSecrets error", error);
-      return {};
+      console.error("[supabase admin] lerAppSecrets error", error);
+      return { ok: false, error: error.message };
     }
-    return (data?.payload as Record<string, string>) ?? {};
+    return { ok: true, secrets: (data?.payload as AppSecrets) ?? {} };
   } catch (e) {
-    console.error("[supabase admin] getAppSecrets exception", e);
-    return {};
+    console.error("[supabase admin] lerAppSecrets exception", e);
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Lê os segredos do registro único `app_secrets.default`.
+ * Retorna objeto vazio se o client não estiver configurado ou em caso de falha.
+ */
+export async function getAppSecrets(): Promise<AppSecrets> {
+  const res = await lerAppSecrets();
+  return res.ok ? res.secrets : {};
 }

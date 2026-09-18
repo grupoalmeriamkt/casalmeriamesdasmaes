@@ -7,7 +7,7 @@ import {
   type PedidoOperacaoEmailItem,
 } from "@/lib/emailTemplates/pedidoOperacao";
 
-const OPS_EMAILS = [
+export const OPS_EMAILS = [
   "juliana.oliveira@grupoalmeria.com.br",
   "chef.casanoro@grupoalmeria.com.br",
   "gerente.casanoro@grupoalmeria.com.br",

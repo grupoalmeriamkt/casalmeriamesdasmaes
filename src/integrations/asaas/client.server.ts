@@ -5,6 +5,7 @@ import type {
   AsaasCreatePayment,
   AsaasPayment,
   AsaasPixQrCode,
+  AsaasWebhookConfig,
 } from "./types";
 
 const ASAAS_BASE = "https://api.asaas.com/v3";
@@ -110,6 +111,12 @@ export function makeAsaasClient(apiKey: string) {
       return asaasFetch<{ deleted?: boolean; id?: string }>(apiKey, `/payments/${paymentId}`, {
         method: "DELETE",
       });
+    },
+
+    /** Webhooks cadastrados na conta (fila de avisos de pagamento para o site). */
+    async listWebhooks(): Promise<AsaasWebhookConfig[]> {
+      const data = await asaasFetch<{ data?: AsaasWebhookConfig[] }>(apiKey, "/webhooks");
+      return data.data ?? [];
     },
 
     /** Estorno total da cobrança (PIX ou cartão). */

@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
+import {
+  getAdminClient,
+  getAppSecrets,
+  lerAppSecrets,
+} from "@/integrations/supabase/client.server";
 import type { AsaasWebhookEvent } from "@/integrations/asaas/types";
 import { sendCapiEventServer } from "@/lib/metaCapiServer";
 import { ASAAS_FINAL_FAILED, ASAAS_FINAL_PAID } from "@/lib/asaasStatus";
@@ -85,7 +89,14 @@ export const Route = createFileRoute("/api/public/asaas/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secrets = await getAppSecrets();
+        // Sem banco não dá para conferir o token. Responde a causa real: antes saía
+        // "not configured", que confundia no painel do Asaas durante quedas do Supabase.
+        const lidos = await lerAppSecrets();
+        if (!lidos.ok) {
+          console.error("[asaas/webhook] banco indisponível ao ler o token", lidos.error);
+          return new Response("db unavailable", { status: 503 });
+        }
+        const secrets = lidos.secrets;
         if (!secrets.asaasWebhookToken) {
           console.error("[asaas/webhook] webhook token não configurado");
           return new Response("not configured", { status: 503 });

@@ -91,3 +91,13 @@ export type AsaasWebhookEvent = {
     [k: string]: unknown;
   };
 };
+
+/** Webhook cadastrado na conta Asaas (GET /webhooks). */
+export type AsaasWebhookConfig = {
+  id: string;
+  name?: string;
+  url: string;
+  enabled: boolean;
+  /** true quando o Asaas pausou a fila depois de falhas seguidas. */
+  interrupted: boolean;
+};

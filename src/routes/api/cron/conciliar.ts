@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getAdminClient, getAppSecrets } from "@/integrations/supabase/client.server";
 import { conciliarPagamentosAsaas } from "@/integrations/asaas/reconcile.server";
+import { makeAsaasClient } from "@/integrations/asaas/client.server";
+import { alertarSeFilaWebhookInterrompida } from "@/lib/asaasWebhookFila.server";
 
 // Rede de segurança agendada: reconcilia pagamentos sem depender de alguém abrir o
 // painel. O Vercel Cron chama com header "Authorization: Bearer <CRON_SECRET>".
@@ -24,13 +26,16 @@ export const Route = createFileRoute("/api/cron/conciliar")({
           return Response.json({ error: "asaas_not_configured" }, { status: 503 });
         }
 
+        // Fila pausada = pagamentos novos sem baixa automática; avisa a operação.
+        const filaWebhook = await alertarSeFilaWebhookInterrompida(makeAsaasClient(asaasApiKey));
+
         try {
           const resultado = await conciliarPagamentosAsaas(admin, asaasApiKey);
-          return Response.json({ ok: true, ...resultado });
+          return Response.json({ ok: true, filaWebhook, ...resultado });
         } catch (e) {
           console.error("[cron/conciliar] erro", e);
           return Response.json(
-            { error: e instanceof Error ? e.message : "reconcile_failed" },
+            { error: e instanceof Error ? e.message : "reconcile_failed", filaWebhook },
             { status: 500 },
           );
         }
