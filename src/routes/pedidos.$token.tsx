@@ -170,6 +170,8 @@ function CozinhaPage() {
   const modoRestrito = isModoOperacaoRestrita;
   const isPortalOperacao = isTokenPortalOperacao(token, operacaoToken);
   const showOperacaoRestrita = (isOperacao && isPortalOperacao && !canAccessCozinha) || modoRestrito;
+  // Exclusão não existe pelo portal /operacao, nem para contas de cozinha: lá se arquiva.
+  const podeExcluir = !modoRestrito && !isPortalOperacao;
   const operacaoEnabled = isOperacaoPedidosEnabled();
   const unidades = useAdmin((s) => s.unidades);
   const isMobile = useIsMobile();
@@ -1970,7 +1972,7 @@ function CozinhaPage() {
                   Concluir
                 </button>
               )}
-          {!modoRestrito && (
+          {podeExcluir && (
           <button
             onClick={() => {
               setMotivoExclusao("");

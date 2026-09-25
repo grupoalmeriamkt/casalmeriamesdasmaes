@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { pedidoNaFilaAprovados, statusKeyPedido } from "@/lib/statusPedidoTela";
+import {
+  motivoRecuperacaoPedido,
+  pedidoNaFilaAprovados,
+  statusKeyPedido,
+} from "@/lib/statusPedidoTela";
 
 describe("pedidoNaFilaAprovados · fila do portal de operação", () => {
   it("mantém pedido aprovado ainda não concluído nem arquivado", () => {
@@ -63,5 +67,37 @@ describe("statusKeyPedido · defesa em profundidade (não confia na coluna crua)
     expect(statusKeyPedido("RECEIVED")).toBe("aprovado");
     expect(statusKeyPedido("PENDING")).toBe("pendente");
     expect(statusKeyPedido("rascunho")).toBe("rascunho");
+  });
+});
+
+describe("motivoRecuperacaoPedido · lista de recuperação", () => {
+  it("pega quem tentou pagar e não conseguiu", () => {
+    expect(motivoRecuperacaoPedido({ pagamento: { status: "PENDING" } }, "pendente")).toBe(
+      "aguardando",
+    );
+    expect(motivoRecuperacaoPedido({ pagamento: { status: "OVERDUE" } }, "vencido")).toBe(
+      "vencido",
+    );
+    expect(motivoRecuperacaoPedido({ pagamento: { status: "PENDING" } }, "expirado")).toBe(
+      "expirado",
+    );
+    expect(motivoRecuperacaoPedido({}, "aguardando_pagamento")).toBe("aguardando");
+  });
+
+  it("deixa de fora aprovado, rascunho, cancelado e abandonado", () => {
+    expect(motivoRecuperacaoPedido({ pagamento: { status: "RECEIVED" } }, "pago")).toBeNull();
+    expect(motivoRecuperacaoPedido({}, "rascunho")).toBeNull();
+    expect(motivoRecuperacaoPedido({}, "cancelado")).toBeNull();
+    expect(motivoRecuperacaoPedido({}, "abandonado")).toBeNull();
+  });
+
+  it("deixa de fora quem já foi arquivado ou concluído", () => {
+    const pendente = { pagamento: { status: "PENDING" } };
+    expect(
+      motivoRecuperacaoPedido({ ...pendente, archivedAt: "2026-09-20T10:00:00Z" }, "pendente"),
+    ).toBeNull();
+    expect(
+      motivoRecuperacaoPedido({ ...pendente, concluidoAt: "2026-09-20T10:00:00Z" }, "pendente"),
+    ).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { normalizePaymentStatus, type PaymentStatusNormalized } from "@/lib/paymentStatus";
+import { PEDIDO_EXPIRADO } from "@/lib/prazoPagamento";
 
 /** Balde de status usado nas telas de pedidos (abas, kanban, filtros). */
 export type StatusKey = "aprovado" | "pendente" | "rascunho" | "abandonado";
@@ -48,4 +49,37 @@ export function pedidoNaFilaAprovados(
 ): boolean {
   if (p.archivedAt || p.concluidoAt) return false;
   return statusKeyPedido(p.pagamento?.status, pedidoStatusInterno) === "aprovado";
+}
+
+/** Por que o pedido está na lista de recuperação da operação. */
+export type MotivoRecuperacao = "aguardando" | "vencido" | "expirado";
+
+export const MOTIVO_RECUPERACAO_LABEL: Record<MotivoRecuperacao, string> = {
+  aguardando: "Aguardando pagamento",
+  vencido: "Vencido",
+  expirado: "Prazo esgotado",
+};
+
+/**
+ * Pedido que a operação pode tentar recuperar: o cliente chegou à cobrança e não pagou.
+ * Ficam de fora os aprovados, os rascunhos (nem geraram cobrança), os cancelados e
+ * abandonados, e tudo que já foi arquivado ou concluído.
+ */
+export function motivoRecuperacaoPedido(
+  p: {
+    archivedAt?: string | null;
+    concluidoAt?: string | null;
+    pagamento?: { status?: string | null };
+  },
+  pedidoStatusInterno?: string | null,
+): MotivoRecuperacao | null {
+  if (p.archivedAt || p.concluidoAt) return null;
+  if (pedidoStatusInterno === PEDIDO_EXPIRADO) return "expirado";
+  const normalizado = normalizePaymentStatus(
+    p.pagamento?.status ?? pedidoStatusInterno,
+    pedidoStatusInterno ?? undefined,
+  );
+  if (normalizado === "aguardando") return "aguardando";
+  if (normalizado === "vencido") return "vencido";
+  return null;
 }

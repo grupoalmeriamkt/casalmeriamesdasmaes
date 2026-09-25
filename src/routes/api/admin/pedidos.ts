@@ -36,6 +36,8 @@ const BodySchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("arquivar"),
+    /** false = só tira da fila, sem marcar o pedido como finalizado. */
+    marcarFinalizado: z.boolean().optional(),
     ids: z.array(z.string().uuid()).min(1).max(200),
   }),
   z.object({
@@ -210,7 +212,7 @@ export const Route = createFileRoute("/api/admin/pedidos")({
         }
 
         if (action === "arquivar") {
-          const { ids } = parsed.data;
+          const { ids, marcarFinalizado } = parsed.data;
           const archivedBy =
             (auth.user.user_metadata?.name as string | undefined) ??
             auth.user.email ??
@@ -221,8 +223,9 @@ export const Route = createFileRoute("/api/admin/pedidos")({
             .update({
               archived_at: agora,
               archived_by: archivedBy,
-              fulfillment_stage: "finalizado",
-              fulfillment_stage_at: agora,
+              ...(marcarFinalizado === false
+                ? {}
+                : { fulfillment_stage: "finalizado", fulfillment_stage_at: agora }),
             })
             .in("id", ids)
             .is("archived_at", null)

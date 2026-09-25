@@ -396,6 +396,7 @@ export async function excluirPedido(
 /** Arquiva pedidos selecionados (soft delete). Requer admin autenticado. */
 export async function arquivarPedidos(
   ids: string[],
+  opts?: { marcarFinalizado?: boolean },
 ): Promise<{ ok: boolean; arquivados?: number; error?: string }> {
   const token = await getAuthToken();
   if (!token) return { ok: false, error: "Não autenticado" };
@@ -403,7 +404,11 @@ export async function arquivarPedidos(
     const res = await fetch("/api/admin/pedidos", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: "arquivar", ids }),
+      body: JSON.stringify({
+        action: "arquivar",
+        ids,
+        ...(opts?.marcarFinalizado === false ? { marcarFinalizado: false } : {}),
+      }),
     });
     const json = (await res.json()) as { ok?: boolean; arquivados?: number; error?: string };
     return res.ok
