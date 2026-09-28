@@ -4,7 +4,9 @@ import {
   flattenPedidosParaLinhas,
   LOCAIS_RETIRADA_OPCOES,
   locaisPlanilhaOpcoes,
+  ordenarLinhasPorEntrega,
   resolveLocalOptionId,
+  type EncomendaLinha,
 } from "@/lib/encomendasTable";
 import type { PedidoRow } from "@/lib/pedidos";
 import type { PedidoSalvo } from "@/store/admin";
@@ -39,9 +41,20 @@ describe("flattenPedidosParaLinhas", () => {
   it("gera linha no formato ENCOMENDAS", () => {
     const row = baseRow();
     const pedido = rowToPedidoSalvo(row);
-    const linhas = flattenPedidosParaLinhas([pedido], [row], [
-      { id: "asa-sul", nome: "Asa Sul", endereco: "", status: "ativa", raioEntregaKm: 0, horarioFuncionamento: {} as never },
-    ]);
+    const linhas = flattenPedidosParaLinhas(
+      [pedido],
+      [row],
+      [
+        {
+          id: "asa-sul",
+          nome: "Asa Sul",
+          endereco: "",
+          status: "ativa",
+          raioEntregaKm: 0,
+          horarioFuncionamento: {} as never,
+        },
+      ],
+    );
 
     expect(linhas).toHaveLength(1);
     expect(linhas[0].nomeCliente).toBe("Maria Freitas");
@@ -59,15 +72,31 @@ describe("flattenPedidosParaLinhas", () => {
   it("infere unidadeId pelo nome quando unidade_id está vazio", () => {
     const row = { ...baseRow(), unidade_id: null, endereco_ou_unidade: "Noroeste" };
     const pedido = rowToPedidoSalvo(row);
-    const linhas = flattenPedidosParaLinhas([pedido], [row], [
-      { id: "noroeste", nome: "Noroeste", endereco: "", status: "ativa", raioEntregaKm: 0, horarioFuncionamento: {} as never },
-    ]);
+    const linhas = flattenPedidosParaLinhas(
+      [pedido],
+      [row],
+      [
+        {
+          id: "noroeste",
+          nome: "Noroeste",
+          endereco: "",
+          status: "ativa",
+          raioEntregaKm: 0,
+          horarioFuncionamento: {} as never,
+        },
+      ],
+    );
 
     expect(linhas[0].unidadeId).toBe("noroeste");
     expect(linhas[0].localRetirada).toBe("Retirada Noroeste");
-    expect(resolveLocalOptionId(linhas[0].unidadeId, linhas[0].localRetirada, linhas[0].localKey, locaisOpcoes)).toBe(
-      "noroeste",
-    );
+    expect(
+      resolveLocalOptionId(
+        linhas[0].unidadeId,
+        linhas[0].localRetirada,
+        linhas[0].localKey,
+        locaisOpcoes,
+      ),
+    ).toBe("noroeste");
   });
 
   it("exibe Entrega Motoboy para pedidos delivery", () => {
@@ -83,9 +112,14 @@ describe("flattenPedidosParaLinhas", () => {
     expect(linhas[0].localRetirada).toBe("Entrega Motoboy");
     expect(linhas[0].localKey).toBe("entrega motoboy");
     expect(linhas[0].unidadeId).toBeNull();
-    expect(resolveLocalOptionId(linhas[0].unidadeId, linhas[0].localRetirada, linhas[0].localKey, locaisOpcoes)).toBe(
-      ENTREGA_MOTOBOY_ID,
-    );
+    expect(
+      resolveLocalOptionId(
+        linhas[0].unidadeId,
+        linhas[0].localRetirada,
+        linhas[0].localKey,
+        locaisOpcoes,
+      ),
+    ).toBe(ENTREGA_MOTOBOY_ID);
   });
 
   it("extrai tamanho da cesta para coluna dedicada", () => {
@@ -135,15 +169,21 @@ describe("flattenPedidosParaLinhas", () => {
 
 describe("resolveLocalOptionId", () => {
   it("resolve por unidadeId", () => {
-    expect(resolveLocalOptionId("asa-sul", "Retirada 104", "retirada 104", locaisOpcoes)).toBe("asa-sul");
+    expect(resolveLocalOptionId("asa-sul", "Retirada 104", "retirada 104", locaisOpcoes)).toBe(
+      "asa-sul",
+    );
   });
 
   it("resolve por label quando unidade_id é null", () => {
-    expect(resolveLocalOptionId(null, "Retirada Noroeste", "retirada noroeste", locaisOpcoes)).toBe("noroeste");
+    expect(resolveLocalOptionId(null, "Retirada Noroeste", "retirada noroeste", locaisOpcoes)).toBe(
+      "noroeste",
+    );
   });
 
   it("resolve entrega motoboy", () => {
-    expect(resolveLocalOptionId(null, "Entrega Motoboy", "entrega motoboy", locaisOpcoes)).toBe(ENTREGA_MOTOBOY_ID);
+    expect(resolveLocalOptionId(null, "Entrega Motoboy", "entrega motoboy", locaisOpcoes)).toBe(
+      ENTREGA_MOTOBOY_ID,
+    );
   });
 });
 
@@ -160,5 +200,38 @@ describe("LOCAIS_RETIRADA_OPCOES", () => {
 
   it("não inclui SAAN", () => {
     expect(LOCAIS_RETIRADA_OPCOES.some((l) => l.id === "saan")).toBe(false);
+  });
+});
+
+describe("ordenarLinhasPorEntrega · ordem fixa do portal de operação", () => {
+  const linha = (pedidoId: string, dataRetirada: string, horarioRetirada = "09:00:00") =>
+    ({ pedidoId, dataRetirada, horarioRetirada }) as EncomendaLinha;
+
+  it("ordena da entrega mais próxima para a mais distante", () => {
+    const linhas = [
+      linha("d", "04/10/2026"),
+      linha("a", "25/09/2026"),
+      linha("c", "29/09/2026"),
+      linha("b", "26/09/2026"),
+    ];
+    expect(ordenarLinhasPorEntrega(linhas).map((l) => l.pedidoId)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("desempata pelo horário e mantém o mesmo pedido junto", () => {
+    const linhas = [
+      linha("tarde", "25/09/2026", "18:00:00"),
+      linha("manha", "25/09/2026", "08:00:00"),
+      linha("manha", "25/09/2026", "08:00:00"),
+    ];
+    expect(ordenarLinhasPorEntrega(linhas).map((l) => l.horarioRetirada)).toEqual([
+      "08:00:00",
+      "08:00:00",
+      "18:00:00",
+    ]);
+  });
+
+  it("joga para o fim quem está sem data", () => {
+    const linhas = [linha("sem", "—", "—"), linha("com", "30/09/2026")];
+    expect(ordenarLinhasPorEntrega(linhas).map((l) => l.pedidoId)).toEqual(["com", "sem"]);
   });
 });

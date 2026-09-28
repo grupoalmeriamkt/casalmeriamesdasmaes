@@ -16,11 +16,14 @@ export function normalizePaymentStatus(
   // Expirado (prazo de pagamento esgotado) fica junto dos cancelados, mesmo com
   // pagamento confirmado a caminho do estorno.
   if (pedidoStatus === "cancelado" || pedidoStatus === PEDIDO_EXPIRADO) return "cancelado";
-  if (pedidoStatus === "rascunho") return "rascunho";
-  if (pedidoStatus === "abandonado") return "abandonado";
 
   const s = (rawStatus ?? pedidoStatus ?? "").toUpperCase();
+  // Pagamento aprovado vale mais que o status do pedido: o autosave do checkout já
+  // devolveu pedido pago para "rascunho", e ele sumia da fila da operação.
   if (ASAAS_FINAL_PAID.has(s) || pedidoStatus === "pago") return "aprovado";
+
+  if (pedidoStatus === "rascunho") return "rascunho";
+  if (pedidoStatus === "abandonado") return "abandonado";
   if (s === "OVERDUE" || pedidoStatus === "vencido") return "vencido";
   if (ASAAS_FINAL_FAILED.has(s)) return "cancelado";
   if (

@@ -22,7 +22,11 @@ import { ordenarPorEntrega } from "@/lib/pedidosSort";
 import { sortPedidosPorCriadoDesc } from "@/lib/operacaoPedido";
 import { EncomendasTable } from "@/components/operacao/EncomendasTable";
 import { PlanilhaFiltrosBar } from "@/components/operacao/PlanilhaFiltrosBar";
-import { flattenPedidosParaLinhas, locaisPlanilhaOpcoes } from "@/lib/encomendasTable";
+import {
+  flattenPedidosParaLinhas,
+  locaisPlanilhaOpcoes,
+  ordenarLinhasPorEntrega,
+} from "@/lib/encomendasTable";
 import {
   FILTROS_PLANILHA_VAZIOS,
   filtrarLinhasEncomenda,
@@ -230,8 +234,12 @@ export function OperacaoAprovadosView({ token }: Props) {
     () => flattenPedidosParaLinhas(ordenarPorEntrega(pedidosFiltrados), rawRows, unidades),
     [pedidosFiltrados, rawRows, unidades],
   );
+  // Ordem fixa para o operador: da entrega mais próxima para a mais distante.
   const linhasVisiveis = useMemo(
-    () => filtrarLinhasEncomenda(linhasEncomenda, filtrosPlanilha, locaisOpcoes),
+    () =>
+      ordenarLinhasPorEntrega(
+        filtrarLinhasEncomenda(linhasEncomenda, filtrosPlanilha, locaisOpcoes),
+      ),
     [linhasEncomenda, filtrosPlanilha, locaisOpcoes],
   );
   const produtosOpcoes = useMemo(() => produtosUnicosDasLinhas(linhasEncomenda), [linhasEncomenda]);

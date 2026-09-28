@@ -46,11 +46,31 @@ export type EncomendaLinha = {
 export const ENTREGA_MOTOBOY_ID = "entrega-motoboy" as const;
 
 export const LOCAIS_RETIRADA_OPCOES = [
-  { id: "asa-sul", label: "Retirada 104", key: "retirada 104", aliases: ["asa sul", "104 sul", "104"] },
+  {
+    id: "asa-sul",
+    label: "Retirada 104",
+    key: "retirada 104",
+    aliases: ["asa sul", "104 sul", "104"],
+  },
   { id: "noroeste", label: "Retirada Noroeste", key: "retirada noroeste", aliases: ["noroeste"] },
-  { id: "almeria-beira-lago", label: "Retirada Almeria Beira Lago", key: "retirada almeria beira lago", aliases: ["beira lago"] },
-  { id: "wine-garden", label: "Retirada Wine Garden", key: "retirada wine garden", aliases: ["wine garden"] },
-  { id: ENTREGA_MOTOBOY_ID, label: "Entrega Motoboy", key: "entrega motoboy", aliases: ["entrega", "delivery", "motoboy"] },
+  {
+    id: "almeria-beira-lago",
+    label: "Retirada Almeria Beira Lago",
+    key: "retirada almeria beira lago",
+    aliases: ["beira lago"],
+  },
+  {
+    id: "wine-garden",
+    label: "Retirada Wine Garden",
+    key: "retirada wine garden",
+    aliases: ["wine garden"],
+  },
+  {
+    id: ENTREGA_MOTOBOY_ID,
+    label: "Entrega Motoboy",
+    key: "entrega motoboy",
+    aliases: ["entrega", "delivery", "motoboy"],
+  },
 ] as const;
 
 export function locaisPlanilhaOpcoes(): LocalOpcaoRef[] {
@@ -99,9 +119,7 @@ function execucaoFromPedido(p: PedidoSalvo, raw?: PedidoRow) {
   const iso = dataEntregaParaIso(p.data ?? raw?.data_entrega);
   if (!iso) return null;
   const hora = parseHorarioInicio(p.horario ?? raw?.horario);
-  const execIso = new Date(
-    `${iso}T${String(hora).padStart(2, "0")}:00:00-03:00`,
-  ).toISOString();
+  const execIso = new Date(`${iso}T${String(hora).padStart(2, "0")}:00:00-03:00`).toISOString();
   return isoToPartsSP(execIso);
 }
 
@@ -286,7 +304,9 @@ export function flattenPedidosParaLinhas(
       pedidoId: p.id,
       dataChegada: chegada?.date ?? "—",
       dataRetirada: exec?.date ?? (p.data ? p.data.split("-").reverse().join("/") : "—"),
-      horarioRetirada: exec?.time ?? (p.horario ? `${String(parseHorarioInicio(p.horario)).padStart(2, "0")}:00:00` : "—"),
+      horarioRetirada:
+        exec?.time ??
+        (p.horario ? `${String(parseHorarioInicio(p.horario)).padStart(2, "0")}:00:00` : "—"),
       diaSemana: exec?.weekday ?? "—",
       nomeCliente,
       quemPediu,
@@ -322,7 +342,12 @@ export function flattenPedidosParaLinhas(
       pushLinha(linhas, base, po.nome, 1, null, sector);
     }
 
-    if (!p.cesta && p.sobremesas.length === 0 && !(p.pagamento?.extras?.cartoes?.length) && !(p.pagamento?.extras?.polaroids?.length)) {
+    if (
+      !p.cesta &&
+      p.sobremesas.length === 0 &&
+      !p.pagamento?.extras?.cartoes?.length &&
+      !p.pagamento?.extras?.polaroids?.length
+    ) {
       pushLinha(linhas, base, "(sem produto)", 0, null, sector);
     }
   }
@@ -364,4 +389,23 @@ export function linhasParaCsvRows(linhas: EncomendaLinha[]): string[][] {
     String(l.qtd),
     l.localRetirada,
   ]);
+}
+
+/**
+ * Chave de ordenação pela data que a planilha mostra ("dd/mm/aaaa" + hora). A coluna vem
+ * de `execution_at`, que pode divergir de `data_entrega` — ordenar pelo campo exibido evita
+ * a lista fora de ordem. Linha sem data vai para o fim.
+ */
+export function chaveEntregaLinha(
+  l: Pick<EncomendaLinha, "dataRetirada" | "horarioRetirada" | "pedidoId">,
+): string {
+  const m = l.dataRetirada.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const data = m ? `${m[3]}-${m[2]}-${m[1]}` : "9999-12-31";
+  const hora = /^\d{2}:\d{2}/.test(l.horarioRetirada) ? l.horarioRetirada : "99:99:99";
+  return `${data} ${hora} ${l.pedidoId}`;
+}
+
+/** Ordem fixa do portal de operação: entrega mais próxima primeiro. */
+export function ordenarLinhasPorEntrega(linhas: EncomendaLinha[]): EncomendaLinha[] {
+  return [...linhas].sort((a, b) => chaveEntregaLinha(a).localeCompare(chaveEntregaLinha(b)));
 }

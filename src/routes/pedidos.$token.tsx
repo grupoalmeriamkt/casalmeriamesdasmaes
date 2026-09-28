@@ -80,6 +80,7 @@ import { PlanilhaFiltrosBar } from "@/components/operacao/PlanilhaFiltrosBar";
 import {
   ENCOMENDAS_CSV_HEAD,
   flattenPedidosParaLinhas,
+  ordenarLinhasPorEntrega,
   linhasParaCsvRows,
   ENTREGA_MOTOBOY_ID,
   locaisPlanilhaOpcoes,
@@ -602,8 +603,13 @@ function CozinhaPage() {
     [pedidosFiltrados, rawRows, unidades],
   );
 
+  // Toda tabela com a coluna "Data da entrega" segue a mesma ordem: entrega mais
+  // próxima no topo, sem data no fim.
   const linhasVisiveis = useMemo(
-    () => filtrarLinhasEncomenda(linhasEncomenda, filtrosPlanilha, locaisOpcoes),
+    () =>
+      ordenarLinhasPorEntrega(
+        filtrarLinhasEncomenda(linhasEncomenda, filtrosPlanilha, locaisOpcoes),
+      ),
     [linhasEncomenda, filtrosPlanilha, locaisOpcoes],
   );
 
@@ -617,7 +623,10 @@ function CozinhaPage() {
   );
 
   const linhasVisiveisPlanilha = useMemo(
-    () => filtrarLinhasEncomenda(linhasEncomendaPlanilha, filtrosPlanilha, locaisOpcoes),
+    () =>
+      ordenarLinhasPorEntrega(
+        filtrarLinhasEncomenda(linhasEncomendaPlanilha, filtrosPlanilha, locaisOpcoes),
+      ),
     [linhasEncomendaPlanilha, filtrosPlanilha, locaisOpcoes],
   );
 
