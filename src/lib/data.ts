@@ -14,7 +14,7 @@ export const CESTAS: Cesta[] = [
     itens: [
       "2x Drip coffee",
       "1x Salada de fruta com iogurte e granola",
-      "2x Suco de laranja natural",
+      "2x Suco de laranja Natural One",
       "1x Porção de 4 pães de queijo",
       "1x Croissant",
       "1x Potinho de geleia de frutas vermelhas",
@@ -39,7 +39,7 @@ export const CESTAS: Cesta[] = [
       "2x Drip coffee",
       "Uva Thompson",
       "1x Salada de fruta com iogurte e granola",
-      "2x Suco de laranja natural",
+      "2x Suco de laranja Natural One",
       "6x Pães de queijo",
       "1x Cesta de pães (mini baguete, croissant e pedaço de focaccia)",
       "Presunto fatiado",

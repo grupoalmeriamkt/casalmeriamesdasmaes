@@ -28,7 +28,7 @@ export const CESTAS_CAFE_POR_TAMANHO: CestaCafeSeed[] = [
     badge: "Tamanho P",
     preco: 150,
     descricao:
-      "Cesta individual com croissant, petit four da casa, doce de chocolate, pães artesanais, suco de laranja, café e geleia.",
+      "Cesta individual com croissant, petit four da casa, doce de chocolate, pães artesanais, suco de laranja Natural One, café e geleia.",
     imagem: "/cesta-cafe-p.jpg",
     categoriaId: "cat-cestas",
     itens: [
@@ -36,7 +36,7 @@ export const CESTAS_CAFE_POR_TAMANHO: CestaCafeSeed[] = [
       "1x Doce de chocolate com granulado",
       "1x Croissant",
       "1x Pães artesanais da casa",
-      "1x Suco de laranja natural",
+      "1x Suco de laranja Natural One",
       "1x Café drip 3 Corações",
       "1x Potinho de geleia",
     ],
@@ -51,7 +51,7 @@ export const CESTAS_CAFE_POR_TAMANHO: CestaCafeSeed[] = [
     imagem: "/cesta-cafe-m.jpg",
     categoriaId: "cat-cestas",
     itens: [
-      "2x Suco de laranja natural",
+      "2x Suco de laranja Natural One",
       "1x Café drip 3 Corações",
       "1x Croissant",
       "1x Cinnamon roll",
@@ -74,7 +74,7 @@ export const CESTAS_CAFE_POR_TAMANHO: CestaCafeSeed[] = [
     imagem: "/cesta-cafe-g.jpg",
     categoriaId: "cat-cestas",
     itens: [
-      "2x Suco de laranja natural",
+      "2x Suco de laranja Natural One",
       "1x Café especial",
       "1x Croissant",
       "1x Cinnamon roll",
